@@ -1,23 +1,32 @@
-/// <reference types="vitest" />
-
-import legacy from '@vitejs/plugin-legacy'
-import vue from '@vitejs/plugin-vue'
-import path from 'path'
 import { defineConfig } from 'vite'
+import vue from '@vitejs/plugin-vue'
+import { resolve } from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [
-    vue(),
-    legacy()
-  ],
+  plugins: [vue()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': resolve(__dirname, 'src'),
     },
   },
-  test: {
-    globals: true,
-    environment: 'jsdom'
+  server: {
+    port: 8100,
+    host: '0.0.0.0',
+    // Configuración para SPA - todas las rutas van a index.html
+    // Para SPA fallback, instala y usa vite-plugin-singlefile o configura el servidor web para redirigir a index.html
+  },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html')
+      }
+    }
+  },
+  // Configuración adicional para desarrollo
+  define: {
+    'process.env': {}
   }
 })
