@@ -13,8 +13,6 @@ export default defineConfig({
   server: {
     port: 8100,
     host: '0.0.0.0',
-    // Configuración para SPA - todas las rutas van a index.html
-    // Para SPA fallback, instala y usa vite-plugin-singlefile o configura el servidor web para redirigir a index.html
   },
   build: {
     outDir: 'dist',
