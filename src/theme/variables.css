@@ -1,2 +1,493 @@
-/* For information on how to create your own theme, please see:
+/* Ionic Variables and Theming. For more info, please see:
 http://ionicframework.com/docs/theming/ */
+
+/** Ionic CSS Variables **/
+:root {
+  /** primary **/
+  --ion-color-primary: #667eea;
+  --ion-color-primary-rgb: 102, 126, 234;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #5a6fce;
+  --ion-color-primary-tint: #7588ec;
+
+  /** secondary **/
+  --ion-color-secondary: #764ba2;
+  --ion-color-secondary-rgb: 118, 75, 162;
+  --ion-color-secondary-contrast: #ffffff;
+  --ion-color-secondary-contrast-rgb: 255, 255, 255;
+  --ion-color-secondary-shade: #68428f;
+  --ion-color-secondary-tint: #8459ab;
+
+  /** tertiary **/
+  --ion-color-tertiary: #6a64ff;
+  --ion-color-tertiary-rgb: 106, 100, 255;
+  --ion-color-tertiary-contrast: #ffffff;
+  --ion-color-tertiary-contrast-rgb: 255, 255, 255;
+  --ion-color-tertiary-shade: #5d58e0;
+  --ion-color-tertiary-tint: #7974ff;
+
+  /** success **/
+  --ion-color-success: #28a745;
+  --ion-color-success-rgb: 40, 167, 69;
+  --ion-color-success-contrast: #ffffff;
+  --ion-color-success-contrast-rgb: 255, 255, 255;
+  --ion-color-success-shade: #24923d;
+  --ion-color-success-tint: #3db158;
+
+  /** warning **/
+  --ion-color-warning: #ffc107;
+  --ion-color-warning-rgb: 255, 193, 7;
+  --ion-color-warning-contrast: #000000;
+  --ion-color-warning-contrast-rgb: 0, 0, 0;
+  --ion-color-warning-shade: #e0a800;
+  --ion-color-warning-tint: #ffca22;
+
+  /** danger **/
+  --ion-color-danger: #dc3545;
+  --ion-color-danger-rgb: 220, 53, 69;
+  --ion-color-danger-contrast: #ffffff;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade: #c22e3c;
+  --ion-color-danger-tint: #e04858;
+
+  /** medium **/
+  --ion-color-medium: #6c757d;
+  --ion-color-medium-rgb: 108, 117, 125;
+  --ion-color-medium-contrast: #ffffff;
+  --ion-color-medium-contrast-rgb: 255, 255, 255;
+  --ion-color-medium-shade: #5f676e;
+  --ion-color-medium-tint: #7b838a;
+
+  /** light **/
+  --ion-color-light: #f8f9fa;
+  --ion-color-light-rgb: 248, 249, 250;
+  --ion-color-light-contrast: #000000;
+  --ion-color-light-contrast-rgb: 0, 0, 0;
+  --ion-color-light-shade: #dadbe0;
+  --ion-color-light-tint: #f9fafb;
+
+  /** dark **/
+  --ion-color-dark: #212529;
+  --ion-color-dark-rgb: 33, 37, 41;
+  --ion-color-dark-contrast: #ffffff;
+  --ion-color-dark-contrast-rgb: 255, 255, 255;
+  --ion-color-dark-shade: #1e2023;
+  --ion-color-dark-tint: #383a3e;
+}
+
+/* Personalización adicional para la app */
+:root {
+  /* Gradiente principal de la app */
+  --app-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --app-gradient-light: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  
+  /* Colores personalizados */
+  --app-background: #f8f9fa;
+  --app-surface: #ffffff;
+  --app-border: #e1e5e9;
+  --app-text-primary: #212529;
+  --app-text-secondary: #6c757d;
+  --app-text-muted: #adb5bd;
+  
+  /* Sombras */
+  --app-shadow-sm: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+  --app-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  --app-shadow-lg: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+  
+  /* Radios de borde */
+  --app-border-radius: 0.375rem;
+  --app-border-radius-lg: 0.5rem;
+  --app-border-radius-xl: 1rem;
+  
+  /* Espaciado */
+  --app-spacing-xs: 0.25rem;
+  --app-spacing-sm: 0.5rem;
+  --app-spacing-md: 1rem;
+  --app-spacing-lg: 1.5rem;
+  --app-spacing-xl: 3rem;
+}
+
+/* Personalización de componentes Ionic */
+
+/* Cards */
+ion-card {
+  --background: var(--app-surface);
+  --color: var(--app-text-primary);
+  box-shadow: var(--app-shadow);
+  border-radius: var(--app-border-radius-lg);
+  margin: var(--app-spacing-md);
+}
+
+ion-card-header {
+  padding-bottom: var(--app-spacing-sm);
+}
+
+ion-card-title {
+  color: var(--app-text-primary);
+  font-weight: 600;
+  font-size: 1.25rem;
+}
+
+ion-card-subtitle {
+  color: var(--app-text-secondary);
+  font-weight: 400;
+}
+
+/* Buttons */
+ion-button {
+  --border-radius: var(--app-border-radius);
+  --box-shadow: var(--app-shadow-sm);
+  font-weight: 500;
+  text-transform: none;
+}
+
+ion-button.button-expand-block {
+  margin: var(--app-spacing-sm) 0;
+}
+
+/* Inputs */
+ion-input, ion-textarea, ion-select {
+  --background: var(--app-surface);
+  --color: var(--app-text-primary);
+  --placeholder-color: var(--app-text-muted);
+  --border-radius: var(--app-border-radius);
+  --border-color: var(--app-border);
+  --highlight-color: var(--ion-color-primary);
+}
+
+/* Items */
+ion-item {
+  --background: var(--app-surface);
+  --color: var(--app-text-primary);
+  --border-color: var(--app-border);
+  --inner-padding-end: var(--app-spacing-md);
+  --padding-start: var(--app-spacing-md);
+}
+
+ion-item ion-label h2 {
+  color: var(--app-text-primary);
+  font-weight: 500;
+}
+
+ion-item ion-label p {
+  color: var(--app-text-secondary);
+}
+
+/* Headers */
+ion-header ion-toolbar {
+  --background: var(--app-gradient);
+  --color: white;
+  --border-color: transparent;
+}
+
+ion-title {
+  font-weight: 600;
+  font-size: 1.2rem;
+}
+
+/* Chips */
+ion-chip {
+  --background: var(--ion-color-light);
+  --color: var(--app-text-primary);
+  font-weight: 500;
+  font-size: 0.75rem;
+}
+
+ion-chip.chip-outline {
+  --border-width: 1px;
+  --border-style: solid;
+}
+
+/* Progress bars */
+ion-progress-bar {
+  --background: rgba(var(--ion-color-primary-rgb), 0.2);
+  --progress-background: var(--ion-color-primary);
+  height: 8px;
+  border-radius: 4px;
+}
+
+/* Toasts */
+ion-toast {
+  --border-radius: var(--app-border-radius);
+  --box-shadow: var(--app-shadow-lg);
+}
+
+/* Segments */
+ion-segment {
+  --background: var(--app-surface);
+  border-radius: var(--app-border-radius);
+  padding: 4px;
+  box-shadow: var(--app-shadow-sm);
+}
+
+ion-segment-button {
+  --background: transparent;
+  --background-checked: var(--ion-color-primary);
+  --color: var(--app-text-secondary);
+  --color-checked: white;
+  --border-radius: var(--app-border-radius);
+  font-weight: 500;
+}
+
+/* Lists */
+ion-list {
+  background: var(--app-surface);
+  border-radius: var(--app-border-radius-lg);
+  overflow: hidden;
+}
+
+ion-list ion-item:last-child {
+  --border-color: transparent;
+}
+
+/* Avatars personalizados */
+.avatar-placeholder {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--app-gradient);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+/* Estados de color para chips */
+.chip-success {
+  --background: rgba(var(--ion-color-success-rgb), 0.1);
+  --color: var(--ion-color-success);
+}
+
+.chip-warning {
+  --background: rgba(var(--ion-color-warning-rgb), 0.1);
+  --color: var(--ion-color-warning-shade);
+}
+
+.chip-danger {
+  --background: rgba(var(--ion-color-danger-rgb), 0.1);
+  --color: var(--ion-color-danger);
+}
+
+/* Utilidades personalizadas */
+.gradient-bg {
+  background: var(--app-gradient);
+  color: white;
+}
+
+.surface-bg {
+  background: var(--app-surface);
+}
+
+.text-primary {
+  color: var(--app-text-primary);
+}
+
+.text-secondary {
+  color: var(--app-text-secondary);
+}
+
+.text-muted {
+  color: var(--app-text-muted);
+}
+
+.shadow-sm {
+  box-shadow: var(--app-shadow-sm);
+}
+
+.shadow {
+  box-shadow: var(--app-shadow);
+}
+
+.shadow-lg {
+  box-shadow: var(--app-shadow-lg);
+}
+
+.rounded {
+  border-radius: var(--app-border-radius);
+}
+
+.rounded-lg {
+  border-radius: var(--app-border-radius-lg);
+}
+
+.rounded-xl {
+  border-radius: var(--app-border-radius-xl);
+}
+
+/* Animaciones personalizadas */
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Responsive design */
+@media (max-width: 576px) {
+  :root {
+    --app-spacing-md: 0.75rem;
+    --app-spacing-lg: 1rem;
+  }
+  
+  ion-card {
+    margin: var(--app-spacing-sm);
+  }
+  
+  ion-card-title {
+    font-size: 1.1rem;
+  }
+}
+
+/* Modo oscuro */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-background: #121212;
+    --app-surface: #1e1e1e;
+    --app-border: #333333;
+    --app-text-primary: #ffffff;
+    --app-text-secondary: #b3b3b3;
+    --app-text-muted: #666666;
+  }
+  
+  ion-card {
+    --background: var(--app-surface);
+    border: 1px solid var(--app-border);
+  }
+  
+  ion-item {
+    --background: var(--app-surface);
+  }
+  
+  .avatar-placeholder {
+    background: var(--app-gradient);
+  }
+}
+
+/* Estados de carga */
+.loading-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+  border-radius: var(--app-border-radius);
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .loading-skeleton {
+    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    background-size: 200% 100%;
+  }
+}
+
+/* Estilos para QR Scanner */
+.qr-scanner-container {
+  position: relative;
+  border-radius: var(--app-border-radius-lg);
+  overflow: hidden;
+  background: #000;
+}
+
+.qr-scanner-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-scanner-frame {
+  width: 250px;
+  height: 250px;
+  border: 3px solid var(--ion-color-primary);
+  border-radius: var(--app-border-radius);
+  background: transparent;
+}
+
+/* Estilos para estadísticas */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--app-spacing-md);
+  margin: var(--app-spacing-md) 0;
+}
+
+.stat-card {
+  background: var(--app-gradient);
+  color: white;
+  padding: var(--app-spacing-lg);
+  border-radius: var(--app-border-radius-lg);
+  text-align: center;
+  box-shadow: var(--app-shadow);
+}
+
+.stat-number {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: var(--app-spacing-xs);
+}
+
+.stat-label {
+  font-size: 0.875rem;
+  opacity: 0.9;
+  font-weight: 500;
+}
+
+/* Estilos para mensajes de estado vacío */
+.empty-state {
+  text-align: center;
+  padding: var(--app-spacing-xl);
+  color: var(--app-text-muted);
+}
+
+.empty-state-icon {
+  font-size: 3rem;
+  margin-bottom: var(--app-spacing-md);
+  opacity: 0.5;
+}
+
+.empty-state h3 {
+  margin-bottom: var(--app-spacing-sm);
+  color: var(--app-text-secondary);
+}
+
+.empty-state p {
+  margin-bottom: var(--app-spacing-lg);
+  line-height: 1.5;
+}
