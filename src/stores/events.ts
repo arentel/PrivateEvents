@@ -1,4 +1,6 @@
-import { reactive, computed } from 'vue'
+import { reactive } from 'vue'
+// @ts-ignore
+import { supabase } from '@/services/supabase.js'
 
 // Interfaces
 export interface Guest {
@@ -10,7 +12,7 @@ export interface Guest {
   confirmed?: boolean
   scanned?: boolean
   sent?: boolean
-  sent_at?: string // Agregar esta propiedad
+  sent_at?: string
   created_at: string
   event_id: string
 }
@@ -87,8 +89,71 @@ export const eventsStore = {
     }
   },
 
-  // Inicializar datos desde localStorage
-  init() {
+  // Inicializar datos desde Supabase
+  async init() {
+    eventsState.loading = true
+    eventsState.error = null
+
+    try {
+      // PRIMERO: Intentar cargar desde Supabase
+      await this.loadFromSupabase()
+      
+      // Si no hay eventos, crear uno por defecto
+      if (eventsState.events.length === 0) {
+        await this.createDefaultEvent()
+      }
+
+      // Si no hay evento actual, seleccionar el primero
+      if (!eventsState.currentEventId && eventsState.events.length > 0) {
+        eventsState.currentEventId = eventsState.events[0].id
+        this.saveCurrentEventLocal() // Solo evento actual en localStorage
+      }
+
+      console.log('✅ Eventos inicializados desde Supabase:', eventsState.events.length)
+    } catch (error) {
+      console.error('❌ Error cargando desde Supabase, usando localStorage:', error)
+      // FALLBACK: Cargar desde localStorage solo si Supabase falla
+      this.loadFromLocalStorage()
+    } finally {
+      eventsState.loading = false
+    }
+  },
+
+  // Cargar datos desde Supabase
+  async loadFromSupabase() {
+    try {
+      // Cargar eventos
+      const { data: events, error: eventsError } = await supabase
+        .from('events')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (eventsError) throw eventsError
+
+      // Cargar invitados (ahora con event_name y event_id)
+      const { data: guests, error: guestsError } = await supabase
+        .from('guests')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (guestsError) throw guestsError
+
+      eventsState.events = events || []
+      eventsState.guests = guests || []
+
+      // Cargar evento actual desde localStorage
+      const savedCurrentEvent = localStorage.getItem('current_event_id')
+      if (savedCurrentEvent && eventsState.events.find(e => e.id === savedCurrentEvent)) {
+        eventsState.currentEventId = savedCurrentEvent
+      }
+    } catch (error) {
+      console.error('Error loading from Supabase:', error)
+      throw error
+    }
+  },
+
+  // Fallback: Cargar desde localStorage solo si Supabase falla
+  loadFromLocalStorage() {
     try {
       const savedEvents = localStorage.getItem('events_data')
       const savedGuests = localStorage.getItem('guests_data')
@@ -106,70 +171,72 @@ export const eventsStore = {
         eventsState.currentEventId = savedCurrentEvent
       }
 
-      // Si no hay eventos, crear uno por defecto
-      if (eventsState.events.length === 0) {
-        this.createDefaultEvent()
-      }
-
-      // Si no hay evento actual, seleccionar el primero
-      if (!eventsState.currentEventId && eventsState.events.length > 0) {
-        eventsState.currentEventId = eventsState.events[0].id
-        this.saveCurrentEvent()
-      }
-
-      console.log('✅ Eventos inicializados:', eventsState.events.length)
+      console.log('⚠️ Usando datos locales como fallback')
     } catch (error) {
-      console.error('Error loading events data:', error)
+      console.error('Error loading from localStorage:', error)
       eventsState.error = 'Error cargando eventos'
     }
   },
 
   // Crear evento por defecto
-  createDefaultEvent() {
-    const defaultEvent: Event = {
-      id: this.generateId(),
+  async createDefaultEvent() {
+    const defaultEvent = {
       name: 'Mi Primer Evento',
       description: 'Evento de ejemplo',
       date: new Date().toISOString().split('T')[0],
       location: 'Ubicación del evento',
       max_guests: 100,
-      email_template: 'default',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
       is_active: true
     }
 
-    eventsState.events.push(defaultEvent)
-    eventsState.currentEventId = defaultEvent.id
-    this.saveEvents()
-    this.saveCurrentEvent()
+    const createdEvent = await this.createEvent(defaultEvent)
+    eventsState.currentEventId = createdEvent.id
+    this.saveCurrentEventLocal()
   },
 
-  // Crear nuevo evento
+  // Crear nuevo evento en Supabase
   async createEvent(eventData: Omit<Event, 'id' | 'created_at' | 'updated_at'>): Promise<Event> {
     eventsState.loading = true
     eventsState.error = null
 
     try {
-      const newEvent: Event = {
-        ...eventData,
-        id: this.generateId(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }
+      const { data, error } = await supabase
+        .from('events')
+        .insert([{
+          ...eventData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }])
+        .select()
+        .single()
 
-      eventsState.events.push(newEvent)
-      this.saveEvents()
+      if (error) throw error
 
-      console.log('✅ Evento creado:', newEvent.name)
-      return newEvent
+      eventsState.events.unshift(data)
+      console.log('✅ Evento creado en Supabase:', data.name)
+      return data
     } catch (error) {
-      console.error('Error creating event:', error)
-      eventsState.error = 'Error creando evento'
-      throw error
+      console.error('❌ Error creating event in Supabase:', error)
+      // Fallback a localStorage
+      return this.createEventLocal(eventData)
     } finally {
       eventsState.loading = false
     }
+  },
+
+  // Fallback: Crear evento en localStorage
+  createEventLocal(eventData: Omit<Event, 'id' | 'created_at' | 'updated_at'>): Event {
+    const newEvent: Event = {
+      ...eventData,
+      id: this.generateId(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+
+    eventsState.events.unshift(newEvent)
+    this.saveToLocalStorage()
+    console.log('⚠️ Evento creado en localStorage como fallback:', newEvent.name)
+    return newEvent
   },
 
   // Actualizar evento
@@ -178,21 +245,26 @@ export const eventsStore = {
     eventsState.error = null
 
     try {
+      const { data, error } = await supabase
+        .from('events')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', eventId)
+        .select()
+        .single()
+
+      if (error) throw error
+
       const eventIndex = eventsState.events.findIndex(e => e.id === eventId)
-      if (eventIndex === -1) {
-        throw new Error('Evento no encontrado')
+      if (eventIndex !== -1) {
+        eventsState.events[eventIndex] = data
       }
 
-      eventsState.events[eventIndex] = {
-        ...eventsState.events[eventIndex],
-        ...updates,
-        updated_at: new Date().toISOString()
-      }
-
-      this.saveEvents()
-      console.log('✅ Evento actualizado:', eventId)
+      console.log('✅ Evento actualizado en Supabase:', eventId)
     } catch (error) {
-      console.error('Error updating event:', error)
+      console.error('❌ Error updating event:', error)
       eventsState.error = 'Error actualizando evento'
       throw error
     } finally {
@@ -206,24 +278,33 @@ export const eventsStore = {
     eventsState.error = null
 
     try {
-      // Eliminar evento
-      eventsState.events = eventsState.events.filter(e => e.id !== eventId)
-      
+      // Eliminar de Supabase
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', eventId)
+
+      if (error) throw error
+
       // Eliminar invitados del evento
+      await supabase
+        .from('guests')
+        .delete()
+        .eq('event_id', eventId)
+
+      // Actualizar estado local
+      eventsState.events = eventsState.events.filter(e => e.id !== eventId)
       eventsState.guests = eventsState.guests.filter(g => g.event_id !== eventId)
 
       // Si era el evento actual, cambiar a otro
       if (eventsState.currentEventId === eventId) {
         eventsState.currentEventId = eventsState.events.length > 0 ? eventsState.events[0].id : null
+        this.saveCurrentEventLocal()
       }
 
-      this.saveEvents()
-      this.saveGuests()
-      this.saveCurrentEvent()
-
-      console.log('✅ Evento eliminado:', eventId)
+      console.log('✅ Evento eliminado de Supabase:', eventId)
     } catch (error) {
-      console.error('Error deleting event:', error)
+      console.error('❌ Error deleting event:', error)
       eventsState.error = 'Error eliminando evento'
       throw error
     } finally {
@@ -232,57 +313,107 @@ export const eventsStore = {
   },
 
   // Seleccionar evento actual
-  setCurrentEvent(eventId: string) {
+  setCurrentEvent(eventId: string): void {
     const event = eventsState.events.find(e => e.id === eventId)
     if (event) {
       eventsState.currentEventId = eventId
-      this.saveCurrentEvent()
+      this.saveCurrentEventLocal()
       console.log('✅ Evento actual:', event.name)
     }
   },
 
-  // Agregar invitado a evento actual
+  // Agregar invitado al evento actual - USANDO SUPABASE
   async addGuest(guestData: Omit<Guest, 'id' | 'created_at' | 'event_id'>): Promise<Guest> {
     if (!eventsState.currentEventId) {
       throw new Error('No hay evento seleccionado')
     }
 
-    const newGuest: Guest = {
-      ...guestData,
-      id: this.generateId(),
-      event_id: eventsState.currentEventId,
-      created_at: new Date().toISOString(),
-      confirmed: false,
-      scanned: false,
-      sent: false
+    try {
+      const { data, error } = await supabase
+        .from('guests')
+        .insert([{
+          name: guestData.name,
+          email: guestData.email.toLowerCase(),
+          phone: guestData.phone || null,
+          event_id: eventsState.currentEventId,
+          // Mantener compatibilidad con event_name si existe en la tabla
+          event_name: this.currentEvent?.name || 'Evento',
+          created_at: new Date().toISOString()
+        }])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      // Actualizar estado local
+      eventsState.guests.push(data)
+      console.log('✅ Invitado agregado a Supabase:', data.name)
+      return data
+    } catch (error) {
+      console.error('❌ Error adding guest to Supabase:', error)
+      throw error
     }
-
-    eventsState.guests.push(newGuest)
-    this.saveGuests()
-
-    return newGuest
   },
 
-  // Importar invitados al evento actual
+  // Importar invitados masivamente
   async importGuests(guests: Omit<Guest, 'id' | 'created_at' | 'event_id'>[]): Promise<void> {
     if (!eventsState.currentEventId) {
       throw new Error('No hay evento seleccionado')
     }
 
-    const newGuests = guests.map(guestData => ({
-      ...guestData,
-      id: this.generateId(),
-      event_id: eventsState.currentEventId!,
-      created_at: new Date().toISOString(),
-      confirmed: false,
-      scanned: false,
-      sent: false
-    }))
+    try {
+      const guestsToInsert = guests.map((guestData: Omit<Guest, 'id' | 'created_at' | 'event_id'>) => ({
+        name: guestData.name,
+        email: guestData.email.toLowerCase(),
+        phone: guestData.phone || null,
+        event_id: eventsState.currentEventId,
+        event_name: this.currentEvent?.name || 'Evento',
+        created_at: new Date().toISOString()
+      }))
 
-    eventsState.guests.push(...newGuests)
-    this.saveGuests()
+      const { data, error } = await supabase
+        .from('guests')
+        .insert(guestsToInsert)
+        .select()
 
-    console.log('✅ Importados', newGuests.length, 'invitados')
+      if (error) throw error
+
+      // Actualizar estado local
+      eventsState.guests.push(...data)
+      console.log('✅ Importados', data.length, 'invitados a Supabase')
+    } catch (error) {
+      console.error('❌ Error importing guests:', error)
+      throw error
+    }
+  },
+
+  // Guardar invitados (para actualizar estados como sent, scanned, etc.)
+  async saveGuests() {
+    // Esta función ahora actualiza invitados individuales en Supabase
+    // Se usará para actualizar campos como sent, scanned, sent_at
+    try {
+      for (const guest of eventsState.guests) {
+        if (guest.id.startsWith('evt_')) {
+          // Es un ID local, necesita sincronización completa con Supabase
+          continue
+        }
+        
+        // Actualizar en Supabase si hay cambios
+        await supabase
+          .from('guests')
+          .update({
+            sent: guest.sent || false,
+            scanned: guest.scanned || false,
+            sent_at: guest.sent_at || null,
+            confirmed: guest.confirmed || false
+          })
+          .eq('id', guest.id)
+      }
+    } catch (error) {
+      console.error('❌ Error saving guests to Supabase:', error)
+      // Fallback a localStorage
+      this.saveToLocalStorage()
+    }
   },
 
   // Utilidades
@@ -290,16 +421,8 @@ export const eventsStore = {
     return 'evt_' + Math.random().toString(36).substr(2, 9)
   },
 
-  // Persistencia
-  saveEvents() {
-    localStorage.setItem('events_data', JSON.stringify(eventsState.events))
-  },
-
-  saveGuests() {
-    localStorage.setItem('guests_data', JSON.stringify(eventsState.guests))
-  },
-
-  saveCurrentEvent() {
+  // Solo guardar evento actual en localStorage
+  saveCurrentEventLocal() {
     if (eventsState.currentEventId) {
       localStorage.setItem('current_event_id', eventsState.currentEventId)
     } else {
@@ -307,8 +430,20 @@ export const eventsStore = {
     }
   },
 
+  // Fallback: Guardar todo en localStorage
+  saveToLocalStorage() {
+    localStorage.setItem('events_data', JSON.stringify(eventsState.events))
+    localStorage.setItem('guests_data', JSON.stringify(eventsState.guests))
+    this.saveCurrentEventLocal()
+  },
+
   // Limpiar errores
   clearError() {
     eventsState.error = null
+  },
+
+  // Forzar recarga desde Supabase
+  async forceReload() {
+    await this.loadFromSupabase()
   }
 }

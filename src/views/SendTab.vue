@@ -324,12 +324,15 @@ const sendAllQRs = async () => {
       if (!currentEvent.value) throw new Error('No hay evento seleccionado')
       
       const qrData = {
-        guestId: guest.id,
-        eventId: currentEvent.value.id,
+        id: guest.id,                    // ← Cambiar 'guestId' por 'id'
         name: guest.name,
         email: guest.email,
+        event_name: currentEvent.value.name,  // ← Añadir event_name
+        eventId: currentEvent.value.id,
         eventName: currentEvent.value.name,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        date: new Date().toDateString(),      // ← Añadir date
+        version: '1.0'                        // ← Añadir version
       }
       
       return {
@@ -461,12 +464,15 @@ const sendSingleQR = async (guest: Guest) => {
   try {
     // Generar datos del QR
     const qrData = {
-      guestId: guest.id,
-      eventId: currentEvent.value.id,
+      id: guest.id,                    // ← Cambiar 'guestId' por 'id'
       name: guest.name,
       email: guest.email,
+      event_name: currentEvent.value.name,  // ← Añadir event_name
+      eventId: currentEvent.value.id,
       eventName: currentEvent.value.name,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      date: new Date().toDateString(),      // ← Añadir date
+      version: '1.0'                        // ← Añadir version
     }
     
     // Preparar guest con event_name
