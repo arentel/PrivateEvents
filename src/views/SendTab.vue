@@ -39,45 +39,15 @@
           </ion-card-content>
         </ion-card>
 
-        <!-- Estado de EmailJS -->
-        <ion-card>
-          <ion-card-content>
-            <div class="email-config-status">
-              <div class="config-header">
-                <h3>Estado de EmailJS</h3>
-                <ion-chip :color="emailConfig.ready ? 'success' : 'warning'">
-                  {{ emailConfig.ready ? 'Configurado' : 'Pendiente' }}
-                </ion-chip>
-              </div>
-              <div class="config-details">
-                <p><span class="config-item">Service ID:</span> {{ emailConfig.hasServiceId ? '✅ Configurado' : '❌ Faltante' }}</p>
-                <p><span class="config-item">Template ID:</span> {{ emailConfig.hasTemplateId ? '✅ Configurado' : '❌ Faltante' }}</p>
-                <p><span class="config-item">Public Key:</span> {{ emailConfig.hasPublicKey ? '✅ Configurado' : '❌ Faltante' }}</p>
-              </div>
-              <ion-note v-if="!emailConfig.ready" color="warning">
-                Configura las variables de entorno VITE_EMAILJS_* para envío real. Por ahora se simularán los envíos.
-              </ion-note>
-            </div>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- Control de envío -->
+        <!-- Botón principal de envío -->
         <ion-card>
           <ion-card-header>
-            <ion-card-title>Control de Envío</ion-card-title>
+            <ion-card-title>Envío de QRs</ion-card-title>
+            <p style="margin: 8px 0 0 0; color: var(--ion-color-medium); font-size: 0.9rem;">
+              Los emails se enviarán con EmailJS. Verifica tu configuración si no funcionan.
+            </p>
           </ion-card-header>
           <ion-card-content>
-            <ion-item>
-              <ion-label>
-                <h2>Envío automático</h2>
-                <p>{{ autoSendEnabled ? 'Los QRs se envían automáticamente' : 'Envío manual activado' }}</p>
-              </ion-label>
-              <ion-toggle 
-                v-model="autoSendEnabled"
-                :disabled="!currentEvent"
-              ></ion-toggle>
-            </ion-item>
-            
             <ion-button 
               expand="block" 
               @click="sendAllQRs"
@@ -198,8 +168,8 @@
                   <p class="timestamp" v-if="guest.sent_at">
                     Enviado: {{ formatDateTime(guest.sent_at) }}
                   </p>
-                  <p v-if="!emailConfig.ready" class="simulated-note">
-                    📧 Envío simulado (EmailJS no configurado)
+                  <p v-if="(guest as any).simulated_send" class="simulated-note">
+                    📧 Envío simulado (configurar variables EmailJS)
                   </p>
                 </ion-label>
                 
@@ -246,10 +216,8 @@ import {
   IonCardHeader,
   IonCardTitle,
   IonCardContent,
-  IonItem,
   IonLabel,
   IonButton,
-  IonToggle,
   IonIcon,
   IonProgressBar,
   IonList,
@@ -262,7 +230,6 @@ import {
   IonSelect,
   IonSelectOption,
   IonSpinner,
-  IonNote,
   toastController
 } from '@ionic/vue'
 import {
@@ -273,42 +240,17 @@ import {
 import AppHeader from '@/components/AppHeader.vue'
 import { eventsStore, type Guest } from '@/stores/events'
 
-// Tipos para el servicio de email
-interface EmailConfig {
-  ready: boolean
-  hasServiceId: boolean
-  hasTemplateId: boolean
-  hasPublicKey: boolean
-}
-
-interface EmailResult {
-  success: boolean
-  simulated?: boolean
-  messageId?: string
-  error?: string
-}
-
-interface ProgressInfo {
-  current: number
-  total: number
-  percentage: number
-  currentGuest: string
-  status: string
-}
-
-// Importaciones del servicio de email usando @ts-ignore para evitar errores de tipo
+// Importaciones del servicio de email
 // @ts-ignore
-import { sendQREmail, sendBulkQREmails, checkEmailConfig } from '@/services/email'
+import { sendQREmail, sendBulkQREmails, diagnoseEmailJS } from '@/services/email'
 
 // Estado reactivo
-const autoSendEnabled = ref(false)
 const isSending = ref(false)
 const sendProgress = ref(0)
 const currentSendStatus = ref('')
 const sentCount = ref(0)
 const totalToSend = ref(0)
 const selectedTab = ref('pending')
-const emailConfig = ref<EmailConfig>({ ready: false, hasServiceId: false, hasTemplateId: false, hasPublicKey: false })
 
 // Computed properties
 const currentEvent = computed(() => eventsStore.currentEvent)
@@ -329,8 +271,10 @@ const scannedGuests = computed(() =>
 // Inicializar
 onMounted(() => {
   eventsStore.init()
-  emailConfig.value = checkEmailConfig()
-  console.log('Email config:', emailConfig.value)
+  // Diagnosticar EmailJS solo en desarrollo
+  if (import.meta.env.DEV) {
+    diagnoseEmailJS()
+  }
 })
 
 // Formatear fecha
@@ -375,9 +319,8 @@ const sendAllQRs = async () => {
   try {
     const guestsToSend = [...pendingGuests.value]
     
-    // Preparar datos para envío masivo según la función de email.js
+    // Preparar datos para envío masivo
     const guestsWithQRs = guestsToSend.map(guest => {
-      // Generar datos del QR - verificar que currentEvent.value no es null
       if (!currentEvent.value) throw new Error('No hay evento seleccionado')
       
       const qrData = {
@@ -392,7 +335,7 @@ const sendAllQRs = async () => {
       return {
         guest: {
           ...guest,
-          event_name: currentEvent.value.name // Asegurar que tenga el nombre del evento
+          event_name: currentEvent.value.name
         },
         qrCode: JSON.stringify(qrData)
       }
@@ -409,19 +352,38 @@ const sendAllQRs = async () => {
     // Callback de progreso
     const progressCallback = (progress: any) => {
       sendProgress.value = progress.percentage / 100
-      currentSendStatus.value = `${progress.status === 'sending' ? 'Enviando' : 'Enviado'} a ${progress.currentGuest}...`
-      if (progress.status === 'success') {
-        sentCount.value = progress.current
+      
+      let statusText = ''
+      switch (progress.status) {
+        case 'sending':
+          statusText = `Enviando a ${progress.currentGuest}...`
+          break
+        case 'success':
+          statusText = `✅ Enviado a ${progress.currentGuest}`
+          sentCount.value = progress.current
+          break
+        case 'simulated':
+          statusText = `📧 Simulado para ${progress.currentGuest}`
+          sentCount.value = progress.current
+          break
+        case 'error':
+          statusText = `❌ Error con ${progress.currentGuest}`
+          break
+        default:
+          statusText = `Procesando ${progress.currentGuest}...`
       }
+      
+      currentSendStatus.value = statusText
     }
 
-    // Usar la función de envío masivo de email.js
+    // Usar la función de envío masivo
     const results = await sendBulkQREmails(guestsWithQRs, emailOptions, progressCallback)
     
     // Marcar invitados como enviados
     for (const guest of guestsToSend) {
       guest.sent = true
       guest.sent_at = new Date().toISOString()
+      ;(guest as any).simulated_send = results.simulated > 0
     }
     
     // Guardar cambios
@@ -429,18 +391,53 @@ const sendAllQRs = async () => {
     
     currentSendStatus.value = '✅ Envío completado'
     
-    // Mostrar resultado
-    const message = emailConfig.value.ready 
-      ? `✅ ${results.sent || results.total} QRs enviados correctamente`
-      : `📧 ${results.total} QRs procesados (modo simulación)`
+    // Mostrar resultado detallado
+    let message = ''
+    let toastColor = 'success'
+    
+    if (results.failed > 0) {
+      message = `⚠️ ${results.sent || 0} enviados, ${results.failed} fallaron`
+      toastColor = 'warning'
+    } else if (results.simulated > 0) {
+      message = `📧 ${results.simulated} QRs procesados (modo simulación - verificar configuración)`
+      toastColor = 'warning'
+    } else if (results.sent > 0) {
+      message = `✅ ${results.sent} QRs enviados correctamente`
+      toastColor = 'success'
+    } else {
+      message = `❌ No se pudo enviar ningún QR`
+      toastColor = 'danger'
+    }
     
     const toast = await toastController.create({
       message,
-      duration: 3000,
-      color: 'success',
+      duration: 4000,
+      color: toastColor,
       position: 'top'
     })
     await toast.present()
+    
+    // Si hay errores, mostrar detalles
+    if (results.errors && results.errors.length > 0) {
+      console.error('Errores durante el envío:', results.errors)
+      
+      const errorNames = results.errors.slice(0, 3).map((e: any) => e.guest).join(', ')
+      const moreErrors = results.errors.length > 3 ? ` y ${results.errors.length - 3} más` : ''
+      
+      const errorToast = await toastController.create({
+        message: `Errores con: ${errorNames}${moreErrors}`,
+        duration: 6000,
+        color: 'danger',
+        position: 'bottom',
+        buttons: [{
+          text: 'Ver detalles',
+          handler: () => {
+            console.table(results.errors)
+          }
+        }]
+      })
+      await errorToast.present()
+    }
     
   } catch (error) {
     console.error('Error sending QRs:', error)
@@ -493,17 +490,18 @@ const sendSingleQR = async (guest: Guest) => {
       // Marcar como enviado
       guest.sent = true
       guest.sent_at = new Date().toISOString()
+      ;(guest as any).simulated_send = result.simulated
       
       // Guardar cambios
       eventsStore.saveGuests()
       
       const message = result.simulated 
-        ? `📧 Envío simulado para ${guest.name} (EmailJS no configurado)`
+        ? `📧 Envío simulado para ${guest.name} (configurar EmailJS)`
         : `✅ QR enviado a ${guest.name}`
       
       const toast = await toastController.create({
         message,
-        duration: 2000,
+        duration: 3000,
         color: result.simulated ? 'warning' : 'success',
         position: 'top'
       })
@@ -512,9 +510,10 @@ const sendSingleQR = async (guest: Guest) => {
   } catch (error) {
     console.error('Error sending single QR:', error)
     
+    const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
     const toast = await toastController.create({
-      message: `Error al enviar QR a ${guest.name}`,
-      duration: 3000,
+      message: `Error al enviar QR a ${guest.name}: ${errorMessage}`,
+      duration: 4000,
       color: 'danger',
       position: 'top'
     })
@@ -552,53 +551,23 @@ const sendSingleQR = async (guest: Guest) => {
   font-size: 0.9rem;
 }
 
-.email-config-status {
-  border: 1px solid var(--ion-color-light);
-  border-radius: 8px;
-  padding: 16px;
-  background: var(--ion-color-light-tint);
-}
-
-.config-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.config-header h3 {
-  margin: 0;
+.send-button {
+  margin-bottom: 16px;
+  height: 56px;
+  font-weight: 600;
   font-size: 1.1rem;
 }
 
-.config-details {
-  margin-bottom: 12px;
-}
-
-.config-details p {
-  margin: 4px 0;
-  font-size: 0.9rem;
-}
-
-.config-item {
-  font-weight: 500;
-  color: var(--ion-color-dark);
-}
-
-.send-button {
-  margin-top: 16px;
-  height: 48px;
-  font-weight: 600;
-}
-
 .progress-container {
-  margin-top: 16px;
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--ion-color-light);
 }
 
 .progress-text {
   text-align: center;
-  margin-top: 8px;
-  font-size: 0.9rem;
+  margin-top: 12px;
+  font-size: 0.95rem;
   color: var(--ion-color-dark);
   font-weight: 500;
 }
@@ -606,16 +575,17 @@ const sendSingleQR = async (guest: Guest) => {
 .progress-stats {
   text-align: center;
   margin-top: 4px;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--ion-color-medium);
 }
 
 .stat-mini {
   text-align: center;
-  padding: 16px 8px;
+  padding: 20px 12px;
   background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
   color: white;
-  border-radius: 8px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
 .stat-mini.pending {
@@ -631,14 +601,16 @@ const sendSingleQR = async (guest: Guest) => {
 }
 
 .stat-number {
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   font-weight: bold;
+  line-height: 1;
 }
 
 .stat-label {
-  font-size: 0.8rem;
-  opacity: 0.9;
-  margin-top: 4px;
+  font-size: 0.85rem;
+  opacity: 0.95;
+  margin-top: 6px;
+  font-weight: 500;
 }
 
 .list-header {
@@ -650,47 +622,55 @@ const sendSingleQR = async (guest: Guest) => {
 }
 
 .status-segment {
-  min-width: 300px;
+  min-width: 320px;
 }
 
 .avatar-placeholder {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
+  font-size: 1.1rem;
 }
 
 .avatar-placeholder.pending {
-  background: #6c757d;
+  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
 }
 
 .avatar-placeholder.sent {
-  background: #28a745;
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
 }
 
 .phone {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--ion-color-medium);
+  margin-top: 2px;
 }
 
 .timestamp {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--ion-color-medium);
+  margin-top: 2px;
 }
 
 .simulated-note {
   font-size: 0.8rem;
   color: var(--ion-color-warning);
   font-style: italic;
+  margin-top: 4px;
+  background: rgba(255, 193, 7, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+  display: inline-block;
 }
 
 .empty-state {
   text-align: center;
-  padding: 48px 16px;
+  padding: 60px 20px;
   color: var(--ion-color-medium);
 }
 
@@ -699,20 +679,26 @@ const sendSingleQR = async (guest: Guest) => {
 }
 
 .empty-state ion-icon {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   opacity: 0.7;
 }
 
 .empty-state h3 {
-  margin: 0 0 8px 0;
+  margin: 0 0 12px 0;
+  font-size: 1.3rem;
 }
 
 .empty-state p {
   margin: 0;
+  font-size: 1rem;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
+  .send-container {
+    padding: 12px;
+  }
+  
   .event-header {
     flex-direction: column;
     align-items: stretch;
@@ -728,11 +714,26 @@ const sendSingleQR = async (guest: Guest) => {
   }
   
   .stat-mini {
-    padding: 12px 4px;
+    padding: 16px 8px;
   }
   
   .stat-number {
-    font-size: 1.2rem;
+    font-size: 1.5rem;
+  }
+  
+  .send-button {
+    height: 48px;
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .stat-number {
+    font-size: 1.3rem;
+  }
+  
+  .stat-label {
+    font-size: 0.8rem;
   }
 }
 </style>
