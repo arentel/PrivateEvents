@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
+import { auth } from './stores/auth'
 
 import { IonicVue } from '@ionic/vue'
 
@@ -49,7 +50,7 @@ const checkConfiguration = () => {
   console.log('🔧 Configuración de la app:')
   console.log('- Supabase URL:', import.meta.env.VITE_SUPABASE_URL ? '✅ Configurada' : '❌ Faltante')
   console.log('- Supabase Key:', import.meta.env.VITE_SUPABASE_ANON_KEY ? '✅ Configurada' : '❌ Faltante')
-  console.log('- Resend API:', import.meta.env.VITE_RESEND_API_KEY ? '✅ Configurada' : '⚠️ Opcional')
+  console.log('- EmailJS Service:', import.meta.env.VITE_EMAILJS_SERVICE_ID ? '✅ Configurada' : '⚠️ Opcional')
 }
 
 // Configuración global de la app
@@ -58,7 +59,7 @@ const configureApp = (app: any) => {
   app.config.globalProperties.$appInfo = {
     name: 'Sistema QR Discoteca',
     version: '1.0.0',
-    author: 'Tu Nombre',
+    author: 'Adri',
     description: 'Sistema de gestión de invitados con códigos QR'
   }
   
@@ -72,39 +73,42 @@ const configureApp = (app: any) => {
       // Aquí podrías enviar el error a Sentry, LogRocket, etc.
     }
   }
-  
-  return app
 }
 
-// Crear y configurar la aplicación
-const app = createApp(App)
-  .use(IonicVue, {
-    rippleEffect: true,
-    mode: 'ios' // o 'md' para Material Design
-  })
-  .use(router)
+// Inicializar aplicación
+const initApp = async () => {
+  console.log('🚀 Iniciando Sistema QR Eventos...')
+  
+  // Verificar configuración
+  checkConfiguration()
+  
+  // Inicializar store de autenticación
+  console.log('🔐 Inicializando autenticación...')
+  auth.init()
+  
+  // Crear app Vue
+  const app = createApp(App)
+    .use(IonicVue, {
+      mode: 'ios' // Modo consistente iOS
+    })
+    .use(router)
 
-// Configurar la app
-configureApp(app)
+  // Configurar app
+  configureApp(app)
 
-// Verificar configuración
-checkConfiguration()
-
-// Esperar a que el router esté listo antes de montar
-router.isReady().then(() => {
+  // Esperar a que el router esté listo
+  await router.isReady()
+  
+  // Montar la aplicación
   app.mount('#app')
-  console.log('🚀 Aplicación iniciada correctamente')
-})
+  
+  console.log('✅ Aplicación iniciada correctamente')
+  console.log('🔑 Estado de autenticación:', auth.isAuthenticated ? 'Autenticado' : 'No autenticado')
+}
 
-// Service Worker para PWA (opcional)
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then((registration) => {
-        console.log('SW registrado: ', registration)
-      })
-      .catch((registrationError) => {
-        console.log('SW registro falló: ', registrationError)
-      })
-  })
+// Inicializar cuando el DOM esté listo
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp)
+} else {
+  initApp()
 }
