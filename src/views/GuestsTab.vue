@@ -393,6 +393,26 @@ const verifyDatabaseStructure = async () => {
   try {
     console.log('🔍 Verificando estructura de la base de datos...')
     
+    // Probar conexión con events
+    try {
+      const { data: events, error: eventsError } = await supabase
+        .from('events')
+        .select('*')
+        .limit(3)
+      
+      if (!eventsError) {
+        console.log('✅ Tabla events OK:', events?.length, 'eventos encontrados')
+        if (events && events.length > 0) {
+          console.log('📋 Estructura events:', Object.keys(events[0]))
+          console.log('🎯 Eventos disponibles:', events.map((e: any) => e.name))
+        }
+      } else {
+        console.log('❌ Tabla events falla:', eventsError.message)
+      }
+    } catch (e) {
+      console.log('❌ Tabla events error:', e)
+    }
+    
     // Probar tabla guests con diferentes esquemas
     const queries = [
       { name: 'guests (con event_id)', query: supabase.from('guests').select('id, name, email, phone, event_id, qr_sent, has_entered').limit(1) },
@@ -404,7 +424,7 @@ const verifyDatabaseStructure = async () => {
       try {
         const { data, error } = await testQuery.query
         if (!error) {
-          console.log(`✅ ${testQuery.name} funciona:`, data)
+          console.log(`✅ ${testQuery.name} funciona:`, data?.length || 0, 'registros')
           if (data && data.length > 0) {
             console.log('📋 Estructura encontrada:', Object.keys(data[0]))
           }
@@ -414,25 +434,6 @@ const verifyDatabaseStructure = async () => {
       } catch (e) {
         console.log(`❌ ${testQuery.name} error:`, e)
       }
-    }
-    
-    // Probar tabla events
-    try {
-      const { data: events, error: eventsError } = await supabase
-        .from('events')
-        .select('*')
-        .limit(1)
-      
-      if (!eventsError) {
-        console.log('✅ Tabla events OK:', events)
-        if (events && events.length > 0) {
-          console.log('📋 Estructura events:', Object.keys(events[0]))
-        }
-      } else {
-        console.log('❌ Tabla events falla:', eventsError.message)
-      }
-    } catch (e) {
-      console.log('❌ Tabla events error:', e)
     }
     
   } catch (error) {
