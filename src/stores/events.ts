@@ -10,6 +10,7 @@ export interface Guest {
   confirmed?: boolean
   scanned?: boolean
   sent?: boolean
+  sent_at?: string // Agregar esta propiedad
   created_at: string
   event_id: string
 }
