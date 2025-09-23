@@ -83,17 +83,17 @@
               <ion-button 
                 expand="block" 
                 @click="addGuests"
-                :disabled="!guestInput.trim() || !currentEvent"
+                :disabled="!guestInput.trim() || !currentEvent || isProcessing"
               >
                 <ion-icon :icon="personAddOutline" slot="start"></ion-icon>
-                Añadir Invitados
+                {{ isProcessing ? 'Procesando...' : 'Añadir Invitados' }}
               </ion-button>
               
               <ion-button 
                 expand="block" 
                 fill="outline" 
                 @click="loadSampleGuests"
-                :disabled="!currentEvent"
+                :disabled="!currentEvent || isProcessing"
               >
                 <ion-icon :icon="sparklesOutline" slot="start"></ion-icon>
                 Cargar Lista de Ejemplo
@@ -115,6 +115,7 @@
                 color="danger"
                 size="small"
                 @click="clearAllGuests"
+                :disabled="isProcessing"
               >
                 <ion-icon :icon="trashOutline" slot="start"></ion-icon>
                 Limpiar
@@ -150,6 +151,7 @@
                     size="small" 
                     fill="clear"
                     @click="editGuest(guest)"
+                    :disabled="isProcessing"
                   >
                     <ion-icon :icon="pencilOutline" slot="icon-only"></ion-icon>
                   </ion-button>
@@ -170,6 +172,16 @@
                 <ion-icon :icon="calendarOutline" slot="start"></ion-icon>
                 Ir a Eventos
               </ion-button>
+            </div>
+          </ion-card-content>
+        </ion-card>
+
+        <!-- Indicador de carga -->
+        <ion-card v-if="isProcessing" class="processing-card">
+          <ion-card-content>
+            <div class="processing-indicator">
+              <ion-spinner name="crescent"></ion-spinner>
+              <p>{{ processingMessage }}</p>
             </div>
           </ion-card-content>
         </ion-card>
@@ -250,11 +262,11 @@
           </ion-item>
 
           <div class="modal-actions">
-            <ion-button expand="block" type="submit" color="primary">
-              Guardar Cambios
+            <ion-button expand="block" type="submit" color="primary" :disabled="isProcessing">
+              {{ isProcessing ? 'Guardando...' : 'Guardar Cambios' }}
             </ion-button>
-            <ion-button expand="block" fill="outline" color="danger" @click="deleteGuest">
-              Eliminar Invitado
+            <ion-button expand="block" fill="outline" color="danger" @click="deleteGuest" :disabled="isProcessing">
+              {{ isProcessing ? 'Eliminando...' : 'Eliminar Invitado' }}
             </ion-button>
           </div>
         </form>
@@ -289,6 +301,7 @@ import {
   IonModal,
   IonButtons,
   IonInput,
+  IonSpinner,
   alertController,
   toastController
 } from '@ionic/vue'
@@ -305,6 +318,8 @@ import {
 } from 'ionicons/icons'
 import AppHeader from '@/components/AppHeader.vue'
 import { eventsStore, type Guest } from '@/stores/events'
+// @ts-ignore
+import { supabase } from '@/services/supabase.js'
 
 // Router
 const router = useRouter()
@@ -314,6 +329,8 @@ const guestInput = ref('')
 const showEventSelector = ref(false)
 const showEditModal = ref(false)
 const editingGuest = ref<Guest | null>(null)
+const isProcessing = ref(false)
+const processingMessage = ref('')
 
 // Computed properties
 const currentEvent = computed(() => eventsStore.currentEvent)
@@ -323,6 +340,9 @@ const currentEventGuests = computed(() => eventsStore.currentEventGuests)
 onMounted(async () => {
   try {
     console.log('🏁 Inicializando GuestsTab...')
+    
+    isProcessing.value = true
+    processingMessage.value = 'Cargando eventos y invitados...'
     
     // Inicializar el store y esperar a que termine
     await eventsStore.init()
@@ -347,42 +367,78 @@ onMounted(async () => {
         console.warn('⚠️ No se pudo seleccionar evento automáticamente')
         console.log('Eventos disponibles:', eventsStore.events)
       }
+      
+      isProcessing.value = false
     }, 100)
     
   } catch (error) {
     console.error('❌ Error inicializando GuestsTab:', error)
+    isProcessing.value = false
     
     const toast = await toastController.create({
-      message: 'Error conectando con la base de datos',
-      duration: 4000,
+      message: 'Error conectando con la base de datos. Verificando configuración...',
+      duration: 5000,
       color: 'danger',
       position: 'top'
     })
     await toast.present()
+    
+    // Verificar qué tabla existe y su estructura
+    await verifyDatabaseStructure()
   }
 })
 
-// Función para forzar selección de evento (para debugging)
-const forceSelectFirstEvent = () => {
-  if (eventsStore.events.length > 0) {
-    const firstEvent = eventsStore.events[0]
-    eventsStore.setCurrentEvent(firstEvent.id)
-    console.log('🔧 Evento forzado:', firstEvent.name)
+// NUEVA FUNCIÓN: Verificar estructura de la base de datos
+const verifyDatabaseStructure = async () => {
+  try {
+    console.log('🔍 Verificando estructura de la base de datos...')
     
-    // Mostrar toast de confirmación
-    toastController.create({
-      message: `Evento seleccionado: ${firstEvent.name}`,
-      duration: 2000,
-      color: 'success',
-      position: 'top'
-    }).then(toast => toast.present())
-  } else {
-    console.log('❌ No hay eventos disponibles para seleccionar')
+    // Probar tabla guests con diferentes esquemas
+    const queries = [
+      { name: 'guests (con event_id)', query: supabase.from('guests').select('id, name, email, phone, event_id, qr_sent, has_entered').limit(1) },
+      { name: 'guests (con event_name)', query: supabase.from('guests').select('id, name, email, phone, event_name, qr_sent, has_entered').limit(1) },
+      { name: 'guests (esquema básico)', query: supabase.from('guests').select('*').limit(1) }
+    ]
+    
+    for (const testQuery of queries) {
+      try {
+        const { data, error } = await testQuery.query
+        if (!error) {
+          console.log(`✅ ${testQuery.name} funciona:`, data)
+          if (data && data.length > 0) {
+            console.log('📋 Estructura encontrada:', Object.keys(data[0]))
+          }
+        } else {
+          console.log(`❌ ${testQuery.name} falla:`, error.message)
+        }
+      } catch (e) {
+        console.log(`❌ ${testQuery.name} error:`, e)
+      }
+    }
+    
+    // Probar tabla events
+    try {
+      const { data: events, error: eventsError } = await supabase
+        .from('events')
+        .select('*')
+        .limit(1)
+      
+      if (!eventsError) {
+        console.log('✅ Tabla events OK:', events)
+        if (events && events.length > 0) {
+          console.log('📋 Estructura events:', Object.keys(events[0]))
+        }
+      } else {
+        console.log('❌ Tabla events falla:', eventsError.message)
+      }
+    } catch (e) {
+      console.log('❌ Tabla events error:', e)
+    }
+    
+  } catch (error) {
+    console.error('❌ Error verificando base de datos:', error)
   }
 }
-
-// Hacer la función disponible globalmente para debugging
-;(window as any).forceSelectFirstEvent = forceSelectFirstEvent
 
 // Formatear fecha
 const formatDate = (dateString: string) => {
@@ -393,7 +449,7 @@ const formatDate = (dateString: string) => {
   })
 }
 
-// Función para añadir invitados - MEJORADA con mejor manejo de errores
+// Función para añadir invitados - CORREGIDA para usar event_name
 const addGuests = async () => {
   if (!guestInput.value.trim()) {
     const toast = await toastController.create({
@@ -417,54 +473,92 @@ const addGuests = async () => {
     return
   }
   
-  const lines = guestInput.value.trim().split('\n')
-  const validGuests = []
-  const duplicates = []
-  const invalidLines = []
-  
-  for (const line of lines) {
-    const parts = line.split(',').map(p => p.trim())
-    if (parts.length >= 2 && parts[0] && parts[1]) {
-      const name = parts[0]
-      const email = parts[1]
-      const phone = parts[2] || ''
-      
-      // Verificar si ya existe
-      const exists = currentEventGuests.value.find(g => 
-        g.email.toLowerCase() === email.toLowerCase()
-      )
-      
-      if (!exists) {
-        validGuests.push({ name, email, phone })
-      } else {
-        duplicates.push(email)
-      }
-    } else {
-      invalidLines.push(line)
-    }
-  }
-  
-  if (validGuests.length === 0) {
-    let message = 'No hay invitados válidos para añadir'
-    if (duplicates.length > 0) message = 'Todos los emails ya existen'
-    if (invalidLines.length > 0) message = 'Formato inválido. Usa: Nombre, Email, Teléfono'
-    
-    const toast = await toastController.create({
-      message,
-      duration: 3000,
-      color: 'warning',
-      position: 'top'
-    })
-    await toast.present()
-    return
-  }
+  isProcessing.value = true
+  processingMessage.value = 'Procesando invitados...'
   
   try {
-    console.log('👥 Añadiendo', validGuests.length, 'invitados al evento:', currentEvent.value.name)
+    const lines = guestInput.value.trim().split('\n')
+    const validGuests = []
+    const duplicates = []
+    const invalidLines = []
     
-    for (const guest of validGuests) {
-      await eventsStore.addGuest(guest)
+    for (const line of lines) {
+      const parts = line.split(',').map(p => p.trim())
+      if (parts.length >= 2 && parts[0] && parts[1]) {
+        const name = parts[0]
+        const email = parts[1].toLowerCase()
+        const phone = parts[2] || null
+        
+        // Verificar si ya existe usando event_name en lugar de event_id
+        const { data: existing } = await supabase
+          .from('guests')
+          .select('email')
+          .eq('email', email)
+          .eq('event_name', currentEvent.value.name)
+          .single()
+        
+        if (!existing) {
+          validGuests.push({ name, email, phone })
+        } else {
+          duplicates.push(email)
+        }
+      } else {
+        invalidLines.push(line)
+      }
     }
+    
+    if (validGuests.length === 0) {
+      let message = 'No hay invitados válidos para añadir'
+      if (duplicates.length > 0) message = 'Todos los emails ya existen'
+      if (invalidLines.length > 0) message = 'Formato inválido. Usa: Nombre, Email, Teléfono'
+      
+      const toast = await toastController.create({
+        message,
+        duration: 3000,
+        color: 'warning',
+        position: 'top'
+      })
+      await toast.present()
+      return
+    }
+    
+    processingMessage.value = `Añadiendo ${validGuests.length} invitados...`
+    
+    // Insertar usando el esquema correcto (event_name)
+    const guestsToInsert = validGuests.map(guest => ({
+      name: guest.name,
+      email: guest.email,
+      phone: guest.phone,
+      event_name: currentEvent.value!.name, // Usar event_name en lugar de event_id
+      qr_sent: false,
+      has_entered: false,
+      created_at: new Date().toISOString()
+    }))
+    
+    const { data, error } = await supabase
+      .from('guests')
+      .insert(guestsToInsert)
+      .select()
+    
+    if (error) {
+      console.error('❌ Error insertando en Supabase:', error)
+      throw new Error(`Error de base de datos: ${error.message}`)
+    }
+    
+    // Actualizar el store local - mapear a la estructura esperada
+    const newGuests = data.map((guest: any) => ({
+      id: guest.id,
+      name: guest.name,
+      email: guest.email,
+      phone: guest.phone,
+      event_id: currentEvent.value!.id, // Mapear para compatibilidad local
+      sent: guest.qr_sent || false,
+      scanned: guest.has_entered || false,
+      created_at: guest.created_at
+    }))
+    
+    // Añadir al estado local
+    eventsStore.guests.push(...newGuests)
     
     guestInput.value = ''
     
@@ -480,17 +574,29 @@ const addGuests = async () => {
     })
     await toast.present()
     
-    console.log('✅ Invitados añadidos exitosamente')
+    console.log('✅ Invitados añadidos exitosamente:', newGuests.length)
     
   } catch (error: any) {
     console.error('❌ Error adding guests:', error)
+    
+    let errorMessage = 'Error desconocido'
+    if (error.message.includes('relation "guests" does not exist')) {
+      errorMessage = 'La tabla "guests" no existe. Verifica la configuración de Supabase.'
+    } else if (error.message.includes('column') && error.message.includes('does not exist')) {
+      errorMessage = 'Error de estructura de base de datos. Verifica las columnas de la tabla.'
+    } else if (error.message) {
+      errorMessage = error.message
+    }
+    
     const toast = await toastController.create({
-      message: `Error al añadir invitados: ${error?.message || 'Error desconocido'}`,
-      duration: 4000,
+      message: `Error al añadir invitados: ${errorMessage}`,
+      duration: 5000,
       color: 'danger',
       position: 'top'
     })
     await toast.present()
+  } finally {
+    isProcessing.value = false
   }
 }
 
@@ -544,44 +650,118 @@ const editGuest = (guest: Guest) => {
 const saveEditedGuest = async () => {
   if (!editingGuest.value) return
   
+  isProcessing.value = true
+  processingMessage.value = 'Guardando cambios...'
+  
   try {
-    // TODO: Implementar actualización de invitado en Supabase
-    console.log('💾 Guardando cambios de:', editingGuest.value.name)
+    // Actualizar en Supabase usando event_name
+    const { data, error } = await supabase
+      .from('guests')
+      .update({
+        name: editingGuest.value.name,
+        email: editingGuest.value.email.toLowerCase(),
+        phone: editingGuest.value.phone || null
+      })
+      .eq('id', editingGuest.value.id)
+      .select()
+      .single()
+    
+    if (error) throw error
+    
+    // Actualizar en el estado local
+    const index = eventsStore.guests.findIndex(g => g.id === editingGuest.value!.id)
+    if (index !== -1) {
+      eventsStore.guests[index] = {
+        ...eventsStore.guests[index],
+        name: data.name,
+        email: data.email,
+        phone: data.phone
+      }
+    }
     
     showEditModal.value = false
     editingGuest.value = null
     
     const toast = await toastController.create({
-      message: 'Cambios guardados (función pendiente de implementar)',
+      message: 'Cambios guardados exitosamente',
       duration: 3000,
-      color: 'warning',
+      color: 'success',
       position: 'top'
     })
     await toast.present()
-  } catch (error) {
-    console.error('Error saving guest:', error)
+    
+    console.log('✅ Invitado actualizado:', data.name)
+    
+  } catch (error: any) {
+    console.error('❌ Error saving guest:', error)
+    
+    const toast = await toastController.create({
+      message: `Error guardando cambios: ${error.message}`,
+      duration: 4000,
+      color: 'danger',
+      position: 'top'
+    })
+    await toast.present()
+  } finally {
+    isProcessing.value = false
   }
 }
 
 const deleteGuest = async () => {
+  if (!editingGuest.value) return
+  
   const alert = await alertController.create({
     header: 'Eliminar Invitado',
-    message: '¿Estás seguro de eliminar este invitado?',
+    message: `¿Estás seguro de eliminar a "${editingGuest.value.name}"?`,
     buttons: [
       { text: 'Cancelar', role: 'cancel' },
-      { text: 'Eliminar', role: 'destructive', handler: () => {
-        // TODO: Implementar eliminación
-        console.log('🗑️ Eliminando invitado:', editingGuest.value?.name)
-        showEditModal.value = false
-        editingGuest.value = null
-        
-        toastController.create({
-          message: 'Invitado eliminado (función pendiente de implementar)',
-          duration: 3000,
-          color: 'warning',
-          position: 'top'
-        }).then(toast => toast.present())
-      }}
+      { 
+        text: 'Eliminar', 
+        role: 'destructive', 
+        handler: async () => {
+          isProcessing.value = true
+          processingMessage.value = 'Eliminando invitado...'
+          
+          try {
+            const { error } = await supabase
+              .from('guests')
+              .delete()
+              .eq('id', editingGuest.value!.id)
+            
+            if (error) throw error
+            
+            // Remover del estado local
+            const index = eventsStore.guests.findIndex(g => g.id === editingGuest.value!.id)
+            if (index !== -1) {
+              eventsStore.guests.splice(index, 1)
+            }
+            
+            showEditModal.value = false
+            editingGuest.value = null
+            
+            const toast = await toastController.create({
+              message: 'Invitado eliminado exitosamente',
+              duration: 3000,
+              color: 'success',
+              position: 'top'
+            })
+            await toast.present()
+            
+          } catch (error: any) {
+            console.error('❌ Error deleting guest:', error)
+            
+            const toast = await toastController.create({
+              message: `Error eliminando invitado: ${error.message}`,
+              duration: 4000,
+              color: 'danger',
+              position: 'top'
+            })
+            await toast.present()
+          } finally {
+            isProcessing.value = false
+          }
+        }
+      }
     ]
   })
   await alert.present()
@@ -624,23 +804,55 @@ const clearAllGuests = async () => {
     message: `¿Estás seguro de eliminar todos los ${currentEventGuests.value.length} invitados de "${currentEvent.value.name}"?`,
     buttons: [
       { text: 'Cancelar', role: 'cancel' },
-      { text: 'Eliminar Todo', role: 'destructive', handler: async () => {
-        try {
-          console.log('🧹 Limpiando todos los invitados del evento:', currentEvent.value?.name)
+      { 
+        text: 'Eliminar Todo', 
+        role: 'destructive', 
+        handler: async () => {
+          isProcessing.value = true
+          processingMessage.value = 'Eliminando todos los invitados...'
           
-          // TODO: Implementar eliminación masiva en Supabase
-          // Por ahora solo simular
-          const toast = await toastController.create({
-            message: `${currentEventGuests.value.length} invitados eliminados (función pendiente de implementar)`,
-            duration: 3000,
-            color: 'warning',
-            position: 'top'
-          })
-          await toast.present()
-        } catch (error) {
-          console.error('Error clearing guests:', error)
+          try {
+            // Eliminar todos los invitados del evento actual usando event_name
+            const { error } = await supabase
+              .from('guests')
+              .delete()
+              .eq('event_name', currentEvent.value!.name)
+            
+            if (error) throw error
+            
+            // Actualizar estado local - remover invitados del evento actual
+            const guestsToRemove = currentEventGuests.value.map(g => g.id)
+            const filteredGuests = eventsStore.guests.filter(g => !guestsToRemove.includes(g.id))
+            
+            // Actualizar el array de invitados
+            eventsStore.guests.length = 0
+            eventsStore.guests.push(...filteredGuests)
+            
+            const toast = await toastController.create({
+              message: `${currentEventGuests.value.length} invitados eliminados exitosamente`,
+              duration: 3000,
+              color: 'success',
+              position: 'top'
+            })
+            await toast.present()
+            
+            console.log('✅ Todos los invitados eliminados del evento:', currentEvent.value?.name)
+            
+          } catch (error: any) {
+            console.error('❌ Error clearing guests:', error)
+            
+            const toast = await toastController.create({
+              message: `Error eliminando invitados: ${error.message}`,
+              duration: 4000,
+              color: 'danger',
+              position: 'top'
+            })
+            await toast.present()
+          } finally {
+            isProcessing.value = false
+          }
         }
-      }}
+      }
     ]
   })
   await alert.present()
@@ -777,6 +989,26 @@ const goToEvents = () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.processing-card {
+  margin-top: 16px;
+  background: var(--ion-color-light);
+}
+
+.processing-indicator {
+  text-align: center;
+  padding: 16px;
+}
+
+.processing-indicator ion-spinner {
+  margin-bottom: 12px;
+}
+
+.processing-indicator p {
+  margin: 0;
+  color: var(--ion-color-medium);
+  font-size: 0.9rem;
 }
 
 ion-item.selected {
