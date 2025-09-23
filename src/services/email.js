@@ -1,4 +1,3 @@
-import emailjs from '@emailjs/browser'
 import { generateQRImage } from './qr.js'
 
 // Configuración EmailJS
@@ -6,9 +5,22 @@ const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID
 const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID
 const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
 
-// Inicializar EmailJS
-if (EMAILJS_PUBLIC_KEY) {
-  emailjs.init(EMAILJS_PUBLIC_KEY)
+/**
+ * Inicializar EmailJS si está configurado
+ */
+const initializeEmailJS = async () => {
+  if (EMAILJS_PUBLIC_KEY) {
+    try {
+      const emailjs = await import('@emailjs/browser')
+      emailjs.default.init(EMAILJS_PUBLIC_KEY)
+      console.log('✅ EmailJS inicializado correctamente')
+      return emailjs.default
+    } catch (error) {
+      console.error('❌ Error inicializando EmailJS:', error)
+      return null
+    }
+  }
+  return null
 }
 
 /**
@@ -31,33 +43,44 @@ export const sendQREmail = async (guest, qrCode, options = {}) => {
       }
     }
 
+    // Inicializar EmailJS
+    const emailjs = await initializeEmailJS()
+    if (!emailjs) {
+      throw new Error('No se pudo inicializar EmailJS')
+    }
+
     // Generar imagen QR
     const qrImageDataUrl = generateQRImage(qrCode, { size: 400 })
     
     // Preparar contenido del email
     const emailContent = generateEmailContent(guest, options)
     
-    // Parámetros para EmailJS
+    // Parámetros para EmailJS - usando nombres de campo más estándar
     const templateParams = {
       to_name: guest.name,
       to_email: guest.email,
-      event_name: guest.event_name || 'Nuestro Evento',
-      event_date: new Date().toLocaleDateString('es-ES'),
+      from_name: options.organizerName || 'Organizador del Evento',
+      event_name: guest.event_name || options.eventName || 'Nuestro Evento',
+      event_date: options.eventDate || new Date().toLocaleDateString('es-ES'),
+      event_location: options.eventLocation || 'Ubicación del evento',
       subject: emailContent.subject,
       message: emailContent.text,
       html_content: emailContent.html,
       qr_image: qrImageDataUrl,
-      reply_to: 'noreply@evento.com'
+      reply_to: options.replyTo || 'noreply@evento.com'
     }
 
-    console.log('📧 Enviando email REAL con EmailJS a:', guest.email)
+    console.log('📧 Enviando email con EmailJS a:', guest.email)
+    console.log('🔧 Service ID:', EMAILJS_SERVICE_ID)
+    console.log('🔧 Template ID:', EMAILJS_TEMPLATE_ID)
 
-    // Enviar email
-    const result = await emailjs.send(
-      EMAILJS_SERVICE_ID,
-      EMAILJS_TEMPLATE_ID,
-      templateParams
-    )
+    // Enviar email con timeout
+    const result = await Promise.race([
+      emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Timeout: EmailJS tardó más de 10 segundos')), 10000)
+      )
+    ])
 
     console.log('✅ Email enviado exitosamente!')
     console.log('📧 EmailJS Response:', result)
@@ -71,16 +94,23 @@ export const sendQREmail = async (guest, qrCode, options = {}) => {
 
   } catch (error) {
     console.error('❌ Error enviando email con EmailJS:', error)
+    console.error('❌ Error details:', {
+      message: error.message,
+      stack: error.stack,
+      serviceId: EMAILJS_SERVICE_ID,
+      templateId: EMAILJS_TEMPLATE_ID,
+      hasPublicKey: !!EMAILJS_PUBLIC_KEY
+    })
     
-    // En caso de error, simular el envío
+    // En caso de error, simular el envío para no bloquear la aplicación
     console.log('📧 [FALLBACK SIMULADO] Email para:', guest.email)
-    console.log('📧 Error:', error.message)
     
     return {
       success: true,
       messageId: `fallback_${Date.now()}`,
       simulated: true,
-      error: error.message
+      error: error.message,
+      originalError: error
     }
   }
 }
@@ -93,8 +123,13 @@ export const sendQREmail = async (guest, qrCode, options = {}) => {
 export const sendSimpleEmail = async (emailData) => {
   try {
     if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
-      console.log('📧 [SIMULADO] Email simple para:', emailData.to)
+      console.log('📧 [SIMULADO] Email simple para:', emailData.to_email)
       return { success: true, simulated: true }
+    }
+
+    const emailjs = await initializeEmailJS()
+    if (!emailjs) {
+      throw new Error('No se pudo inicializar EmailJS')
     }
 
     const result = await emailjs.send(
@@ -110,7 +145,7 @@ export const sendSimpleEmail = async (emailData) => {
     }
 
   } catch (error) {
-    console.error('Error sending simple email:', error)
+    console.error('❌ Error sending simple email:', error)
     return {
       success: true,
       simulated: true,
@@ -136,7 +171,7 @@ const generateEmailContent = (guest, options = {}) => {
   const subject = `🎉 Tu entrada para ${eventName}`
 
   const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff;">
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
         <h1 style="margin: 0; font-size: 2em;">🎵 ${eventName}</h1>
         <p style="margin: 10px 0 0 0; font-size: 1.1em;">Tu entrada está lista</p>
@@ -159,18 +194,27 @@ const generateEmailContent = (guest, options = {}) => {
         <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <h3 style="margin-top: 0; color: #856404;">📱 Instrucciones</h3>
           <ul style="margin: 0; padding-left: 20px;">
-            <li><strong>Guarda el código QR</strong> que aparece abajo</li>
-            <li><strong>Preséntalo en la entrada</strong></li>
+            <li><strong>Guarda el código QR</strong> que aparece en este email</li>
+            <li><strong>Preséntalo en la entrada del evento</strong></li>
             <li><strong>Solo es válido para una entrada</strong></li>
+            <li><strong>Llega 15 minutos antes</strong> para evitar colas</li>
           </ul>
+        </div>
+
+        <div style="text-align: center; margin: 30px 0;">
+          <div style="background: white; padding: 20px; border-radius: 8px; border: 2px dashed #667eea;">
+            <p style="margin: 0 0 15px 0; font-weight: bold; color: #667eea;">Tu código QR de entrada:</p>
+            <p style="margin: 0; color: #666; font-size: 0.9em;">El código QR se adjunta a este email</p>
+          </div>
         </div>
 
         <div style="text-align: center; margin: 30px 0;">
           <p style="font-size: 1.1em; color: #667eea; font-weight: bold;">¡Nos vemos en ${eventName}! 🎉</p>
         </div>
 
-        <div style="text-align: center; font-size: 0.9em; color: #666;">
+        <div style="text-align: center; font-size: 0.9em; color: #666; border-top: 1px solid #ddd; padding-top: 20px;">
           <p>Email enviado automáticamente por ${organizerName}</p>
+          <p style="margin: 5px 0 0 0;">Si tienes problemas, contacta al organizador</p>
         </div>
       </div>
     </div>
@@ -192,13 +236,15 @@ Tu entrada para ${eventName} está confirmada.
 
 📱 INSTRUCCIONES:
 • Guarda el código QR adjunto
-• Preséntalo en la entrada
+• Preséntalo en la entrada del evento
 • Solo es válido para una entrada
+• Llega 15 minutos antes para evitar colas
 
 ¡Nos vemos en ${eventName}! 🎉
 
 ---
 Email enviado automáticamente por ${organizerName}
+Si tienes problemas, contacta al organizador
   `
 
   return { subject, html, text }
@@ -216,30 +262,70 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
     total: guestsWithQRs.length,
     sent: 0,
     failed: 0,
+    simulated: 0,
     errors: []
   }
+
+  console.log(`📧 Iniciando envío masivo de ${guestsWithQRs.length} emails`)
 
   for (let i = 0; i < guestsWithQRs.length; i++) {
     const { guest, qrCode } = guestsWithQRs[i]
     
     try {
-      await sendQREmail(guest, qrCode, options)
-      results.sent++
-      
       if (progressCallback) {
         progressCallback({
           current: i + 1,
           total: results.total,
           percentage: Math.round(((i + 1) / results.total) * 100),
           currentGuest: guest.name,
-          status: 'success'
+          status: 'sending'
         })
       }
+
+      const result = await sendQREmail(guest, qrCode, options)
       
-      // Pausa entre emails para no sobrecargar
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      if (result.success) {
+        if (result.simulated) {
+          results.simulated++
+        } else {
+          results.sent++
+        }
+        
+        if (progressCallback) {
+          progressCallback({
+            current: i + 1,
+            total: results.total,
+            percentage: Math.round(((i + 1) / results.total) * 100),
+            currentGuest: guest.name,
+            status: result.simulated ? 'simulated' : 'success'
+          })
+        }
+      } else {
+        results.failed++
+        results.errors.push({
+          guest: guest.name,
+          email: guest.email,
+          error: result.error || 'Unknown error'
+        })
+        
+        if (progressCallback) {
+          progressCallback({
+            current: i + 1,
+            total: results.total,
+            percentage: Math.round(((i + 1) / results.total) * 100),
+            currentGuest: guest.name,
+            status: 'error'
+          })
+        }
+      }
+      
+      // Pausa entre emails para no sobrecargar EmailJS
+      if (i < guestsWithQRs.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1500))
+      }
       
     } catch (error) {
+      console.error(`❌ Error procesando email para ${guest.name}:`, error)
       results.failed++
       results.errors.push({
         guest: guest.name,
@@ -259,6 +345,7 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
     }
   }
 
+  console.log('📧 Envío masivo completado:', results)
   return results
 }
 
@@ -267,18 +354,33 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
  * @returns {Object} - Estado de la configuración
  */
 export const checkEmailConfig = () => {
-  return {
+  const config = {
     hasServiceId: !!EMAILJS_SERVICE_ID,
     hasTemplateId: !!EMAILJS_TEMPLATE_ID,
     hasPublicKey: !!EMAILJS_PUBLIC_KEY,
     ready: !!(EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY),
     service: 'EmailJS'
   }
+
+  console.log('🔧 Configuración EmailJS:', config)
+  return config
+}
+
+/**
+ * Función de diagnóstico para debugging
+ */
+export const diagnoseEmailJS = () => {
+  console.log('🔍 Diagnóstico EmailJS:')
+  console.log('- Service ID:', EMAILJS_SERVICE_ID ? '✅ Configurado' : '❌ Faltante')
+  console.log('- Template ID:', EMAILJS_TEMPLATE_ID ? '✅ Configurado' : '❌ Faltante')
+  console.log('- Public Key:', EMAILJS_PUBLIC_KEY ? '✅ Configurado' : '❌ Faltante')
+  console.log('- Variables de entorno disponibles:', Object.keys(import.meta.env).filter(key => key.startsWith('VITE_EMAILJS')))
 }
 
 export default {
   sendQREmail,
   sendSimpleEmail,
   sendBulkQREmails,
-  checkEmailConfig
+  checkEmailConfig,
+  diagnoseEmailJS
 }
