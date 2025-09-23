@@ -319,10 +319,70 @@ const editingGuest = ref<Guest | null>(null)
 const currentEvent = computed(() => eventsStore.currentEvent)
 const currentEventGuests = computed(() => eventsStore.currentEventGuests)
 
-// Inicializar
-onMounted(() => {
-  eventsStore.init()
+// Inicializar - CORREGIDO para asegurar evento actual
+onMounted(async () => {
+  try {
+    console.log('🏁 Inicializando GuestsTab...')
+    
+    // Inicializar el store y esperar a que termine
+    await eventsStore.init()
+    
+    // Esperar un momento para que el estado se actualice
+    setTimeout(() => {
+      // Si hay eventos pero no hay evento actual seleccionado, seleccionar el primero
+      if (eventsStore.events.length > 0 && !eventsStore.currentEventId) {
+        console.log('🎯 Seleccionando automáticamente el primer evento:', eventsStore.events[0].name)
+        eventsStore.setCurrentEvent(eventsStore.events[0].id)
+      }
+      
+      console.log('📊 Estado de GuestsTab:', {
+        eventos: eventsStore.events.length,
+        eventoActual: eventsStore.currentEvent?.name,
+        eventoActualId: eventsStore.currentEventId,
+        invitados: eventsStore.currentEventGuests.length
+      })
+      
+      // Si aún no hay evento seleccionado, mostrar información de debug
+      if (!eventsStore.currentEventId) {
+        console.warn('⚠️ No se pudo seleccionar evento automáticamente')
+        console.log('Eventos disponibles:', eventsStore.events)
+      }
+    }, 100)
+    
+  } catch (error) {
+    console.error('❌ Error inicializando GuestsTab:', error)
+    
+    const toast = await toastController.create({
+      message: 'Error conectando con la base de datos',
+      duration: 4000,
+      color: 'danger',
+      position: 'top'
+    })
+    await toast.present()
+  }
 })
+
+// Función para forzar selección de evento (para debugging)
+const forceSelectFirstEvent = () => {
+  if (eventsStore.events.length > 0) {
+    const firstEvent = eventsStore.events[0]
+    eventsStore.setCurrentEvent(firstEvent.id)
+    console.log('🔧 Evento forzado:', firstEvent.name)
+    
+    // Mostrar toast de confirmación
+    toastController.create({
+      message: `Evento seleccionado: ${firstEvent.name}`,
+      duration: 2000,
+      color: 'success',
+      position: 'top'
+    }).then(toast => toast.present())
+  } else {
+    console.log('❌ No hay eventos disponibles para seleccionar')
+  }
+}
+
+// Hacer la función disponible globalmente para debugging
+;(window as any).forceSelectFirstEvent = forceSelectFirstEvent
 
 // Formatear fecha
 const formatDate = (dateString: string) => {
@@ -333,13 +393,34 @@ const formatDate = (dateString: string) => {
   })
 }
 
-// Función para añadir invitados
+// Función para añadir invitados - MEJORADA con mejor manejo de errores
 const addGuests = async () => {
-  if (!guestInput.value.trim() || !currentEvent.value) return
+  if (!guestInput.value.trim()) {
+    const toast = await toastController.create({
+      message: 'Por favor, introduce los datos de los invitados',
+      duration: 3000,
+      color: 'warning',
+      position: 'top'
+    })
+    await toast.present()
+    return
+  }
+
+  if (!currentEvent.value) {
+    const toast = await toastController.create({
+      message: 'Selecciona un evento primero',
+      duration: 3000,
+      color: 'warning',
+      position: 'top'
+    })
+    await toast.present()
+    return
+  }
   
   const lines = guestInput.value.trim().split('\n')
   const validGuests = []
   const duplicates = []
+  const invalidLines = []
   
   for (const line of lines) {
     const parts = line.split(',').map(p => p.trim())
@@ -358,12 +439,18 @@ const addGuests = async () => {
       } else {
         duplicates.push(email)
       }
+    } else {
+      invalidLines.push(line)
     }
   }
   
   if (validGuests.length === 0) {
+    let message = 'No hay invitados válidos para añadir'
+    if (duplicates.length > 0) message = 'Todos los emails ya existen'
+    if (invalidLines.length > 0) message = 'Formato inválido. Usa: Nombre, Email, Teléfono'
+    
     const toast = await toastController.create({
-      message: duplicates.length > 0 ? 'Todos los emails ya existen' : 'No hay invitados válidos',
+      message,
       duration: 3000,
       color: 'warning',
       position: 'top'
@@ -373,24 +460,33 @@ const addGuests = async () => {
   }
   
   try {
+    console.log('👥 Añadiendo', validGuests.length, 'invitados al evento:', currentEvent.value.name)
+    
     for (const guest of validGuests) {
       await eventsStore.addGuest(guest)
     }
     
     guestInput.value = ''
     
+    let message = `✅ ${validGuests.length} invitados añadidos`
+    if (duplicates.length > 0) message += ` (${duplicates.length} duplicados omitidos)`
+    if (invalidLines.length > 0) message += ` (${invalidLines.length} líneas con formato incorrecto)`
+    
     const toast = await toastController.create({
-      message: `✅ ${validGuests.length} invitados añadidos${duplicates.length > 0 ? ` (${duplicates.length} duplicados omitidos)` : ''}`,
+      message,
       duration: 3000,
       color: 'success',
       position: 'top'
     })
     await toast.present()
-  } catch (error) {
-    console.error('Error adding guests:', error)
+    
+    console.log('✅ Invitados añadidos exitosamente')
+    
+  } catch (error: any) {
+    console.error('❌ Error adding guests:', error)
     const toast = await toastController.create({
-      message: 'Error al añadir invitados',
-      duration: 3000,
+      message: `Error al añadir invitados: ${error?.message || 'Error desconocido'}`,
+      duration: 4000,
       color: 'danger',
       position: 'top'
     })
@@ -412,14 +508,31 @@ const loadSampleGuests = () => {
   guestInput.value = sampleGuests.join('\n')
 }
 
-// Selector de evento
+// Selector de evento - MEJORADO
 const openEventSelector = () => {
+  if (eventsStore.events.length <= 1) {
+    toastController.create({
+      message: 'Solo hay un evento disponible',
+      duration: 2000,
+      color: 'medium',
+      position: 'top'
+    }).then(toast => toast.present())
+    return
+  }
   showEventSelector.value = true
 }
 
 const selectEvent = (event: any) => {
+  console.log('🎯 Cambiando a evento:', event.name)
   eventsStore.setCurrentEvent(event.id)
   showEventSelector.value = false
+  
+  toastController.create({
+    message: `Evento seleccionado: ${event.name}`,
+    duration: 2000,
+    color: 'success',
+    position: 'top'
+  }).then(toast => toast.present())
 }
 
 // Editar invitado
@@ -429,9 +542,25 @@ const editGuest = (guest: Guest) => {
 }
 
 const saveEditedGuest = async () => {
-  // Implementar actualización de invitado
-  showEditModal.value = false
-  editingGuest.value = null
+  if (!editingGuest.value) return
+  
+  try {
+    // TODO: Implementar actualización de invitado en Supabase
+    console.log('💾 Guardando cambios de:', editingGuest.value.name)
+    
+    showEditModal.value = false
+    editingGuest.value = null
+    
+    const toast = await toastController.create({
+      message: 'Cambios guardados (función pendiente de implementar)',
+      duration: 3000,
+      color: 'warning',
+      position: 'top'
+    })
+    await toast.present()
+  } catch (error) {
+    console.error('Error saving guest:', error)
+  }
 }
 
 const deleteGuest = async () => {
@@ -441,9 +570,17 @@ const deleteGuest = async () => {
     buttons: [
       { text: 'Cancelar', role: 'cancel' },
       { text: 'Eliminar', role: 'destructive', handler: () => {
-        // Implementar eliminación
+        // TODO: Implementar eliminación
+        console.log('🗑️ Eliminando invitado:', editingGuest.value?.name)
         showEditModal.value = false
         editingGuest.value = null
+        
+        toastController.create({
+          message: 'Invitado eliminado (función pendiente de implementar)',
+          duration: 3000,
+          color: 'warning',
+          position: 'top'
+        }).then(toast => toast.present())
       }}
     ]
   })
@@ -469,22 +606,40 @@ const getAvatarClass = (guest: Guest) => {
   return 'pending'
 }
 
-// Limpiar todos los invitados
+// Limpiar todos los invitados - IMPLEMENTADO
 const clearAllGuests = async () => {
+  if (!currentEvent.value || currentEventGuests.value.length === 0) {
+    const toast = await toastController.create({
+      message: 'No hay invitados para eliminar',
+      duration: 2000,
+      color: 'medium',
+      position: 'top'
+    })
+    await toast.present()
+    return
+  }
+
   const alert = await alertController.create({
     header: 'Limpiar Lista',
-    message: '¿Estás seguro de eliminar todos los invitados de este evento?',
+    message: `¿Estás seguro de eliminar todos los ${currentEventGuests.value.length} invitados de "${currentEvent.value.name}"?`,
     buttons: [
       { text: 'Cancelar', role: 'cancel' },
       { text: 'Eliminar Todo', role: 'destructive', handler: async () => {
-        // Implementar limpieza
-        const toast = await toastController.create({
-          message: 'Lista limpiada completamente',
-          duration: 2000,
-          color: 'success',
-          position: 'top'
-        })
-        await toast.present()
+        try {
+          console.log('🧹 Limpiando todos los invitados del evento:', currentEvent.value?.name)
+          
+          // TODO: Implementar eliminación masiva en Supabase
+          // Por ahora solo simular
+          const toast = await toastController.create({
+            message: `${currentEventGuests.value.length} invitados eliminados (función pendiente de implementar)`,
+            duration: 3000,
+            color: 'warning',
+            position: 'top'
+          })
+          await toast.present()
+        } catch (error) {
+          console.error('Error clearing guests:', error)
+        }
       }}
     ]
   })

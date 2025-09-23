@@ -268,12 +268,45 @@ const scannedGuests = computed(() =>
   currentEventGuests.value.filter(guest => guest.scanned)
 )
 
-// Inicializar
-onMounted(() => {
-  eventsStore.init()
-  // Diagnosticar EmailJS solo en desarrollo
-  if (import.meta.env.DEV) {
-    diagnoseEmailJS()
+// Inicializar - CORREGIDO para asegurar evento actual
+onMounted(async () => {
+  try {
+    console.log('📧 Inicializando SendTab...')
+    
+    // Inicializar el store y esperar a que termine
+    await eventsStore.init()
+    
+    // Esperar un momento para que el estado se actualice
+    setTimeout(() => {
+      // Si hay eventos pero no hay evento actual seleccionado, seleccionar el primero
+      if (eventsStore.events.length > 0 && !eventsStore.currentEventId) {
+        console.log('🎯 SendTab: Seleccionando automáticamente el primer evento:', eventsStore.events[0].name)
+        eventsStore.setCurrentEvent(eventsStore.events[0].id)
+      }
+      
+      console.log('📊 Estado de SendTab:', {
+        eventos: eventsStore.events.length,
+        eventoActual: eventsStore.currentEvent?.name,
+        invitadosPendientes: pendingGuests.value.length,
+        invitadosEnviados: sentGuests.value.length
+      })
+    }, 100)
+    
+    // Diagnosticar EmailJS solo en desarrollo
+    if (import.meta.env.DEV) {
+      diagnoseEmailJS()
+    }
+    
+  } catch (error) {
+    console.error('❌ Error inicializando SendTab:', error)
+    
+    const toast = await toastController.create({
+      message: 'Error conectando con la base de datos',
+      duration: 4000,
+      color: 'danger',
+      position: 'top'
+    })
+    await toast.present()
   }
 })
 
@@ -295,14 +328,45 @@ const formatDateTime = (dateString: string) => {
   })
 }
 
-// Seleccionar evento
+// Seleccionar evento - MEJORADO
 const selectEvent = (eventId: string) => {
+  const event = eventsStore.events.find(e => e.id === eventId)
+  console.log('🎯 SendTab: Cambiando a evento:', event?.name)
   eventsStore.setCurrentEvent(eventId)
+  
+  if (event) {
+    toastController.create({
+      message: `Evento seleccionado: ${event.name}`,
+      duration: 2000,
+      color: 'success',
+      position: 'top'
+    }).then(toast => toast.present())
+  }
 }
 
-// Función para enviar todos los QRs
+// Función para enviar todos los QRs - MEJORADA
 const sendAllQRs = async () => {
-  if (!currentEvent.value || pendingGuests.value.length === 0) return
+  if (!currentEvent.value) {
+    const toast = await toastController.create({
+      message: 'Selecciona un evento primero',
+      duration: 3000,
+      color: 'warning',
+      position: 'top'
+    })
+    await toast.present()
+    return
+  }
+
+  if (pendingGuests.value.length === 0) {
+    const toast = await toastController.create({
+      message: 'No hay invitados pendientes de envío',
+      duration: 3000,
+      color: 'warning',
+      position: 'top'
+    })
+    await toast.present()
+    return
+  }
 
   const confirm = window.confirm(
     `¿Enviar QRs a ${pendingGuests.value.length} invitados del evento "${currentEvent.value.name}"?`
@@ -319,20 +383,22 @@ const sendAllQRs = async () => {
   try {
     const guestsToSend = [...pendingGuests.value]
     
+    console.log('📧 Preparando envío masivo para', guestsToSend.length, 'invitados')
+    
     // Preparar datos para envío masivo
     const guestsWithQRs = guestsToSend.map(guest => {
       if (!currentEvent.value) throw new Error('No hay evento seleccionado')
       
       const qrData = {
-        id: guest.id,                    // ← Cambiar 'guestId' por 'id'
+        id: guest.id,
         name: guest.name,
         email: guest.email,
-        event_name: currentEvent.value.name,  // ← Añadir event_name
+        event_name: currentEvent.value.name,
         eventId: currentEvent.value.id,
         eventName: currentEvent.value.name,
         timestamp: new Date().toISOString(),
-        date: new Date().toDateString(),      // ← Añadir date
-        version: '1.0'                        // ← Añadir version
+        date: new Date().toDateString(),
+        version: '1.0'
       }
       
       return {
@@ -380,17 +446,23 @@ const sendAllQRs = async () => {
     }
 
     // Usar la función de envío masivo
+    console.log('🚀 Iniciando envío masivo...')
     const results = await sendBulkQREmails(guestsWithQRs, emailOptions, progressCallback)
     
-    // Marcar invitados como enviados
+    console.log('📊 Resultados del envío:', results)
+    
+    // Marcar invitados como enviados Y GUARDAR EN SUPABASE
+    let updatedGuests = 0
     for (const guest of guestsToSend) {
       guest.sent = true
       guest.sent_at = new Date().toISOString()
       ;(guest as any).simulated_send = results.simulated > 0
+      updatedGuests++
     }
     
-    // Guardar cambios
-    eventsStore.saveGuests()
+    // Guardar cambios en Supabase
+    console.log('💾 Guardando cambios en Supabase para', updatedGuests, 'invitados...')
+    await eventsStore.saveGuests()
     
     currentSendStatus.value = '✅ Envío completado'
     
@@ -402,7 +474,7 @@ const sendAllQRs = async () => {
       message = `⚠️ ${results.sent || 0} enviados, ${results.failed} fallaron`
       toastColor = 'warning'
     } else if (results.simulated > 0) {
-      message = `📧 ${results.simulated} QRs procesados (modo simulación - verificar configuración)`
+      message = `📧 ${results.simulated} QRs procesados (modo simulación - verificar configuración EmailJS)`
       toastColor = 'warning'
     } else if (results.sent > 0) {
       message = `✅ ${results.sent} QRs enviados correctamente`
@@ -442,12 +514,12 @@ const sendAllQRs = async () => {
       await errorToast.present()
     }
     
-  } catch (error) {
-    console.error('Error sending QRs:', error)
+  } catch (error: any) {
+    console.error('❌ Error sending QRs:', error)
     
     const toast = await toastController.create({
-      message: 'Error durante el envío masivo',
-      duration: 3000,
+      message: `Error durante el envío masivo: ${error?.message || 'Error desconocido'}`,
+      duration: 4000,
       color: 'danger',
       position: 'top'
     })
@@ -457,22 +529,33 @@ const sendAllQRs = async () => {
   }
 }
 
-// Función para enviar QR individual
+// Función para enviar QR individual - MEJORADA
 const sendSingleQR = async (guest: Guest) => {
-  if (!currentEvent.value) return
+  if (!currentEvent.value) {
+    const toast = await toastController.create({
+      message: 'Selecciona un evento primero',
+      duration: 3000,
+      color: 'warning',
+      position: 'top'
+    })
+    await toast.present()
+    return
+  }
 
   try {
+    console.log('📧 Enviando QR individual a:', guest.name)
+    
     // Generar datos del QR
     const qrData = {
-      id: guest.id,                    // ← Cambiar 'guestId' por 'id'
+      id: guest.id,
       name: guest.name,
       email: guest.email,
-      event_name: currentEvent.value.name,  // ← Añadir event_name
+      event_name: currentEvent.value.name,
       eventId: currentEvent.value.id,
       eventName: currentEvent.value.name,
       timestamp: new Date().toISOString(),
-      date: new Date().toDateString(),      // ← Añadir date
-      version: '1.0'                        // ← Añadir version
+      date: new Date().toDateString(),
+      version: '1.0'
     }
     
     // Preparar guest con event_name
@@ -498,11 +581,12 @@ const sendSingleQR = async (guest: Guest) => {
       guest.sent_at = new Date().toISOString()
       ;(guest as any).simulated_send = result.simulated
       
-      // Guardar cambios
-      eventsStore.saveGuests()
+      // Guardar cambios en Supabase
+      console.log('💾 Guardando cambio individual en Supabase...')
+      await eventsStore.saveGuests()
       
       const message = result.simulated 
-        ? `📧 Envío simulado para ${guest.name} (configurar EmailJS)`
+        ? `📧 Envío simulado para ${guest.name} (configurar variables EmailJS)`
         : `✅ QR enviado a ${guest.name}`
       
       const toast = await toastController.create({
@@ -513,8 +597,8 @@ const sendSingleQR = async (guest: Guest) => {
       })
       await toast.present()
     }
-  } catch (error) {
-    console.error('Error sending single QR:', error)
+  } catch (error: any) {
+    console.error('❌ Error sending single QR:', error)
     
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
     const toast = await toastController.create({
