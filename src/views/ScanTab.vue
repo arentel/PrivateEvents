@@ -148,7 +148,7 @@
                 </p>
                 <p v-if="validationResult.type === 'success'">
                   <strong>Hora actual:</strong> 
-                  {{ formatDate(new Date().toISOString()) }}
+                  {{ getCurrentTimeFormatted() }}
                 </p>
               </div>
               <p class="result-message">{{ validationResult.message }}</p>
@@ -291,6 +291,34 @@ const recentEntriesDisplay = computed(() =>
     new Date(b.entered_at) - new Date(a.entered_at)
   )
 )
+
+// Función para obtener la fecha y hora actual en formato España/Madrid
+const getCurrentMadridTime = () => {
+  return new Date().toLocaleString('en-CA', {
+    timeZone: 'Europe/Madrid',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).replace(/(\d{4})-(\d{2})-(\d{2}), (\d{2}):(\d{2}):(\d{2})/, '$1-$2-$3T$4:$5:$6')
+}
+
+// Función para mostrar la hora actual formateada
+const getCurrentTimeFormatted = () => {
+  return new Date().toLocaleString('es-ES', {
+    timeZone: 'Europe/Madrid',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+}
 
 // Función para alternar el scanner
 const toggleScanner = async () => {
@@ -484,12 +512,15 @@ const validateScannedCode = async (qrCode) => {
       return
     }
     
+    // Obtener la fecha/hora actual en zona horaria Madrid
+    const madridTime = getCurrentMadridTime()
+    
     // Marcar como entrada exitosa
     const { error: updateError } = await supabase
       .from('guests')
       .update({
         has_entered: true,
-        entered_at: new Date().toISOString()
+        entered_at: madridTime
       })
       .eq('id', guest.id)
     
@@ -502,7 +533,7 @@ const validateScannedCode = async (qrCode) => {
     const updatedGuest = {
       ...guest,
       has_entered: true,
-      entered_at: new Date().toISOString()
+      entered_at: madridTime
     }
     
     recentEntries.value.unshift(updatedGuest)
@@ -607,27 +638,40 @@ const clearValidationStats = () => {
   }
 }
 
-// Función para formatear fecha
+// Función para formatear fecha con zona horaria de España/Madrid
 const formatDate = (dateString) => {
-  return new Date(dateString).toLocaleString('es-ES', {
+  if (!dateString) return ''
+  
+  const date = new Date(dateString)
+  
+  return date.toLocaleString('es-ES', {
+    timeZone: 'Europe/Madrid',
     day: '2-digit',
     month: '2-digit',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit'
+    second: '2-digit',
+    hour12: false
   })
 }
 
 // Cargar entradas recientes al montar
 onMounted(async () => {
   try {
-    const today = new Date().toISOString().split('T')[0]
+    // Obtener el inicio del día actual en Madrid
+    const madridDate = new Date().toLocaleString('en-CA', {
+      timeZone: 'Europe/Madrid',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    })
     
     const { data, error } = await supabase
       .from('guests')
       .select('*')
       .eq('has_entered', true)
-      .gte('entered_at', `${today}T00:00:00`)
+      .gte('entered_at', `${madridDate}T00:00:00`)
       .order('entered_at', { ascending: false })
       .limit(20)
     
@@ -636,7 +680,7 @@ onMounted(async () => {
     recentEntries.value = data || []
     successfulEntries.value = data?.length || 0
     
-    console.log(`Loaded ${recentEntries.value.length} recent entries for today`)
+    console.log(`Loaded ${recentEntries.value.length} recent entries for today (Madrid time)`)
     
   } catch (error) {
     console.error('Error loading recent entries:', error)

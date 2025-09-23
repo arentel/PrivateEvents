@@ -341,6 +341,7 @@ const showEmailPreview = () => {
 // Función para formatear fecha
 const formatDate = (dateString) => {
   return new Date(dateString).toLocaleString('es-ES', {
+    timeZone: 'Europe/Madrid',
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
