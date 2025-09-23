@@ -95,25 +95,34 @@ export const eventsStore = {
     eventsState.error = null
 
     try {
-      // PRIMERO: Intentar cargar desde Supabase
+      console.log('🔄 Inicializando desde Supabase...')
+      
+      // SIEMPRE intentar cargar desde Supabase primero
       await this.loadFromSupabase()
       
-      // Si no hay eventos, crear uno por defecto
+      // Si no hay eventos, crear uno por defecto EN SUPABASE
       if (eventsState.events.length === 0) {
+        console.log('📝 No hay eventos, creando evento por defecto...')
         await this.createDefaultEvent()
       }
 
       // Si no hay evento actual, seleccionar el primero
       if (!eventsState.currentEventId && eventsState.events.length > 0) {
         eventsState.currentEventId = eventsState.events[0].id
-        this.saveCurrentEventLocal() // Solo evento actual en localStorage
+        this.saveCurrentEventLocal()
       }
 
-      console.log('✅ Eventos inicializados desde Supabase:', eventsState.events.length)
-    } catch (error) {
-      console.error('❌ Error cargando desde Supabase, usando localStorage:', error)
-      // FALLBACK: Cargar desde localStorage solo si Supabase falla
-      this.loadFromLocalStorage()
+      console.log('✅ Eventos inicializados desde Supabase:', {
+        eventos: eventsState.events.length,
+        invitados: eventsState.guests.length,
+        eventoActual: this.currentEvent?.name
+      })
+    } catch (error: any) {
+      console.error('❌ ERROR CRÍTICO - No se pudo conectar a Supabase:', error)
+      eventsState.error = `Error de conexión a Supabase: ${error?.message || 'Error desconocido'}`
+      
+      // NO usar localStorage como fallback - mostrar error al usuario
+      throw new Error('No se puede conectar a la base de datos. Verifica tu conexión a internet y la configuración de Supabase.')
     } finally {
       eventsState.loading = false
     }
@@ -121,16 +130,33 @@ export const eventsStore = {
 
   // Cargar datos desde Supabase
   async loadFromSupabase() {
+    console.log('📡 Conectando a Supabase...')
+    
     try {
+      // Verificar conexión a Supabase
+      const { data: connectionTest, error: connectionError } = await supabase
+        .from('guests')
+        .select('count')
+        .limit(1)
+
+      if (connectionError && connectionError.code === '42P01') {
+        throw new Error('La tabla "guests" no existe en Supabase. Ejecuta el SQL de inicialización.')
+      }
+
       // Cargar eventos
       const { data: events, error: eventsError } = await supabase
         .from('events')
         .select('*')
         .order('created_at', { ascending: false })
 
-      if (eventsError) throw eventsError
+      if (eventsError) {
+        if (eventsError.code === '42P01') {
+          throw new Error('La tabla "events" no existe en Supabase. Ejecuta el SQL de inicialización.')
+        }
+        throw eventsError
+      }
 
-      // Cargar invitados (ahora con event_name y event_id)
+      // Cargar invitados
       const { data: guests, error: guestsError } = await supabase
         .from('guests')
         .select('*')
@@ -141,45 +167,26 @@ export const eventsStore = {
       eventsState.events = events || []
       eventsState.guests = guests || []
 
+      console.log('📊 Datos cargados desde Supabase:', {
+        eventos: eventsState.events.length,
+        invitados: eventsState.guests.length
+      })
+
       // Cargar evento actual desde localStorage
       const savedCurrentEvent = localStorage.getItem('current_event_id')
       if (savedCurrentEvent && eventsState.events.find(e => e.id === savedCurrentEvent)) {
         eventsState.currentEventId = savedCurrentEvent
       }
     } catch (error) {
-      console.error('Error loading from Supabase:', error)
+      console.error('❌ Error específico en loadFromSupabase:', error)
       throw error
     }
   },
 
-  // Fallback: Cargar desde localStorage solo si Supabase falla
-  loadFromLocalStorage() {
-    try {
-      const savedEvents = localStorage.getItem('events_data')
-      const savedGuests = localStorage.getItem('guests_data')
-      const savedCurrentEvent = localStorage.getItem('current_event_id')
-
-      if (savedEvents) {
-        eventsState.events = JSON.parse(savedEvents)
-      }
-
-      if (savedGuests) {
-        eventsState.guests = JSON.parse(savedGuests)
-      }
-
-      if (savedCurrentEvent) {
-        eventsState.currentEventId = savedCurrentEvent
-      }
-
-      console.log('⚠️ Usando datos locales como fallback')
-    } catch (error) {
-      console.error('Error loading from localStorage:', error)
-      eventsState.error = 'Error cargando eventos'
-    }
-  },
-
-  // Crear evento por defecto
+  // Crear evento por defecto EN SUPABASE
   async createDefaultEvent() {
+    console.log('🆕 Creando evento por defecto en Supabase...')
+    
     const defaultEvent = {
       name: 'Mi Primer Evento',
       description: 'Evento de ejemplo',
@@ -189,17 +196,25 @@ export const eventsStore = {
       is_active: true
     }
 
-    const createdEvent = await this.createEvent(defaultEvent)
-    eventsState.currentEventId = createdEvent.id
-    this.saveCurrentEventLocal()
+    try {
+      const createdEvent = await this.createEvent(defaultEvent)
+      eventsState.currentEventId = createdEvent.id
+      this.saveCurrentEventLocal()
+      console.log('✅ Evento por defecto creado:', createdEvent.name)
+    } catch (error) {
+      console.error('❌ Error creando evento por defecto:', error)
+      throw error
+    }
   },
 
-  // Crear nuevo evento en Supabase
+  // Crear nuevo evento en Supabase SOLAMENTE
   async createEvent(eventData: Omit<Event, 'id' | 'created_at' | 'updated_at'>): Promise<Event> {
     eventsState.loading = true
     eventsState.error = null
 
     try {
+      console.log('📝 Creando evento en Supabase:', eventData.name)
+      
       const { data, error } = await supabase
         .from('events')
         .insert([{
@@ -210,33 +225,21 @@ export const eventsStore = {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Error de Supabase al crear evento:', error)
+        throw error
+      }
 
       eventsState.events.unshift(data)
-      console.log('✅ Evento creado en Supabase:', data.name)
+      console.log('✅ Evento creado exitosamente en Supabase:', data.name)
       return data
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error creating event in Supabase:', error)
-      // Fallback a localStorage
-      return this.createEventLocal(eventData)
+      eventsState.error = `Error creando evento: ${error?.message || 'Error desconocido'}`
+      throw error
     } finally {
       eventsState.loading = false
     }
-  },
-
-  // Fallback: Crear evento en localStorage
-  createEventLocal(eventData: Omit<Event, 'id' | 'created_at' | 'updated_at'>): Event {
-    const newEvent: Event = {
-      ...eventData,
-      id: this.generateId(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-
-    eventsState.events.unshift(newEvent)
-    this.saveToLocalStorage()
-    console.log('⚠️ Evento creado en localStorage como fallback:', newEvent.name)
-    return newEvent
   },
 
   // Actualizar evento
@@ -411,8 +414,8 @@ export const eventsStore = {
       }
     } catch (error) {
       console.error('❌ Error saving guests to Supabase:', error)
-      // Fallback a localStorage
-      this.saveToLocalStorage()
+      // Si falla, lanzar error en lugar de usar localStorage
+      throw new Error('Error guardando invitados en la base de datos')
     }
   },
 
@@ -421,20 +424,13 @@ export const eventsStore = {
     return 'evt_' + Math.random().toString(36).substr(2, 9)
   },
 
-  // Solo guardar evento actual en localStorage
+  // Solo guardar evento actual en localStorage (para UX)
   saveCurrentEventLocal() {
     if (eventsState.currentEventId) {
       localStorage.setItem('current_event_id', eventsState.currentEventId)
     } else {
       localStorage.removeItem('current_event_id')
     }
-  },
-
-  // Fallback: Guardar todo en localStorage
-  saveToLocalStorage() {
-    localStorage.setItem('events_data', JSON.stringify(eventsState.events))
-    localStorage.setItem('guests_data', JSON.stringify(eventsState.guests))
-    this.saveCurrentEventLocal()
   },
 
   // Limpiar errores
@@ -444,6 +440,15 @@ export const eventsStore = {
 
   // Forzar recarga desde Supabase
   async forceReload() {
+    console.log('🔄 Forzando recarga desde Supabase...')
     await this.loadFromSupabase()
+  },
+
+  // Función para limpiar localStorage (solo para debugging)
+  clearLocalStorage() {
+    localStorage.removeItem('events_data')
+    localStorage.removeItem('guests_data') 
+    localStorage.removeItem('current_event_id')
+    console.log('🧹 localStorage limpiado')
   }
 }
