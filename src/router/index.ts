@@ -65,6 +65,16 @@ const routes: Array<RouteRecordRaw> = [
           title: 'Reportes',
           icon: 'analytics-outline'
         }
+      },
+      {
+        path: 'events',
+        name: 'Events',
+        component: () => import('../views/EventsTab.vue'),
+        meta: {
+          requiresAuth: true,
+          title: 'Eventos',
+          icon: 'calendar-outline'
+        }
       }
     ]
   },
