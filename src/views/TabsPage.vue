@@ -2,8 +2,12 @@
   <ion-page>
     <ion-tabs>
       <ion-router-outlet></ion-router-outlet>
-      
       <ion-tab-bar slot="bottom">
+        <ion-tab-button tab="events" href="/tabs/events">
+          <ion-icon :icon="calendarOutline"></ion-icon>
+          <ion-label>Eventos</ion-label>
+        </ion-tab-button>
+        
         <ion-tab-button tab="guests" href="/tabs/guests">
           <ion-icon :icon="peopleOutline"></ion-icon>
           <ion-label>Invitados</ion-label>
@@ -29,20 +33,21 @@
 </template>
 
 <script setup>
-import { 
-  IonTabBar, 
-  IonTabButton, 
-  IonTabs, 
-  IonLabel, 
-  IonIcon, 
-  IonPage, 
-  IonRouterOutlet 
+import {
+  IonTabBar,
+  IonTabButton,
+  IonTabs,
+  IonLabel,
+  IonIcon,
+  IonPage,
+  IonRouterOutlet
 } from '@ionic/vue'
-import { 
-  peopleOutline, 
-  mailOutline, 
-  scanOutline, 
-  analyticsOutline 
+import {
+  calendarOutline,
+  peopleOutline,
+  mailOutline,
+  scanOutline,
+  analyticsOutline
 } from 'ionicons/icons'
 </script>
 
