@@ -108,9 +108,16 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   console.log(`🧭 Navegando a: ${to.path}`)
   
-  // Rutas públicas que no requieren autenticación
-  const publicRoutes = ['/login', '/download-ticket', '/404']
-  const isPublicRoute = publicRoutes.some(route => to.path.startsWith(route)) || 
+  // IMPORTANTE: Permitir acceso directo a rutas de descarga sin autenticación
+  if (to.path.startsWith('/download-ticket/')) {
+    console.log(`📥 Acceso directo a descarga: ${to.path}`)
+    next()
+    return
+  }
+  
+  // Otras rutas públicas
+  const publicRoutes = ['/login', '/404']
+  const isPublicRoute = publicRoutes.includes(to.path) || 
                        to.matched.some(record => record.meta.requiresAuth === false)
   
   if (isPublicRoute) {
@@ -148,16 +155,6 @@ router.beforeEach((to, from, next) => {
     console.log('✅ Ya autenticado, redirigiendo a app')
     next('/tabs/guests')
     return
-  }
-  
-  // Verificar configuración de Supabase (solo log, no bloquear)
-  const hasSupabaseConfig = !!(
-    import.meta.env.VITE_SUPABASE_URL &&
-    import.meta.env.VITE_SUPABASE_ANON_KEY
-  )
-  
-  if (!hasSupabaseConfig && requiresAuth) {
-    console.warn('⚠️ Configuración de Supabase incompleta')
   }
   
   next()
