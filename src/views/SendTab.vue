@@ -173,8 +173,8 @@
                   </p>
                 </ion-label>
                 
-                <ion-chip :color="guest.scanned ? 'success' : 'warning'" slot="end">
-                  {{ guest.scanned ? 'VALIDADO' : 'ENVIADO' }}
+                <ion-chip :color="guest.has_entered || guest.scanned ? 'success' : 'warning'" slot="end">
+                  {{ guest.has_entered || guest.scanned ? 'VALIDADO' : 'ENVIADO' }}
                 </ion-chip>
               </ion-item>
             </ion-list>
@@ -239,6 +239,8 @@ import {
 } from 'ionicons/icons'
 import AppHeader from '@/components/AppHeader.vue'
 import { eventsStore, type Guest } from '@/stores/events'
+// @ts-ignore
+import { supabase } from '@/services/supabase.js'
 
 // Importaciones del servicio de email
 // @ts-ignore
@@ -256,29 +258,27 @@ const selectedTab = ref('pending')
 const currentEvent = computed(() => eventsStore.currentEvent)
 const currentEventGuests = computed(() => eventsStore.currentEventGuests)
 
+// Filtros usando la nueva estructura de base de datos
 const pendingGuests = computed(() => 
-  currentEventGuests.value.filter(guest => !guest.sent)
+  currentEventGuests.value.filter(guest => !guest.qr_sent && !guest.sent)
 )
 
 const sentGuests = computed(() => 
-  currentEventGuests.value.filter(guest => guest.sent)
+  currentEventGuests.value.filter(guest => guest.qr_sent || guest.sent)
 )
 
 const scannedGuests = computed(() => 
-  currentEventGuests.value.filter(guest => guest.scanned)
+  currentEventGuests.value.filter(guest => guest.has_entered || guest.scanned)
 )
 
-// Inicializar - CORREGIDO para asegurar evento actual
+// Inicializar
 onMounted(async () => {
   try {
     console.log('📧 Inicializando SendTab...')
     
-    // Inicializar el store y esperar a que termine
     await eventsStore.init()
     
-    // Esperar un momento para que el estado se actualice
     setTimeout(() => {
-      // Si hay eventos pero no hay evento actual seleccionado, seleccionar el primero
       if (eventsStore.events.length > 0 && !eventsStore.currentEventId) {
         console.log('🎯 SendTab: Seleccionando automáticamente el primer evento:', eventsStore.events[0].name)
         eventsStore.setCurrentEvent(eventsStore.events[0].id)
@@ -328,7 +328,7 @@ const formatDateTime = (dateString: string) => {
   })
 }
 
-// Seleccionar evento - MEJORADO
+// Seleccionar evento
 const selectEvent = (eventId: string) => {
   const event = eventsStore.events.find(e => e.id === eventId)
   console.log('🎯 SendTab: Cambiando a evento:', event?.name)
@@ -344,7 +344,7 @@ const selectEvent = (eventId: string) => {
   }
 }
 
-// Función para enviar todos los QRs - MEJORADA
+// Función para enviar todos los QRs - ACTUALIZADA para nueva estructura
 const sendAllQRs = async () => {
   if (!currentEvent.value) {
     const toast = await toastController.create({
@@ -451,18 +451,29 @@ const sendAllQRs = async () => {
     
     console.log('📊 Resultados del envío:', results)
     
-    // Marcar invitados como enviados Y GUARDAR EN SUPABASE
+    // Marcar invitados como enviados Y GUARDAR EN SUPABASE - USANDO NUEVA ESTRUCTURA
     let updatedGuests = 0
     for (const guest of guestsToSend) {
-      guest.sent = true
-      guest.sent_at = new Date().toISOString()
-      ;(guest as any).simulated_send = results.simulated > 0
-      updatedGuests++
+      // Actualizar en Supabase usando la nueva estructura
+      const { error } = await supabase
+        .from('guests')
+        .update({
+          qr_sent: true,
+          sent_at: new Date().toISOString()
+        })
+        .eq('id', guest.id)
+      
+      if (error) {
+        console.error('❌ Error actualizando guest en Supabase:', error)
+      } else {
+        // Actualizar estado local
+        guest.qr_sent = true
+        guest.sent = true // Alias para compatibilidad
+        guest.sent_at = new Date().toISOString()
+        ;(guest as any).simulated_send = results.simulated > 0
+        updatedGuests++
+      }
     }
-    
-    // Guardar cambios en Supabase
-    console.log('💾 Guardando cambios en Supabase para', updatedGuests, 'invitados...')
-    await eventsStore.saveGuests()
     
     currentSendStatus.value = '✅ Envío completado'
     
@@ -529,7 +540,7 @@ const sendAllQRs = async () => {
   }
 }
 
-// Función para enviar QR individual - MEJORADA
+// Función para enviar QR individual - ACTUALIZADA para nueva estructura
 const sendSingleQR = async (guest: Guest) => {
   if (!currentEvent.value) {
     const toast = await toastController.create({
@@ -576,14 +587,25 @@ const sendSingleQR = async (guest: Guest) => {
     const result = await sendQREmail(guestWithEvent, JSON.stringify(qrData), emailOptions)
     
     if (result.success) {
-      // Marcar como enviado
-      guest.sent = true
+      // Actualizar en Supabase usando la nueva estructura
+      const { error } = await supabase
+        .from('guests')
+        .update({
+          qr_sent: true,
+          sent_at: new Date().toISOString()
+        })
+        .eq('id', guest.id)
+      
+      if (error) {
+        console.error('❌ Error actualizando guest en Supabase:', error)
+        throw error
+      }
+      
+      // Actualizar estado local
+      guest.qr_sent = true
+      guest.sent = true // Alias para compatibilidad
       guest.sent_at = new Date().toISOString()
       ;(guest as any).simulated_send = result.simulated
-      
-      // Guardar cambios en Supabase
-      console.log('💾 Guardando cambio individual en Supabase...')
-      await eventsStore.saveGuests()
       
       const message = result.simulated 
         ? `📧 Envío simulado para ${guest.name} (configurar variables EmailJS)`

@@ -136,7 +136,7 @@
                   <h2>{{ guest.name }}</h2>
                   <p>{{ guest.email }}</p>
                   <p v-if="guest.phone" class="phone">📞 {{ guest.phone }}</p>
-                  <p v-if="guest.table" class="table">🪑 Mesa {{ guest.table }}</p>
+                  <p v-if="guest.table_number" class="table">🪑 Mesa {{ guest.table_number }}</p>
                 </ion-label>
                 
                 <div slot="end" class="guest-actions">
@@ -258,7 +258,7 @@
 
           <ion-item>
             <ion-label position="stacked">Mesa</ion-label>
-            <ion-input v-model="editingGuest.table" placeholder="Número de mesa"></ion-input>
+            <ion-input v-model="editingGuest.table_number" placeholder="Número de mesa"></ion-input>
           </ion-item>
 
           <div class="modal-actions">
@@ -336,7 +336,7 @@ const processingMessage = ref('')
 const currentEvent = computed(() => eventsStore.currentEvent)
 const currentEventGuests = computed(() => eventsStore.currentEventGuests)
 
-// Inicializar - CORREGIDO para asegurar evento actual
+// Inicializar
 onMounted(async () => {
   try {
     console.log('🏁 Inicializando GuestsTab...')
@@ -344,12 +344,9 @@ onMounted(async () => {
     isProcessing.value = true
     processingMessage.value = 'Cargando eventos y invitados...'
     
-    // Inicializar el store y esperar a que termine
     await eventsStore.init()
     
-    // Esperar un momento para que el estado se actualice
     setTimeout(() => {
-      // Si hay eventos pero no hay evento actual seleccionado, seleccionar el primero
       if (eventsStore.events.length > 0 && !eventsStore.currentEventId) {
         console.log('🎯 Seleccionando automáticamente el primer evento:', eventsStore.events[0].name)
         eventsStore.setCurrentEvent(eventsStore.events[0].id)
@@ -358,15 +355,8 @@ onMounted(async () => {
       console.log('📊 Estado de GuestsTab:', {
         eventos: eventsStore.events.length,
         eventoActual: eventsStore.currentEvent?.name,
-        eventoActualId: eventsStore.currentEventId,
         invitados: eventsStore.currentEventGuests.length
       })
-      
-      // Si aún no hay evento seleccionado, mostrar información de debug
-      if (!eventsStore.currentEventId) {
-        console.warn('⚠️ No se pudo seleccionar evento automáticamente')
-        console.log('Eventos disponibles:', eventsStore.events)
-      }
       
       isProcessing.value = false
     }, 100)
@@ -382,64 +372,8 @@ onMounted(async () => {
       position: 'top'
     })
     await toast.present()
-    
-    // Verificar qué tabla existe y su estructura
-    await verifyDatabaseStructure()
   }
 })
-
-// NUEVA FUNCIÓN: Verificar estructura de la base de datos
-const verifyDatabaseStructure = async () => {
-  try {
-    console.log('🔍 Verificando estructura de la base de datos...')
-    
-    // Probar conexión con events
-    try {
-      const { data: events, error: eventsError } = await supabase
-        .from('events')
-        .select('*')
-        .limit(3)
-      
-      if (!eventsError) {
-        console.log('✅ Tabla events OK:', events?.length, 'eventos encontrados')
-        if (events && events.length > 0) {
-          console.log('📋 Estructura events:', Object.keys(events[0]))
-          console.log('🎯 Eventos disponibles:', events.map((e: any) => e.name))
-        }
-      } else {
-        console.log('❌ Tabla events falla:', eventsError.message)
-      }
-    } catch (e) {
-      console.log('❌ Tabla events error:', e)
-    }
-    
-    // Probar tabla guests con diferentes esquemas
-    const queries = [
-      { name: 'guests (con event_id)', query: supabase.from('guests').select('id, name, email, phone, event_id, qr_sent, has_entered').limit(1) },
-      { name: 'guests (con event_name)', query: supabase.from('guests').select('id, name, email, phone, event_name, qr_sent, has_entered').limit(1) },
-      { name: 'guests (esquema básico)', query: supabase.from('guests').select('*').limit(1) }
-    ]
-    
-    for (const testQuery of queries) {
-      try {
-        const { data, error } = await testQuery.query
-        if (!error) {
-          console.log(`✅ ${testQuery.name} funciona:`, data?.length || 0, 'registros')
-          if (data && data.length > 0) {
-            console.log('📋 Estructura encontrada:', Object.keys(data[0]))
-          }
-        } else {
-          console.log(`❌ ${testQuery.name} falla:`, error.message)
-        }
-      } catch (e) {
-        console.log(`❌ ${testQuery.name} error:`, e)
-      }
-    }
-    
-  } catch (error) {
-    console.error('❌ Error verificando base de datos:', error)
-  }
-}
 
 // Formatear fecha
 const formatDate = (dateString: string) => {
@@ -450,7 +384,7 @@ const formatDate = (dateString: string) => {
   })
 }
 
-// Función para añadir invitados - CORREGIDA para usar event_name
+// Función para añadir invitados - CORREGIDA para nueva estructura
 const addGuests = async () => {
   if (!guestInput.value.trim()) {
     const toast = await toastController.create({
@@ -490,12 +424,12 @@ const addGuests = async () => {
         const email = parts[1].toLowerCase()
         const phone = parts[2] || null
         
-        // Verificar si ya existe usando event_name en lugar de event_id
+        // Verificar si ya existe usando event_id (nueva estructura)
         const { data: existing } = await supabase
           .from('guests')
           .select('email')
           .eq('email', email)
-          .eq('event_name', currentEvent.value.name)
+          .eq('event_id', currentEvent.value.id)
           .single()
         
         if (!existing) {
@@ -525,12 +459,13 @@ const addGuests = async () => {
     
     processingMessage.value = `Añadiendo ${validGuests.length} invitados...`
     
-    // Insertar usando el esquema correcto (event_name)
+    // Insertar usando la nueva estructura
     const guestsToInsert = validGuests.map(guest => ({
       name: guest.name,
       email: guest.email,
       phone: guest.phone,
-      event_name: currentEvent.value!.name, // Usar event_name en lugar de event_id
+      event_id: currentEvent.value!.id,
+      event_name: currentEvent.value!.name,
       qr_sent: false,
       has_entered: false,
       created_at: new Date().toISOString()
@@ -552,10 +487,16 @@ const addGuests = async () => {
       name: guest.name,
       email: guest.email,
       phone: guest.phone,
-      event_id: currentEvent.value!.id, // Mapear para compatibilidad local
+      event_id: guest.event_id,
+      event_name: guest.event_name,
+      qr_sent: guest.qr_sent || false,
+      has_entered: guest.has_entered || false,
+      table_number: guest.table_number,
+      created_at: guest.created_at,
+      // Aliases para compatibilidad
       sent: guest.qr_sent || false,
       scanned: guest.has_entered || false,
-      created_at: guest.created_at
+      table: guest.table_number
     }))
     
     // Añadir al estado local
@@ -615,7 +556,7 @@ const loadSampleGuests = () => {
   guestInput.value = sampleGuests.join('\n')
 }
 
-// Selector de evento - MEJORADO
+// Selector de evento
 const openEventSelector = () => {
   if (eventsStore.events.length <= 1) {
     toastController.create({
@@ -655,13 +596,13 @@ const saveEditedGuest = async () => {
   processingMessage.value = 'Guardando cambios...'
   
   try {
-    // Actualizar en Supabase usando event_name
     const { data, error } = await supabase
       .from('guests')
       .update({
         name: editingGuest.value.name,
         email: editingGuest.value.email.toLowerCase(),
-        phone: editingGuest.value.phone || null
+        phone: editingGuest.value.phone || null,
+        table_number: editingGuest.value.table_number || null
       })
       .eq('id', editingGuest.value.id)
       .select()
@@ -676,7 +617,9 @@ const saveEditedGuest = async () => {
         ...eventsStore.guests[index],
         name: data.name,
         email: data.email,
-        phone: data.phone
+        phone: data.phone,
+        table_number: data.table_number,
+        table: data.table_number // Alias para compatibilidad
       }
     }
     
@@ -770,24 +713,24 @@ const deleteGuest = async () => {
 
 // Funciones de utilidad
 const getStatusColor = (guest: Guest) => {
-  if (guest.scanned) return 'success'
-  if (guest.sent) return 'warning'
+  if (guest.has_entered || guest.scanned) return 'success'
+  if (guest.qr_sent || guest.sent) return 'warning'
   return 'medium'
 }
 
 const getStatusText = (guest: Guest) => {
-  if (guest.scanned) return 'VALIDADO'
-  if (guest.sent) return 'QR ENVIADO'
+  if (guest.has_entered || guest.scanned) return 'VALIDADO'
+  if (guest.qr_sent || guest.sent) return 'QR ENVIADO'
   return 'PENDIENTE'
 }
 
 const getAvatarClass = (guest: Guest) => {
-  if (guest.scanned) return 'entered'
-  if (guest.sent) return 'sent'
+  if (guest.has_entered || guest.scanned) return 'entered'
+  if (guest.qr_sent || guest.sent) return 'sent'
   return 'pending'
 }
 
-// Limpiar todos los invitados - IMPLEMENTADO
+// Limpiar todos los invitados
 const clearAllGuests = async () => {
   if (!currentEvent.value || currentEventGuests.value.length === 0) {
     const toast = await toastController.create({
@@ -813,19 +756,18 @@ const clearAllGuests = async () => {
           processingMessage.value = 'Eliminando todos los invitados...'
           
           try {
-            // Eliminar todos los invitados del evento actual usando event_name
+            // Eliminar usando event_id (nueva estructura)
             const { error } = await supabase
               .from('guests')
               .delete()
-              .eq('event_name', currentEvent.value!.name)
+              .eq('event_id', currentEvent.value!.id)
             
             if (error) throw error
             
-            // Actualizar estado local - remover invitados del evento actual
+            // Actualizar estado local
             const guestsToRemove = currentEventGuests.value.map(g => g.id)
             const filteredGuests = eventsStore.guests.filter(g => !guestsToRemove.includes(g.id))
             
-            // Actualizar el array de invitados
             eventsStore.guests.length = 0
             eventsStore.guests.push(...filteredGuests)
             
