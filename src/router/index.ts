@@ -12,15 +12,19 @@ const routes: Array<RouteRecordRaw> = [
     path: '/login',
     name: 'Login',
     component: () => import('../views/LoginView.vue'),
-    meta: { 
+    meta: {
       requiresAuth: false,
-      title: 'Iniciar Sesión' 
+      title: 'Iniciar Sesión'
     }
   },
   {
-  path: '/download-ticket/:code',
-  name: 'DownloadTicket',
-  component: () => import('@/views/DownloadTicket.vue')
+    path: '/download-ticket/:code',
+    name: 'DownloadTicket',
+    component: () => import('@/views/DownloadTicket.vue'),
+    meta: {
+      requiresAuth: false, // IMPORTANTE: Ruta pública
+      title: 'Descargar Entrada'
+    }
   },
   {
     path: '/tabs/',
@@ -86,7 +90,12 @@ const routes: Array<RouteRecordRaw> = [
   {
     // Ruta catch-all para 404
     path: '/:pathMatch(.*)*',
-    redirect: '/login'
+    name: 'NotFound',
+    component: () => import('../views/NotFoundView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Página no encontrada'
+    }
   }
 ]
 
@@ -97,11 +106,24 @@ const router = createRouter({
 
 // Guard de navegación para autenticación
 router.beforeEach((to, from, next) => {
+  console.log(`🧭 Navegando a: ${to.path}`)
+  
+  // Rutas públicas que no requieren autenticación
+  const publicRoutes = ['/login', '/download-ticket', '/404']
+  const isPublicRoute = publicRoutes.some(route => to.path.startsWith(route)) || 
+                       to.matched.some(record => record.meta.requiresAuth === false)
+  
+  if (isPublicRoute) {
+    console.log(`🌐 Ruta pública: ${to.path}`)
+    next()
+    return
+  }
+  
   // Inicializar auth store si no se ha hecho
   if (!auth.isAuthenticated) {
     auth.init()
   }
-
+  
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   
   if (requiresAuth) {
@@ -127,10 +149,10 @@ router.beforeEach((to, from, next) => {
     next('/tabs/guests')
     return
   }
-
+  
   // Verificar configuración de Supabase (solo log, no bloquear)
   const hasSupabaseConfig = !!(
-    import.meta.env.VITE_SUPABASE_URL && 
+    import.meta.env.VITE_SUPABASE_URL &&
     import.meta.env.VITE_SUPABASE_ANON_KEY
   )
   
@@ -148,7 +170,7 @@ router.afterEach((to) => {
   
   // Log de navegación en desarrollo
   if (import.meta.env.DEV) {
-    console.log(`🧭 Navegando a: ${to.path} (${String(to.name)})`)
+    console.log(`📍 En: ${to.path} (${String(to.name)})`)
   }
 })
 
