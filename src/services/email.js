@@ -12,6 +12,170 @@ const EMAIL_TIMEOUT = 8000
 const MAX_RETRIES = 2
 
 /**
+ * Sistema de almacenamiento robusto que funciona en móviles
+ */
+class TicketStorage {
+  constructor() {
+    this.storageKey = 'qr_tickets'
+    this.codesKey = 'ticket_codes'
+    this.init()
+  }
+
+  init() {
+    // Verificar si localStorage está disponible
+    if (!this.isStorageAvailable()) {
+      console.warn('🚨 localStorage no disponible, usando memoria temporal')
+      this.memoryStorage = new Map()
+      this.memoryCodes = new Set()
+    }
+    
+    // Limpiar tickets expirados al inicializar
+    this.cleanupExpired()
+  }
+
+  isStorageAvailable() {
+    try {
+      const test = '__storage_test__'
+      localStorage.setItem(test, 'test')
+      localStorage.removeItem(test)
+      return true
+    } catch (e) {
+      return false
+    }
+  }
+
+  saveTicket(code, ticketData) {
+    try {
+      const data = {
+        ...ticketData,
+        created: Date.now(),
+        expires: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 días
+      }
+
+      if (this.isStorageAvailable()) {
+        // Usar localStorage
+        localStorage.setItem(`${this.storageKey}_${code}`, JSON.stringify(data))
+        
+        // Actualizar lista de códigos
+        const codes = this.getCodes()
+        if (!codes.includes(code)) {
+          codes.push(code)
+          localStorage.setItem(this.codesKey, JSON.stringify(codes))
+        }
+      } else {
+        // Usar memoria temporal
+        this.memoryStorage.set(code, data)
+        this.memoryCodes.add(code)
+      }
+
+      console.log(`💾 Ticket guardado: ${code}`)
+      return true
+    } catch (error) {
+      console.error('❌ Error guardando ticket:', error)
+      return false
+    }
+  }
+
+  getTicket(code) {
+    try {
+      let ticketData = null
+
+      if (this.isStorageAvailable()) {
+        // Buscar en localStorage
+        const data = localStorage.getItem(`${this.storageKey}_${code}`)
+        if (data) {
+          ticketData = JSON.parse(data)
+        }
+      } else {
+        // Buscar en memoria
+        ticketData = this.memoryStorage.get(code)
+      }
+
+      if (!ticketData) {
+        console.log(`🔍 Ticket no encontrado: ${code}`)
+        return null
+      }
+
+      // Verificar expiración
+      if (Date.now() > ticketData.expires) {
+        console.log(`⏰ Ticket expirado: ${code}`)
+        this.removeTicket(code)
+        return null
+      }
+
+      console.log(`✅ Ticket encontrado: ${code} - ${ticketData.guest.name}`)
+      return ticketData
+    } catch (error) {
+      console.error('❌ Error obteniendo ticket:', error)
+      return null
+    }
+  }
+
+  removeTicket(code) {
+    try {
+      if (this.isStorageAvailable()) {
+        localStorage.removeItem(`${this.storageKey}_${code}`)
+        
+        // Actualizar lista de códigos
+        const codes = this.getCodes().filter(c => c !== code)
+        localStorage.setItem(this.codesKey, JSON.stringify(codes))
+      } else {
+        this.memoryStorage.delete(code)
+        this.memoryCodes.delete(code)
+      }
+    } catch (error) {
+      console.error('❌ Error removiendo ticket:', error)
+    }
+  }
+
+  getCodes() {
+    try {
+      if (this.isStorageAvailable()) {
+        const codes = localStorage.getItem(this.codesKey)
+        return codes ? JSON.parse(codes) : []
+      } else {
+        return Array.from(this.memoryCodes)
+      }
+    } catch (error) {
+      console.error('❌ Error obteniendo códigos:', error)
+      return []
+    }
+  }
+
+  cleanupExpired() {
+    try {
+      const codes = this.getCodes()
+      let cleaned = 0
+
+      codes.forEach(code => {
+        const ticket = this.getTicket(code)
+        if (!ticket) { // Ya fue removido por expiración
+          cleaned++
+        }
+      })
+
+      if (cleaned > 0) {
+        console.log(`🧹 Limpiados ${cleaned} tickets expirados`)
+      }
+    } catch (error) {
+      console.error('❌ Error limpiando tickets:', error)
+    }
+  }
+
+  getStorageInfo() {
+    const codes = this.getCodes()
+    return {
+      totalTickets: codes.length,
+      storageType: this.isStorageAvailable() ? 'localStorage' : 'memory',
+      codes: codes.slice(0, 5) // Solo los primeros 5 para debug
+    }
+  }
+}
+
+// Instancia global del sistema de almacenamiento
+const ticketStorage = new TicketStorage()
+
+/**
  * Inicializar EmailJS
  */
 const initializeEmailJS = async () => {
@@ -19,10 +183,10 @@ const initializeEmailJS = async () => {
     try {
       const emailjs = await import('@emailjs/browser')
       emailjs.default.init(EMAILJS_PUBLIC_KEY)
-      console.log('EmailJS inicializado correctamente')
+      console.log('📧 EmailJS inicializado correctamente')
       return emailjs.default
     } catch (error) {
-      console.error('Error inicializando EmailJS:', error)
+      console.error('❌ Error inicializando EmailJS:', error)
       return null
     }
   }
@@ -30,93 +194,39 @@ const initializeEmailJS = async () => {
 }
 
 /**
- * Generar código corto para descarga
+ * Generar código corto para descarga (más robusto)
  */
 const generateDownloadCode = (guestId, eventId) => {
-  const timestamp = Date.now().toString(36).slice(-4) // 4 chars del timestamp
-  const random = Math.random().toString(36).substr(2, 6)  // 6 chars random
-  const prefix = eventId.toString().slice(-2) // 2 últimos chars del eventId
-  return `${prefix}${timestamp}${random}`.toLowerCase() // Total: ~12 chars
+  const timestamp = Date.now().toString(36).slice(-4)
+  const random = Math.random().toString(36).substr(2, 6)
+  const prefix = eventId.toString().slice(-2)
+  const checksum = ((guestId.length + eventId.length) % 36).toString(36)
+  
+  return `${prefix}${timestamp}${random}${checksum}`.toLowerCase()
 }
 
 /**
- * Guardar ticket para descarga posterior
- */
-const saveTicketForDownload = (downloadCode, guestData, eventData, qrCode) => {
-  try {
-    const ticketData = {
-      code: downloadCode,
-      guest: guestData,
-      event: eventData,
-      qrCode: qrCode,
-      created: Date.now(),
-      expires: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 días
-    }
-    
-    localStorage.setItem(`ticket_${downloadCode}`, JSON.stringify(ticketData))
-    
-    const codes = JSON.parse(localStorage.getItem('ticket_codes') || '[]')
-    if (!codes.includes(downloadCode)) {
-      codes.push(downloadCode)
-      localStorage.setItem('ticket_codes', JSON.stringify(codes))
-    }
-    
-    console.log('Ticket guardado:', downloadCode)
-    return ticketData
-  } catch (error) {
-    console.error('Error guardando ticket:', error)
-    return null
-  }
-}
-
-/**
- * Obtener ticket por código
+ * Obtener ticket por código (función principal que usa el sistema robusto)
  */
 export const getTicketByCode = (code) => {
-  try {
-    const ticketData = localStorage.getItem(`ticket_${code}`)
-    if (!ticketData) return null
-    
-    const data = JSON.parse(ticketData)
-    
-    // Verificar expiración
-    if (Date.now() > data.expires) {
-      localStorage.removeItem(`ticket_${code}`)
-      return null
-    }
-    
-    return data
-  } catch (error) {
-    console.error('Error obteniendo ticket:', error)
-    return null
-  }
+  console.log(`🔍 Buscando ticket: ${code}`)
+  console.log(`📱 Info almacenamiento:`, ticketStorage.getStorageInfo())
+  
+  return ticketStorage.getTicket(code)
 }
 
 /**
  * Limpiar tickets expirados
  */
 export const cleanupExpiredTickets = () => {
-  try {
-    const codes = JSON.parse(localStorage.getItem('ticket_codes') || '[]')
-    const validCodes = []
-    
-    codes.forEach(code => {
-      const ticketData = localStorage.getItem(`ticket_${code}`)
-      if (ticketData) {
-        const data = JSON.parse(ticketData)
-        if (Date.now() <= data.expires) {
-          validCodes.push(code)
-        } else {
-          localStorage.removeItem(`ticket_${code}`)
-        }
-      }
-    })
-    
-    localStorage.setItem('ticket_codes', JSON.stringify(validCodes))
-    console.log(`Limpiados ${codes.length - validCodes.length} tickets expirados`)
-  } catch (error) {
-    console.error('Error limpiando tickets:', error)
-  }
+  ticketStorage.cleanupExpired()
+}
+
+/**
+ * Obtener información del almacenamiento (para debug)
+ */
+export const getStorageInfo = () => {
+  return ticketStorage.getStorageInfo()
 }
 
 /**
@@ -158,17 +268,24 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       phone: guest.phone || ''
     }
 
-    // Generar código corto
+    // Generar código y guardar con el sistema robusto
     const downloadCode = generateDownloadCode(guestData.id, eventData.id)
     const baseUrl = window.location.origin
     const downloadUrl = `${baseUrl}/#/download-ticket/${downloadCode}`
     
-    // Debug logs
-    console.log('Código generado:', downloadCode)
-    console.log('URL completa:', downloadUrl)
+    console.log(`💾 Guardando ticket: ${downloadCode}`)
     
-    // Guardar para descarga
-    saveTicketForDownload(downloadCode, guestData, eventData, qrCode)
+    const ticketData = {
+      code: downloadCode,
+      guest: guestData,
+      event: eventData,
+      qrCode: qrCode
+    }
+    
+    const saved = ticketStorage.saveTicket(downloadCode, ticketData)
+    if (!saved) {
+      throw new Error('No se pudo guardar el ticket')
+    }
     
     // Parámetros para EmailJS
     const templateParams = {
@@ -186,7 +303,7 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       timestamp: Date.now()
     }
 
-    console.log(`Enviando email a ${guest.email} con código: ${downloadCode}`)
+    console.log(`📧 Enviando email a ${guest.email} con código: ${downloadCode}`)
 
     const result = await Promise.race([
       emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams),
@@ -206,10 +323,10 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
     }
 
   } catch (error) {
-    console.error(`Error enviando email a ${guest.name} (intento ${attempt}):`, error.message)
+    console.error(`❌ Error enviando email a ${guest.name} (intento ${attempt}):`, error.message)
     
     if (attempt < MAX_RETRIES) {
-      console.log(`Reintentando envío a ${guest.name} (${attempt + 1}/${MAX_RETRIES})`)
+      console.log(`🔄 Reintentando envío a ${guest.name} (${attempt + 1}/${MAX_RETRIES})`)
       await new Promise(resolve => setTimeout(resolve, 1000))
       return sendSingleEmailWithRetry(guest, qrCode, options, attempt + 1)
     }
@@ -231,7 +348,7 @@ export const sendQREmail = async (guest, qrCode, options = {}) => {
   const result = await sendSingleEmailWithRetry(guest, qrCode, options)
   
   if (!result.success) {
-    console.log(`[FALLBACK] Email para: ${guest.email}`)
+    console.log(`🔄 [FALLBACK] Email para: ${guest.email}`)
     return {
       success: true,
       messageId: `fallback_${Date.now()}`,
@@ -258,7 +375,7 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
   }
 
   const startTime = Date.now()
-  console.log(`Iniciando envío masivo de ${guestsWithQRs.length} emails`)
+  console.log(`📧 Iniciando envío masivo de ${guestsWithQRs.length} emails`)
 
   const batches = []
   for (let i = 0; i < guestsWithQRs.length; i += BATCH_SIZE) {
@@ -343,7 +460,7 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
   }
 
   results.duration = Date.now() - startTime
-  console.log(`Envío completado en ${(results.duration/1000).toFixed(1)}s`)
+  console.log(`✅ Envío completado en ${(results.duration/1000).toFixed(1)}s`)
   
   return results
 }
@@ -357,29 +474,49 @@ export const checkEmailConfig = () => {
     hasTemplateId: !!EMAILJS_TEMPLATE_ID,
     hasPublicKey: !!EMAILJS_PUBLIC_KEY,
     ready: !!(EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY),
-    downloadSystem: true
+    downloadSystem: true,
+    storageInfo: ticketStorage.getStorageInfo()
   }
 }
 
 /**
- * Diagnóstico
+ * Diagnóstico mejorado
  */
 export const diagnoseEmailJS = () => {
-  console.log('Diagnóstico EmailJS:')
-  console.log('- Service ID:', EMAILJS_SERVICE_ID ? 'Configurado' : 'Faltante')
-  console.log('- Template ID:', EMAILJS_TEMPLATE_ID ? 'Configurado' : 'Faltante')
-  console.log('- Public Key:', EMAILJS_PUBLIC_KEY ? 'Configurado' : 'Faltante')
+  console.log('🔍 Diagnóstico EmailJS:')
+  console.log('- Service ID:', EMAILJS_SERVICE_ID ? '✅ Configurado' : '❌ Faltante')
+  console.log('- Template ID:', EMAILJS_TEMPLATE_ID ? '✅ Configurado' : '❌ Faltante')
+  console.log('- Public Key:', EMAILJS_PUBLIC_KEY ? '✅ Configurado' : '❌ Faltante')
   
-  const codes = JSON.parse(localStorage.getItem('ticket_codes') || '[]')
-  console.log(`- Códigos activos: ${codes.length}`)
+  const storageInfo = ticketStorage.getStorageInfo()
+  console.log(`- Almacenamiento: ${storageInfo.storageType}`)
+  console.log(`- Tickets activos: ${storageInfo.totalTickets}`)
   
-  cleanupExpiredTickets()
+  if (storageInfo.codes.length > 0) {
+    console.log('- Códigos de ejemplo:', storageInfo.codes)
+  }
+  
+  // Test de almacenamiento
+  const testCode = 'test_' + Date.now()
+  const testData = { test: true, guest: { name: 'Test' }, event: { name: 'Test Event' } }
+  
+  const saved = ticketStorage.saveTicket(testCode, testData)
+  const retrieved = ticketStorage.getTicket(testCode)
+  ticketStorage.removeTicket(testCode)
+  
+  console.log('- Test almacenamiento:', saved && retrieved ? '✅ OK' : '❌ FALLO')
 }
 
-// Auto-limpieza
+// Auto-limpieza mejorada
 if (typeof window !== 'undefined') {
-  setTimeout(cleanupExpiredTickets, 2000)
-  setInterval(cleanupExpiredTickets, 60 * 60 * 1000) // Cada hora
+  // Limpieza inicial más suave
+  setTimeout(() => {
+    cleanupExpiredTickets()
+    console.log('🧹 Limpieza inicial completada')
+  }, 2000)
+  
+  // Limpieza periódica menos agresiva
+  setInterval(cleanupExpiredTickets, 30 * 60 * 1000) // Cada 30 minutos
 }
 
 export default {
@@ -388,5 +525,6 @@ export default {
   getTicketByCode,
   cleanupExpiredTickets,
   checkEmailConfig,
-  diagnoseEmailJS
+  diagnoseEmailJS,
+  getStorageInfo
 }
