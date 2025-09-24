@@ -13,8 +13,8 @@
     </ion-header>
     
     <ion-content>
-      <!-- Si no hay código, mostrar página de inicio -->
-      <div v-if="!hasDownloadCode" class="welcome-container">
+      <!-- Página de bienvenida cuando no hay código o es "home" -->
+      <div v-if="showWelcomePage" class="welcome-container">
         <div class="welcome-card">
           <div class="welcome-header">
             <h1>Sistema QR Eventos</h1>
@@ -53,7 +53,7 @@
         </div>
       </div>
 
-      <!-- Contenido principal cuando hay código -->
+      <!-- Contenido de descarga cuando hay código válido -->
       <div v-else class="download-container">
         <!-- Estado de carga -->
         <ion-card v-if="loading" class="loading-card">
@@ -214,16 +214,21 @@ const route = useRoute()
 const router = useRouter()
 
 // Estado reactivo
-const loading = ref(true)
+const loading = ref(false)
 const downloading = ref(false)
 const ticketData = ref<any>(null)
 const error = ref('')
 const qrImageUrl = ref('')
 const manualCode = ref('')
 
-// Computed
-const hasDownloadCode = computed(() => {
-  return !!route.params.code
+// Computed properties
+const downloadCode = computed(() => {
+  const code = route.params.code as string
+  return code && code !== 'home' ? code : null
+})
+
+const showWelcomePage = computed(() => {
+  return !downloadCode.value
 })
 
 // Formatear fecha
@@ -240,7 +245,7 @@ const formatDate = (dateString: string | number) => {
 
 // Ir a login de admin
 const goToAdminLogin = () => {
-  router.push('/admin/login')
+  router.push('/login')
 }
 
 // Verificar código manual
@@ -248,7 +253,7 @@ const checkManualCode = async () => {
   if (!manualCode.value.trim()) return
   
   // Redirigir a la URL de descarga con el código manual
-  router.push(`/download/${manualCode.value.trim()}`)
+  router.push(`/download-ticket/${manualCode.value.trim()}`)
 }
 
 // Descargar PDF
@@ -260,14 +265,12 @@ const downloadPDF = async () => {
   try {
     console.log('📥 Iniciando descarga de PDF para:', ticketData.value.guest.name)
     
-    // Usar la función de generación de PDF directa
     await generateTicketPDF(
       ticketData.value.guest, 
       ticketData.value.event,
       null // Sin logo por defecto
     )
     
-    // Mostrar toast de confirmación
     const toast = await toastController.create({
       message: '✅ Entrada descargada exitosamente',
       duration: 3000,
@@ -306,18 +309,18 @@ const generateQRPreview = async () => {
 }
 
 // Cargar datos del ticket
-const loadTicketData = () => {
-  const code = route.params.code as string
+const loadTicketData = async () => {
+  if (!downloadCode.value) return
   
-  if (!code) {
-    error.value = 'Código de descarga no proporcionado'
-    loading.value = false
-    return
-  }
+  loading.value = true
+  error.value = ''
   
-  console.log('🔍 Buscando ticket con código:', code)
+  console.log('🔍 Buscando ticket con código:', downloadCode.value)
   
-  const data = getTicketByCode(code)
+  // Pequeño delay para mejor UX visual
+  await new Promise(resolve => setTimeout(resolve, 500))
+  
+  const data = getTicketByCode(downloadCode.value)
   
   if (!data) {
     error.value = 'Código no encontrado, inválido o expirado. Es posible que el enlace haya caducado (7 días de validez).'
@@ -335,34 +338,35 @@ const loadTicketData = () => {
 }
 
 // Reintentar carga
-const retryLoad = () => {
-  loading.value = true
-  error.value = ''
+const retryLoad = async () => {
   ticketData.value = null
   qrImageUrl.value = ''
-  
-  setTimeout(() => {
-    loadTicketData()
-  }, 500)
+  await loadTicketData()
 }
 
-// Ir al inicio
+// Ir al inicio (página de bienvenida)
 const goToHome = () => {
-  router.push('/')
+  router.push('/download-ticket/home')
 }
 
 // Inicializar
-onMounted(() => {
+onMounted(async () => {
   console.log('🏁 Inicializando DownloadTicket...')
+  console.log('📄 Parámetro código:', route.params.code)
+  console.log('🏠 Mostrar bienvenida:', showWelcomePage.value)
   
-  // Solo cargar datos si hay código en la URL
-  if (hasDownloadCode.value) {
-    // Pequeño delay para mejor UX
-    setTimeout(() => {
-      loadTicketData()
-    }, 800)
-  } else {
-    loading.value = false
+  // Solo cargar datos si hay código válido
+  if (downloadCode.value) {
+    await loadTicketData()
+  }
+})
+
+// Watcher para detectar cambios en la ruta (cuando se navega con código manual)
+import { watch } from 'vue'
+watch(() => route.params.code, async (newCode) => {
+  console.log('🔄 Código cambió:', newCode)
+  if (newCode && newCode !== 'home') {
+    await loadTicketData()
   }
 })
 </script>
