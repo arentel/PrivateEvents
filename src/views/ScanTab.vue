@@ -46,67 +46,72 @@
               :name="scannerActive ? 'stop-circle-outline' : 'scan-outline'" 
               slot="start"
             ></ion-icon>
-            {{ isLoading ? 'Iniciando...' : (scannerActive ? 'Parar Cámara' : 'Activar Cámara') }}
+            {{ isLoading ? 'Iniciando...' : (scannerActive ? 'Detener Cámara' : 'Activar Cámara') }}
           </ion-button>
           
-          <!-- Botón para input manual de QR -->
           <ion-button 
             expand="block" 
-            fill="outline"
+            fill="outline" 
             @click="openManualQRInput"
             class="manual-qr-btn"
           >
             <ion-icon name="create-outline" slot="start"></ion-icon>
-            Ingresar Código Manualmente
+            Introducir Código Manualmente
           </ion-button>
         </ion-card-content>
       </ion-card>
 
-      <!-- Input manual para QR -->
-      <ion-card v-if="showManualQR">
-        <ion-card-header>
-          <ion-card-title>Código QR Manual</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <ion-item>
-            <ion-label position="stacked">Pegar código QR</ion-label>
-            <ion-textarea 
-              v-model="manualQRCode"
-              placeholder="Pega aquí el código QR completo..."
-              rows="3"
-            ></ion-textarea>
-          </ion-item>
-          
-          <ion-button 
-            expand="block" 
-            @click="validateManualQR"
-            :disabled="!manualQRCode.trim()"
-          >
-            <ion-icon name="checkmark-circle-outline" slot="start"></ion-icon>
-            Validar Código
-          </ion-button>
-          
-          <ion-button 
-            expand="block" 
-            fill="clear"
-            @click="showManualQR = false"
-          >
-            Cancelar
-          </ion-button>
-        </ion-card-content>
-      </ion-card>
-
-      <!-- Validación manual -->
+      <!-- Estadísticas -->
       <ion-card>
         <ion-card-header>
-          <ion-card-title>Validación Manual</ion-card-title>
+          <ion-card-title>Estadísticas de Validación</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <ion-row>
+            <ion-col size="4">
+              <div class="stat-card">
+                <span class="stat-number">{{ totalValidations }}</span>
+                <div class="stat-label">Total</div>
+              </div>
+            </ion-col>
+            <ion-col size="4">
+              <div class="stat-card success">
+                <span class="stat-number">{{ successfulEntries }}</span>
+                <div class="stat-label">Exitosas</div>
+              </div>
+            </ion-col>
+            <ion-col size="4">
+              <div class="stat-card danger">
+                <span class="stat-number">{{ rejectedEntries }}</span>
+                <div class="stat-label">Rechazadas</div>
+              </div>
+            </ion-col>
+          </ion-row>
+          
+          <ion-button 
+            expand="block" 
+            fill="outline" 
+            size="small"
+            @click="clearValidationStats"
+            class="clear-stats-btn"
+          >
+            <ion-icon name="refresh-outline" slot="start"></ion-icon>
+            Limpiar Estadísticas
+          </ion-button>
+        </ion-card-content>
+      </ion-card>
+
+      <!-- Búsqueda manual -->
+      <ion-card>
+        <ion-card-header>
+          <ion-card-title>Búsqueda Manual</ion-card-title>
         </ion-card-header>
         <ion-card-content>
           <ion-item>
-            <ion-label position="stacked">Buscar por nombre o email</ion-label>
-            <ion-input 
+            <ion-label position="stacked">Buscar por Nombre o Email</ion-label>
+            <ion-input
               v-model="manualSearch"
-              placeholder="Nombre del invitado o email"
+              placeholder="Introduce nombre o email..."
               @keyup.enter="searchGuest"
             ></ion-input>
           </ion-item>
@@ -117,85 +122,13 @@
             :disabled="!manualSearch.trim()"
           >
             <ion-icon name="search-outline" slot="start"></ion-icon>
-            Buscar Invitado
+            Buscar y Validar
           </ion-button>
         </ion-card-content>
       </ion-card>
 
-      <!-- Resultado de validación -->
-      <ion-card v-if="validationResult.show">
-        <ion-card-content>
-          <div 
-            class="validation-result"
-            :class="validationResult.type"
-          >
-            <div class="result-icon">
-              <ion-icon 
-                :name="getResultIcon()" 
-                size="large"
-              ></ion-icon>
-            </div>
-            
-            <div class="result-content">
-              <h2>{{ validationResult.title }}</h2>
-              <div v-if="validationResult.guest" class="guest-details">
-                <p><strong>Nombre:</strong> {{ validationResult.guest.name }}</p>
-                <p><strong>Email:</strong> {{ validationResult.guest.email }}</p>
-                <p><strong>Evento:</strong> {{ validationResult.guest.event_name }}</p>
-                <p v-if="validationResult.guest.entered_at">
-                  <strong>Entrada anterior:</strong> 
-                  {{ formatDate(validationResult.guest.entered_at) }}
-                </p>
-                <p v-if="validationResult.type === 'success'">
-                  <strong>Hora actual:</strong> 
-                  {{ getCurrentTimeFormatted() }}
-                </p>
-              </div>
-              <p class="result-message">{{ validationResult.message }}</p>
-            </div>
-            
-            <ion-button 
-              fill="clear" 
-              @click="validationResult.show = false"
-              class="close-result-btn"
-            >
-              <ion-icon name="close-outline"></ion-icon>
-            </ion-button>
-          </div>
-        </ion-card-content>
-      </ion-card>
-
-      <!-- Estadísticas de validación -->
-      <ion-card>
-        <ion-card-header>
-          <ion-card-title>Estadísticas del Día</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <ion-row>
-            <ion-col size="4">
-              <div class="stat-card">
-                <div class="stat-number">{{ totalValidations }}</div>
-                <div class="stat-label">Validaciones</div>
-              </div>
-            </ion-col>
-            <ion-col size="4">
-              <div class="stat-card success">
-                <div class="stat-number">{{ successfulEntries }}</div>
-                <div class="stat-label">Entradas OK</div>
-              </div>
-            </ion-col>
-            <ion-col size="4">
-              <div class="stat-card danger">
-                <div class="stat-number">{{ rejectedEntries }}</div>
-                <div class="stat-label">Rechazadas</div>
-              </div>
-            </ion-col>
-          </ion-row>
-        </ion-card-content>
-      </ion-card>
-
-      <!-- Lista de entradas recientes -->
-      <ion-card>
+      <!-- Entradas recientes -->
+      <ion-card v-if="recentEntriesDisplay.length > 0">
         <ion-card-header>
           <ion-card-title>Entradas Recientes</ion-card-title>
         </ion-card-header>
@@ -211,75 +144,206 @@
               <ion-label>
                 <h2>{{ entry.name }}</h2>
                 <p>{{ entry.email }}</p>
-                <p class="timestamp">{{ formatDate(entry.entered_at) }}</p>
+                <p class="timestamp">{{ formatDateTime(entry.entered_at || '') }}</p>
               </ion-label>
               
               <ion-chip color="success" slot="end">
-                ENTRÓ
+                VALIDADO
               </ion-chip>
             </ion-item>
-            
-            <div v-if="recentEntries.length === 0" class="empty-state">
-              <ion-icon name="people-outline" size="large"></ion-icon>
-              <p>No hay entradas registradas aún</p>
-            </div>
           </ion-list>
         </ion-card-content>
       </ion-card>
 
-      <!-- Botón para limpiar validaciones -->
-      <ion-button 
-        expand="block" 
-        color="medium" 
-        fill="outline"
-        @click="clearValidationStats"
-        v-if="totalValidations > 0"
-        class="clear-stats-btn"
-      >
-        <ion-icon name="refresh-outline" slot="start"></ion-icon>
-        Limpiar Estadísticas
-      </ion-button>
+      <!-- Estado vacío -->
+      <ion-card v-if="recentEntriesDisplay.length === 0">
+        <ion-card-content>
+          <div class="empty-state">
+            <ion-icon name="people-outline" size="large"></ion-icon>
+            <h3>No hay entradas registradas</h3>
+            <p>Las validaciones exitosas aparecerán aquí</p>
+          </div>
+        </ion-card-content>
+      </ion-card>
     </ion-content>
+
+    <!-- Modal para input manual de QR -->
+    <ion-modal :is-open="showManualQR" @did-dismiss="showManualQR = false">
+      <ion-header>
+        <ion-toolbar>
+          <ion-title>Código QR Manual</ion-title>
+          <ion-buttons slot="end">
+            <ion-button @click="showManualQR = false">
+              <ion-icon name="close-outline"></ion-icon>
+            </ion-button>
+          </ion-buttons>
+        </ion-toolbar>
+      </ion-header>
+      
+      <ion-content>
+        <ion-item>
+          <ion-label position="stacked">Código QR</ion-label>
+          <ion-textarea 
+            v-model="manualQRCode"
+            placeholder="Pega aquí el código QR completo..."
+            :rows="6"
+          ></ion-textarea>
+        </ion-item>
+        
+        <div style="padding: 16px;">
+          <ion-button 
+            expand="block" 
+            @click="validateManualQR"
+            :disabled="!manualQRCode.trim()"
+          >
+            <ion-icon name="checkmark-outline" slot="start"></ion-icon>
+            Validar Código
+          </ion-button>
+        </div>
+      </ion-content>
+    </ion-modal>
+
+    <!-- Resultado de validación -->
+    <ion-modal 
+      :is-open="validationResult.show" 
+      @did-dismiss="validationResult.show = false"
+    >
+      <ion-content>
+        <div :class="['validation-result', validationResult.type]">
+          <ion-button 
+            fill="clear" 
+            class="close-result-btn"
+            @click="validationResult.show = false"
+          >
+            <ion-icon name="close-outline"></ion-icon>
+          </ion-button>
+          
+          <div class="result-icon">
+            <ion-icon :name="getResultIcon()" size="large"></ion-icon>
+          </div>
+          
+          <div class="result-content">
+            <h2>{{ validationResult.title }}</h2>
+            <p class="result-message">{{ validationResult.message }}</p>
+            
+            <div v-if="validationResult.guest" class="guest-details">
+              <p><strong>Nombre:</strong> {{ validationResult.guest.name }}</p>
+              <p><strong>Email:</strong> {{ validationResult.guest.email }}</p>
+              <p v-if="validationResult.guest.phone"><strong>Teléfono:</strong> {{ validationResult.guest.phone }}</p>
+              <p v-if="validationResult.guest.entered_at">
+                <strong>Hora de entrada:</strong> {{ formatDateTime(validationResult.guest.entered_at || '') }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </ion-content>
+    </ion-modal>
   </ion-page>
 </template>
 
-<script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import {
-  IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
-  IonCard, IonCardHeader, IonCardTitle, IonCardContent,
-  IonItem, IonLabel, IonInput, IonTextarea, IonButton, IonIcon,
-  IonList, IonAvatar, IonChip, IonRow, IonCol, IonSpinner
+  IonPage,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonCard,
+  IonCardHeader,
+  IonCardTitle,
+  IonCardContent,
+  IonButton,
+  IonIcon,
+  IonSpinner,
+  IonItem,
+  IonLabel,
+  IonInput,
+  IonTextarea,
+  IonList,
+  IonAvatar,
+  IonChip,
+  IonRow,
+  IonCol,
+  IonModal,
+  IonButtons,
+  toastController
 } from '@ionic/vue'
 import {
-  qrCodeOutline, stopCircleOutline, scanOutline, searchOutline,
-  checkmarkCircleOutline, closeCircleOutline, warningOutline,
-  createOutline, peopleOutline, refreshOutline, closeOutline
+  qrCodeOutline,
+  stopCircleOutline,
+  scanOutline,
+  warningOutline,
+  createOutline,
+  searchOutline,
+  refreshOutline,
+  peopleOutline,
+  closeOutline,
+  checkmarkOutline,
+  checkmarkCircleOutline,
+  closeCircleOutline
 } from 'ionicons/icons'
 import { Html5Qrcode } from 'html5-qrcode'
-import { supabase } from '../services/supabase'
-import { validateQRCode } from '../services/qr'
-import { useToast } from '@/composables/useToast'
+// @ts-ignore
+import { supabase } from '@/services/supabase.js'
 
-// Composable para toasts
-const { showToast } = useToast()
+// Interfaces de TypeScript
+interface Guest {
+  id: string
+  name: string
+  email: string
+  phone?: string
+  event_id: string
+  event_name: string
+  qr_sent: boolean
+  has_entered: boolean
+  sent_at?: string
+  entered_at?: string
+  table_number?: string
+  created_at: string
+}
 
-// Estado reactivo
+interface ValidationResult {
+  show: boolean
+  type: 'success' | 'warning' | 'error'
+  title: string
+  message: string
+  guest: Guest | null
+}
+
+interface QRData {
+  id: string
+  name: string
+  email: string
+  event_name?: string
+  eventId?: string
+  eventName?: string
+  timestamp?: string
+  date?: string
+  version?: string
+}
+
+// Estado del scanner
 const scannerActive = ref(false)
 const isLoading = ref(false)
 const cameraError = ref('')
-const manualSearch = ref('')
-const manualQRCode = ref('')
-const showManualQR = ref(false)
-const html5QrCode = ref(null)
-const recentEntries = ref([])
+const html5QrCode = ref<Html5Qrcode | null>(null)
+
+// Estado de validación
 const totalValidations = ref(0)
 const successfulEntries = ref(0)
 const rejectedEntries = ref(0)
+const recentEntries = ref<Guest[]>([])
 
-const validationResult = ref({
+// Estado de inputs manuales
+const showManualQR = ref(false)
+const manualQRCode = ref('')
+const manualSearch = ref('')
+
+// Estado del resultado de validación
+const validationResult = ref<ValidationResult>({
   show: false,
-  type: '', // 'success', 'error', 'warning'
+  type: 'success',
   title: '',
   message: '',
   guest: null
@@ -288,9 +352,29 @@ const validationResult = ref({
 // Computed properties
 const recentEntriesDisplay = computed(() => 
   recentEntries.value.slice(0, 10).sort((a, b) => 
-    new Date(b.entered_at) - new Date(a.entered_at)
+    new Date(b.entered_at || '').getTime() - new Date(a.entered_at || '').getTime()
   )
 )
+
+// Funciones utilitarias
+const showToast = async (message: string, color: string = 'primary') => {
+  const toast = await toastController.create({
+    message,
+    duration: 3000,
+    color,
+    position: 'top'
+  })
+  await toast.present()
+}
+
+const formatDateTime = (dateString: string) => {
+  return new Date(dateString).toLocaleString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
 
 // Función para obtener la fecha y hora actual en formato España/Madrid
 const getCurrentMadridTime = () => {
@@ -304,20 +388,6 @@ const getCurrentMadridTime = () => {
     second: '2-digit',
     hour12: false
   }).replace(/(\d{4})-(\d{2})-(\d{2}), (\d{2}):(\d{2}):(\d{2})/, '$1-$2-$3T$4:$5:$6')
-}
-
-// Función para mostrar la hora actual formateada
-const getCurrentTimeFormatted = () => {
-  return new Date().toLocaleString('es-ES', {
-    timeZone: 'Europe/Madrid',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  })
 }
 
 // Función para alternar el scanner
@@ -371,7 +441,7 @@ const startScanner = async () => {
     isLoading.value = false
     showToast('Cámara activada - Apunta al código QR', 'success')
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error starting scanner:', error)
     isLoading.value = false
     cameraError.value = getErrorMessage(error)
@@ -380,7 +450,7 @@ const startScanner = async () => {
 }
 
 // Función para obtener mensaje de error amigable
-const getErrorMessage = (error) => {
+const getErrorMessage = (error: any) => {
   const message = error.message || error.toString()
   
   if (message.includes('Permission denied')) {
@@ -420,34 +490,33 @@ const stopScanner = async () => {
 }
 
 // Función llamada cuando se escanea exitosamente
-const onScanSuccess = async (decodedText) => {
+const onScanSuccess = async (decodedText: string) => {
   console.log('QR Code scanned:', decodedText)
   
   // Parar el scanner temporalmente para procesar
-  if (html5QrCode.value) {
+  if (html5QrCode.value && scannerActive.value) {
     try {
-      await html5QrCode.value.pause(true)
+      await html5QrCode.value.stop()
+      scannerActive.value = false
+      
+      // Procesar el código
+      await validateScannedCode(decodedText)
+      
+      // Esperar 3 segundos antes de reactivar
+      setTimeout(async () => {
+        if (!scannerActive.value) {
+          await startScanner()
+        }
+      }, 3000)
+      
     } catch (error) {
-      console.log('Error pausing scanner:', error)
+      console.log('Error restarting scanner:', error)
     }
   }
-  
-  await validateScannedCode(decodedText)
-  
-  // Reactivar scanner después de 3 segundos
-  setTimeout(async () => {
-    if (html5QrCode.value && scannerActive.value) {
-      try {
-        await html5QrCode.value.resume()
-      } catch (error) {
-        console.log('Error resuming scanner:', error)
-      }
-    }
-  }, 3000)
 }
 
 // Función llamada cuando falla el escaneo (normal)
-const onScanFailure = (error) => {
+const onScanFailure = (error: string) => {
   // No hacer nada - errores de escaneo son normales
 }
 
@@ -466,23 +535,50 @@ const validateManualQR = async () => {
   manualQRCode.value = ''
 }
 
-// Función para validar código escaneado
-const validateScannedCode = async (qrCode) => {
+// FUNCIÓN PRINCIPAL CORREGIDA PARA VALIDAR QR
+const validateScannedCode = async (qrCode: string) => {
   totalValidations.value++
   
   try {
-    console.log('Validating QR code:', qrCode.substring(0, 50) + '...')
+    console.log('Validating QR code:', qrCode.substring(0, 100) + '...')
     
-    // Decodificar y validar el QR
-    const guestData = await validateQRCode(qrCode)
+    // NUEVA LÓGICA: Intentar parsear como JSON directo primero
+    let guestData: QRData | null = null
     
+    try {
+      // Intentar decodificar como JSON directo (nuevo formato)
+      guestData = JSON.parse(qrCode) as QRData
+      console.log('QR decoded as direct JSON:', guestData)
+    } catch (jsonError) {
+      console.log('QR is not direct JSON, trying encrypted format...')
+      
+      // Si no es JSON directo, intentar el formato encriptado (formato antiguo)
+      try {
+        // @ts-ignore - Importación dinámica para evitar errores de TypeScript
+        const qrModule = await import('../services/qr.js')
+        guestData = await qrModule.validateQRCode(qrCode)
+        console.log('QR decoded as encrypted:', guestData)
+      } catch (encryptError) {
+        console.error('Failed to decode QR in both formats:', { jsonError, encryptError })
+      }
+    }
+    
+    // Validar que se pudo decodificar
     if (!guestData) {
       showValidationResult('error', '❌ CÓDIGO NO VÁLIDO', 'El código QR no es válido o está corrupto')
       rejectedEntries.value++
       return
     }
     
-    console.log('Guest data decoded:', guestData)
+    // Validar que tiene los campos requeridos
+    if (!guestData.id || !guestData.name || !guestData.email) {
+      console.error('QR missing required fields:', guestData)
+      showValidationResult('error', '❌ CÓDIGO INCOMPLETO', 'El código QR no contiene la información necesaria')
+      rejectedEntries.value++
+      return
+    }
+    
+    console.log('Guest data decoded successfully:', guestData)
     
     // Buscar invitado en la base de datos
     const { data: guest, error } = await supabase
@@ -530,7 +626,7 @@ const validateScannedCode = async (qrCode) => {
     }
     
     // Actualizar listas locales
-    const updatedGuest = {
+    const updatedGuest: Guest = {
       ...guest,
       has_entered: true,
       entered_at: madridTime
@@ -553,7 +649,7 @@ const validateScannedCode = async (qrCode) => {
       validationResult.value.show = false
     }, 5000)
     
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error validating QR:', error)
     showValidationResult('error', '❌ ERROR DE VALIDACIÓN', 'Error al procesar el código QR: ' + error.message)
     rejectedEntries.value++
@@ -585,17 +681,51 @@ const searchGuest = async () => {
       return
     }
     
-    const guest = guests[0]
+    const guest = guests[0] as Guest
     
-    if (!guest.qr_code) {
-      showValidationResult('warning', '⚠️ SIN QR', 'Este invitado no tiene código QR generado', guest)
+    // Verificar si ya entró
+    if (guest.has_entered) {
+      showValidationResult(
+        'warning',
+        '⚠️ YA INGRESÓ ANTERIORMENTE',
+        'Este invitado ya utilizó su entrada',
+        guest
+      )
       return
     }
     
-    // Simular validación del QR del invitado encontrado
-    await validateScannedCode(guest.qr_code)
+    // Marcar entrada manual
+    const madridTime = getCurrentMadridTime()
     
-  } catch (error) {
+    const { error: updateError } = await supabase
+      .from('guests')
+      .update({
+        has_entered: true,
+        entered_at: madridTime
+      })
+      .eq('id', guest.id)
+    
+    if (updateError) throw updateError
+    
+    const updatedGuest: Guest = {
+      ...guest,
+      has_entered: true,
+      entered_at: madridTime
+    }
+    
+    recentEntries.value.unshift(updatedGuest)
+    
+    showValidationResult(
+      'success',
+      '✅ ENTRADA MANUAL',
+      `Acceso permitido para ${guest.name} (validación manual)`,
+      updatedGuest
+    )
+    
+    successfulEntries.value++
+    showToast(`✅ ${guest.name} validado manualmente`, 'success')
+    
+  } catch (error: any) {
     console.error('Error searching guest:', error)
     showToast('Error al buscar invitado: ' + error.message, 'danger')
   }
@@ -604,7 +734,7 @@ const searchGuest = async () => {
 }
 
 // Función para mostrar resultado de validación
-const showValidationResult = (type, title, message, guest = null) => {
+const showValidationResult = (type: 'success' | 'warning' | 'error', title: string, message: string, guest: Guest | null = null) => {
   validationResult.value = {
     show: true,
     type,
@@ -634,68 +764,23 @@ const clearValidationStats = () => {
     successfulEntries.value = 0
     rejectedEntries.value = 0
     recentEntries.value = []
-    showToast('Estadísticas limpiadas', 'medium')
+    showToast('Estadísticas limpiadas', 'success')
   }
 }
 
-// Función para formatear fecha con zona horaria de España/Madrid
-const formatDate = (dateString) => {
-  if (!dateString) return ''
-  
-  const date = new Date(dateString)
-  
-  return date.toLocaleString('es-ES', {
-    timeZone: 'Europe/Madrid',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  })
-}
-
-// Cargar entradas recientes al montar
-onMounted(async () => {
-  try {
-    // Obtener el inicio del día actual en Madrid
-    const madridDate = new Date().toLocaleString('en-CA', {
-      timeZone: 'Europe/Madrid',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    })
-    
-    const { data, error } = await supabase
-      .from('guests')
-      .select('*')
-      .eq('has_entered', true)
-      .gte('entered_at', `${madridDate}T00:00:00`)
-      .order('entered_at', { ascending: false })
-      .limit(20)
-    
-    if (error) throw error
-    
-    recentEntries.value = data || []
-    successfulEntries.value = data?.length || 0
-    
-    console.log(`Loaded ${recentEntries.value.length} recent entries for today (Madrid time)`)
-    
-  } catch (error) {
-    console.error('Error loading recent entries:', error)
-    showToast('Error cargando entradas recientes', 'warning')
-  }
+// Ciclo de vida
+onMounted(() => {
+  console.log('ScanTab mounted')
 })
 
-// Limpiar scanner al desmontar
 onUnmounted(async () => {
-  if (scannerActive.value && html5QrCode.value) {
-    try {
-      await stopScanner()
-    } catch (error) {
-      console.error('Error cleaning up scanner:', error)
+  try {
+    if (html5QrCode.value && scannerActive.value) {
+      await html5QrCode.value.stop()
+      html5QrCode.value = null
     }
+  } catch (error) {
+    console.error('Error cleaning up scanner:', error)
   }
 })
 </script>
