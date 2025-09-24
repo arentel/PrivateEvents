@@ -373,7 +373,7 @@ const generateFullReportPDF = (eventName, data) => {
   doc.text(`Total: ${guests.length} invitados | QRs enviados: ${stats.sent || stats.qrsSent} | Asistentes: ${stats.attended || stats.scanned}`, 20, yPosition)
   yPosition += 15
   
-  // Encabezados de tabla mejorados
+  // Encabezados de tabla mejorados con más espacio para email
   doc.setFillColor(248, 249, 250)
   doc.rect(20, yPosition, 170, 12, 'F')
   
@@ -382,9 +382,9 @@ const generateFullReportPDF = (eventName, data) => {
   doc.setFont(undefined, 'bold')
   doc.text('N°', 25, yPosition + 8)
   doc.text('Nombre', 35, yPosition + 8)
-  doc.text('Email', 75, yPosition + 8)
-  doc.text('Teléfono', 115, yPosition + 8)
-  doc.text('QR Env.', 145, yPosition + 8)
+  doc.text('Email', 70, yPosition + 8)
+  doc.text('Teléfono', 125, yPosition + 8)
+  doc.text('QR Env.', 150, yPosition + 8)
   doc.text('Asistió', 165, yPosition + 8)
   doc.text('Estado', 180, yPosition + 8)
   
@@ -425,21 +425,21 @@ const generateFullReportPDF = (eventName, data) => {
       doc.rect(20, yPosition - 2, 170, 10, 'F')
     }
     
-    // Datos del invitado
+    // Datos del invitado con mejor distribución
     doc.setTextColor(...textColor)
     doc.text(`${index + 1}`, 25, yPosition + 4)
-    doc.text(truncateText(guest.name, 18), 35, yPosition + 4)
-    doc.text(truncateText(guest.email, 18), 75, yPosition + 4)
-    doc.text(truncateText(guest.phone || '-', 12), 115, yPosition + 4)
+    doc.text(truncateText(guest.name, 15), 35, yPosition + 4)
+    doc.text(truncateText(guest.email, 25), 70, yPosition + 4)
+    doc.text(truncateText(guest.phone || '-', 10), 125, yPosition + 4)
     
     // Estado QR - usar SÍ/NO en lugar de checkmarks
     doc.setTextColor(...textColor)
     if (guest.qr_sent || guest.sent) {
       doc.setTextColor(40, 167, 69)
-      doc.text('SÍ', 148, yPosition + 4)
+      doc.text('SÍ', 153, yPosition + 4)
     } else {
       doc.setTextColor(220, 53, 69)
-      doc.text('NO', 148, yPosition + 4)
+      doc.text('NO', 152, yPosition + 4)
     }
     
     // Estado asistencia - usar SÍ/NO en lugar de checkmarks
@@ -448,7 +448,7 @@ const generateFullReportPDF = (eventName, data) => {
       doc.text('SÍ', 168, yPosition + 4)
     } else {
       doc.setTextColor(220, 53, 69)
-      doc.text('NO', 168, yPosition + 4)
+      doc.text('NO', 167, yPosition + 4)
     }
     
     // Estado general
@@ -622,7 +622,7 @@ const generateGuestListPDF = (eventName, data) => {
   
   yPosition += 20
   
-  // Encabezados de tabla mejorados
+  // Encabezados de tabla mejorados con más espacio para email
   doc.setFillColor(248, 249, 250)
   doc.rect(20, yPosition, 170, 12, 'F')
   
@@ -631,9 +631,9 @@ const generateGuestListPDF = (eventName, data) => {
   doc.setFont(undefined, 'bold')
   doc.text('N°', 25, yPosition + 8)
   doc.text('Nombre', 40, yPosition + 8)
-  doc.text('Email', 95, yPosition + 8)
-  doc.text('Teléfono', 140, yPosition + 8)
-  doc.text('Estado', 170, yPosition + 8)
+  doc.text('Email', 85, yPosition + 8)
+  doc.text('Teléfono', 135, yPosition + 8)
+  doc.text('Estado', 165, yPosition + 8)
   
   yPosition += 15
   
@@ -655,9 +655,9 @@ const generateGuestListPDF = (eventName, data) => {
       doc.setFont(undefined, 'bold')
       doc.text('N°', 25, yPosition + 8)
       doc.text('Nombre', 40, yPosition + 8)
-      doc.text('Email', 95, yPosition + 8)
-      doc.text('Teléfono', 140, yPosition + 8)
-      doc.text('Estado', 170, yPosition + 8)
+      doc.text('Email', 85, yPosition + 8)
+      doc.text('Teléfono', 135, yPosition + 8)
+      doc.text('Estado', 165, yPosition + 8)
       
       yPosition += 15
       doc.setFont(undefined, 'normal')
@@ -682,18 +682,18 @@ const generateGuestListPDF = (eventName, data) => {
       statusColor = [255, 140, 0] // Naranja para QR enviado
     }
     
-    // Datos del invitado
+    // Datos del invitado con más espacio para email
     doc.setTextColor(...textColor)
     doc.text(`${index + 1}`, 25, yPosition + 4)
-    doc.text(truncateText(guest.name, 25), 40, yPosition + 4)
-    doc.text(truncateText(guest.email, 20), 95, yPosition + 4)
-    doc.text(truncateText(guest.phone || '-', 15), 140, yPosition + 4)
+    doc.text(truncateText(guest.name, 20), 40, yPosition + 4)
+    doc.text(truncateText(guest.email, 30), 85, yPosition + 4) // Más caracteres para email
+    doc.text(truncateText(guest.phone || '-', 12), 135, yPosition + 4)
     
     // Estado con color apropiado
     doc.setTextColor(...statusColor)
     doc.setFontSize(8)
     doc.setFont(undefined, 'bold')
-    doc.text(status, 170, yPosition + 4)
+    doc.text(status, 165, yPosition + 4)
     doc.setFontSize(9)
     doc.setFont(undefined, 'normal')
     
