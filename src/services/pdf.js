@@ -153,8 +153,8 @@ const generateAttendeesPDF = (eventName, data) => {
       doc.rect(20, yPosition - 3, 170, 10, 'F')
     }
     
-    const entryTime = attendee.scanned_at ? 
-      new Date(attendee.scanned_at).toLocaleTimeString('es-ES', {
+    const entryTime = attendee.entered_at ? 
+      new Date(attendee.entered_at).toLocaleTimeString('es-ES', {
         hour: '2-digit',
         minute: '2-digit'
       }) : 
@@ -433,7 +433,7 @@ const generateFullReportPDF = (eventName, data) => {
     doc.text(truncateText(guest.phone || '-', 12), 115, yPosition + 4)
     
     // Estado QR con colores
-    if (guest.sent) {
+    if (guest.qr_sent || guest.sent) {
       doc.setTextColor(40, 167, 69)
       doc.text('✓', 148, yPosition + 4)
     } else {
@@ -442,7 +442,7 @@ const generateFullReportPDF = (eventName, data) => {
     }
     
     // Estado asistencia
-    if (guest.scanned) {
+    if (guest.has_entered) {
       doc.setTextColor(40, 167, 69)
       doc.text('✓', 163, yPosition + 4)
     } else {
@@ -454,8 +454,8 @@ const generateFullReportPDF = (eventName, data) => {
     doc.setTextColor(...textColor)
     doc.setFontSize(7)
     let status = 'PENDIENTE'
-    if (guest.scanned) status = 'ASISTIÓ'
-    else if (guest.sent) status = 'QR ENVIADO'
+    if (guest.has_entered) status = 'ASISTIÓ'
+    else if (guest.qr_sent || guest.sent) status = 'QR ENVIADO'
     
     doc.text(status, 175, yPosition + 4)
     doc.setFontSize(8)
@@ -530,8 +530,8 @@ const generateFullReportPDF = (eventName, data) => {
         doc.rect(20, yPosition - 2, 170, 10, 'F')
       }
       
-      const entryTime = attendee.scanned_at ? 
-        new Date(attendee.scanned_at).toLocaleTimeString('es-ES', {
+      const entryTime = attendee.entered_at ? 
+        new Date(attendee.entered_at).toLocaleTimeString('es-ES', {
           hour: '2-digit',
           minute: '2-digit'
         }) : 
@@ -665,10 +665,10 @@ const generateGuestListPDF = (eventName, data) => {
     let status = 'PENDIENTE'
     let statusColor = textColor
     
-    if (guest.scanned) {
+    if (guest.has_entered) {
       status = 'ASISTIÓ'
       statusColor = [40, 167, 69]
-    } else if (guest.sent) {
+    } else if (guest.qr_sent || guest.sent) {
       status = 'QR ENVIADO'
       statusColor = [255, 193, 7]
     }
