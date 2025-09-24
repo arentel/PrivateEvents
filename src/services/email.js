@@ -97,23 +97,115 @@ const generatePDFWithDownloadLink = async (guestData, eventData, logoBase64) => 
 
 /**
  * Crear enlace público de descarga (para usar en emails)
+ * MÚLTIPLES OPCIONES para compatibilidad con diferentes proveedores
  */
-const createPublicDownloadLink = (pdfBase64, filename) => {
+const createPublicDownloadLink = (pdfBase64, filename, guestData, eventData) => {
   try {
-    // Crear una URL única que podamos servir
     const linkId = `download_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     
-    // En un entorno real, aquí subirías el PDF a tu servidor/CDN
-    // Por ahora, creamos un enlace data: que funciona en navegadores
+    // OPCIÓN 1: Usar servicio temporal (recomendado)
+    const temporaryUrl = createTemporaryUpload(pdfBase64, filename, linkId)
+    if (temporaryUrl) {
+      return {
+        publicUrl: temporaryUrl,
+        filename,
+        linkId,
+        method: 'temporary_service'
+      }
+    }
+    
+    // OPCIÓN 2: Crear página de descarga propia
+    const downloadPageUrl = createDownloadPage(pdfBase64, filename, guestData, eventData)
+    if (downloadPageUrl) {
+      return {
+        publicUrl: downloadPageUrl,
+        filename,
+        linkId,
+        method: 'download_page'
+      }
+    }
+    
+    // OPCIÓN 3: Fallback - Data URL (funciona pero tiene limitaciones)
     const dataUrl = `data:application/pdf;base64,${pdfBase64}`
     
     return {
       publicUrl: dataUrl,
       filename,
-      linkId
+      linkId,
+      method: 'data_url'
     }
+    
   } catch (error) {
     console.error('Error creando enlace público:', error)
+    return null
+  }
+}
+
+/**
+ * OPCIÓN 1: Subir a servicio temporal (file.io, tmpfiles.org, etc.)
+ */
+const createTemporaryUpload = async (pdfBase64, filename, linkId) => {
+  try {
+    // Convertir base64 a blob
+    const binaryString = atob(pdfBase64)
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+    const blob = new Blob([bytes], { type: 'application/pdf' })
+    
+    // Usar file.io (servicio gratuito temporal)
+    const formData = new FormData()
+    formData.append('file', blob, filename)
+    
+    const response = await fetch('https://file.io', {
+      method: 'POST',
+      body: formData
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      if (data.success && data.link) {
+        console.log('✅ PDF subido a file.io:', data.link)
+        return data.link
+      }
+    }
+    
+    return null
+    
+  } catch (error) {
+    console.warn('⚠️ Error subiendo a file.io:', error)
+    return null
+  }
+}
+
+/**
+ * OPCIÓN 2: Crear página de descarga en tu propio dominio
+ */
+const createDownloadPage = (pdfBase64, filename, guestData, eventData) => {
+  try {
+    // Esta URL debería apuntar a tu servidor/aplicación
+    const baseUrl = window.location.origin
+    const downloadId = `pdf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    
+    // Guardar PDF en localStorage temporal (o enviar a tu backend)
+    const pdfData = {
+      pdf: pdfBase64,
+      filename,
+      guest: guestData,
+      event: eventData,
+      created: Date.now(),
+      expires: Date.now() + (24 * 60 * 60 * 1000) // 24 horas
+    }
+    
+    // Guardar en localStorage para acceso posterior
+    localStorage.setItem(`pdf_download_${downloadId}`, JSON.stringify(pdfData))
+    
+    // Crear URL de descarga que apunte a tu aplicación
+    return `${baseUrl}/#/download-pdf/${downloadId}`
+    
+  } catch (error) {
+    console.error('Error creando página de descarga:', error)
     return null
   }
 }
@@ -171,10 +263,16 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
     
     // Crear enlace público para el email
     let publicDownloadLink = '#'
+    let downloadMethod = 'none'
+    
     if (pdfData.pdfBase64) {
-      const publicLink = createPublicDownloadLink(pdfData.pdfBase64, pdfData.filename)
-      if (publicLink) {
+      const publicLink = await createPublicDownloadLink(pdfData.pdfBase64, pdfData.filename, guestData, eventData)
+      if (publicLink && publicLink.success) {
         publicDownloadLink = publicLink.publicUrl
+        downloadMethod = publicLink.method
+        console.log(`📎 Enlace de descarga creado (${downloadMethod}):`, publicDownloadLink.substring(0, 80) + '...')
+      } else {
+        console.warn(`⚠️ No se pudo crear enlace de descarga para ${guestData.name}`)
       }
     }
     
