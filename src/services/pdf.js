@@ -6,15 +6,17 @@ import jsPDF from 'jspdf'
  * @returns {Promise<void>} - PDF generado y descargado
  */
 export const generatePDF = async (config) => {
-  const { type, eventName, ...data } = config
+  const { type, eventName, eventDate, eventLocation, eventDescription, ...data } = config
   
   switch (type) {
     case 'attendees':
-      return generateAttendeesPDF(eventName, data)
+      return generateAttendeesPDF(eventName, { eventDate, eventLocation, ...data })
     case 'full':
-      return generateFullReportPDF(eventName, data)
-    case 'guest-list':
-      return generateGuestListPDF(eventName, data)
+      return generateFullReportPDF(eventName, { eventDate, eventLocation, eventDescription, ...data })
+    case 'guests':
+      return generateGuestListPDF(eventName, { eventDate, eventLocation, ...data })
+    case 'comparative':
+      return generateComparativeReportPDF(data)
     default:
       throw new Error('Tipo de PDF no válido')
   }
@@ -26,7 +28,7 @@ export const generatePDF = async (config) => {
  * @param {Object} data - Datos para el PDF
  */
 const generateAttendeesPDF = (eventName, data) => {
-  const { attendees, stats } = data
+  const { attendees, stats, eventDate, eventLocation } = data
   const doc = new jsPDF()
   
   // Configuración de colores
@@ -38,7 +40,7 @@ const generateAttendeesPDF = (eventName, data) => {
   
   // Encabezado principal
   doc.setFillColor(...primaryColor)
-  doc.rect(0, 0, 210, 40, 'F')
+  doc.rect(0, 0, 210, 50, 'F')
   
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(24)
@@ -49,18 +51,32 @@ const generateAttendeesPDF = (eventName, data) => {
   doc.setFont(undefined, 'normal')
   doc.text(eventName, 20, 35)
   
+  // Información del evento (nueva funcionalidad)
+  if (eventDate) {
+    doc.setFontSize(12)
+    doc.text(formatEventDate(eventDate), 20, 45)
+  }
+  
   yPosition = 60
+  
+  // Información del evento adicional
+  if (eventLocation) {
+    doc.setTextColor(...textColor)
+    doc.setFontSize(12)
+    doc.text(`📍 Ubicación: ${eventLocation}`, 20, yPosition)
+    yPosition += 10
+  }
   
   // Información del reporte
   doc.setTextColor(...textColor)
   doc.setFontSize(12)
   doc.text(`Fecha del reporte: ${new Date().toLocaleDateString('es-ES')}`, 20, yPosition)
   doc.text(`Hora del reporte: ${new Date().toLocaleTimeString('es-ES')}`, 120, yPosition)
-  yPosition += 10
+  yPosition += 15
   
-  // Estadísticas en caja
+  // Estadísticas mejoradas
   doc.setFillColor(248, 249, 250)
-  doc.rect(20, yPosition, 170, 25, 'F')
+  doc.rect(20, yPosition, 170, 35, 'F')
   
   doc.setFontSize(14)
   doc.setFont(undefined, 'bold')
@@ -68,12 +84,25 @@ const generateAttendeesPDF = (eventName, data) => {
   
   doc.setFontSize(12)
   doc.setFont(undefined, 'normal')
-  doc.text(`Total de asistentes: ${attendees.length}`, 25, yPosition + 16)
-  doc.text(`Tasa de asistencia: ${stats.rate}%`, 120, yPosition + 16)
+  doc.text(`Total de asistentes: ${attendees.length}`, 25, yPosition + 18)
+  doc.text(`De ${stats.total} invitados`, 120, yPosition + 18)
+  doc.text(`Tasa de asistencia: ${stats.rate}%`, 25, yPosition + 28)
   
-  yPosition += 40
+  // Barra de progreso visual
+  const barX = 120
+  const barY = yPosition + 22
+  const barWidth = 60
+  const barHeight = 8
+  const fillWidth = (barWidth * stats.rate) / 100
   
-  // Encabezados de tabla
+  doc.setFillColor(220, 220, 220)
+  doc.rect(barX, barY, barWidth, barHeight, 'F')
+  doc.setFillColor(...successColor)
+  doc.rect(barX, barY, fillWidth, barHeight, 'F')
+  
+  yPosition += 50
+  
+  // Encabezados de tabla mejorados
   doc.setFillColor(...successColor)
   doc.rect(20, yPosition, 170, 12, 'F')
   
@@ -82,15 +111,16 @@ const generateAttendeesPDF = (eventName, data) => {
   doc.setFont(undefined, 'bold')
   doc.text('N°', 25, yPosition + 8)
   doc.text('Nombre', 40, yPosition + 8)
-  doc.text('Email', 100, yPosition + 8)
-  doc.text('Hora de Entrada', 150, yPosition + 8)
+  doc.text('Email', 95, yPosition + 8)
+  doc.text('Teléfono', 135, yPosition + 8)
+  doc.text('Hora Entrada', 165, yPosition + 8)
   
   yPosition += 15
   
-  // Lista de asistentes
+  // Lista de asistentes con más información
   doc.setTextColor(...textColor)
   doc.setFont(undefined, 'normal')
-  doc.setFontSize(10)
+  doc.setFontSize(9)
   
   attendees.forEach((attendee, index) => {
     // Verificar si necesitamos nueva página
@@ -107,13 +137,14 @@ const generateAttendeesPDF = (eventName, data) => {
       doc.setFont(undefined, 'bold')
       doc.text('N°', 25, yPosition + 8)
       doc.text('Nombre', 40, yPosition + 8)
-      doc.text('Email', 100, yPosition + 8)
-      doc.text('Hora de Entrada', 150, yPosition + 8)
+      doc.text('Email', 95, yPosition + 8)
+      doc.text('Teléfono', 135, yPosition + 8)
+      doc.text('Hora Entrada', 165, yPosition + 8)
       
       yPosition += 15
       doc.setTextColor(...textColor)
       doc.setFont(undefined, 'normal')
-      doc.setFontSize(10)
+      doc.setFontSize(9)
     }
     
     // Alternar color de fondo
@@ -122,15 +153,21 @@ const generateAttendeesPDF = (eventName, data) => {
       doc.rect(20, yPosition - 3, 170, 10, 'F')
     }
     
-    const entryTime = new Date(attendee.entered_at).toLocaleTimeString('es-ES', {
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    const entryTime = attendee.scanned_at ? 
+      new Date(attendee.scanned_at).toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit'
+      }) : 
+      new Date(attendee.created_at).toLocaleTimeString('es-ES', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
     
     doc.text(`${index + 1}`, 25, yPosition + 4)
-    doc.text(truncateText(attendee.name, 25), 40, yPosition + 4)
-    doc.text(truncateText(attendee.email, 22), 100, yPosition + 4)
-    doc.text(entryTime, 155, yPosition + 4)
+    doc.text(truncateText(attendee.name, 22), 40, yPosition + 4)
+    doc.text(truncateText(attendee.email, 18), 95, yPosition + 4)
+    doc.text(truncateText(attendee.phone || '-', 12), 135, yPosition + 4)
+    doc.text(entryTime, 170, yPosition + 4)
     
     yPosition += 10
   })
@@ -149,7 +186,7 @@ const generateAttendeesPDF = (eventName, data) => {
  * @param {Object} data - Datos completos
  */
 const generateFullReportPDF = (eventName, data) => {
-  const { guests, attendees, stats, hourlyStats } = data
+  const { guests, attendees, stats, hourlyStats, eventDate, eventLocation, eventDescription } = data
   const doc = new jsPDF()
   
   const primaryColor = [102, 126, 234]
@@ -160,9 +197,9 @@ const generateFullReportPDF = (eventName, data) => {
   
   // ===== PÁGINA 1: RESUMEN EJECUTIVO =====
   
-  // Encabezado con gradiente simulado
+  // Encabezado con información del evento
   doc.setFillColor(...primaryColor)
-  doc.rect(0, 0, 210, 50, 'F')
+  doc.rect(0, 0, 210, 60, 'F')
   
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(28)
@@ -171,73 +208,105 @@ const generateFullReportPDF = (eventName, data) => {
   
   doc.setFontSize(16)
   doc.setFont(undefined, 'normal')
-  doc.text(eventName, 20, 40)
+  doc.text(eventName, 20, 38)
   
-  yPosition = 70
+  if (eventDate) {
+    doc.setFontSize(12)
+    doc.text(formatEventDate(eventDate), 20, 48)
+  }
+  
+  if (eventLocation) {
+    doc.setFontSize(12)
+    doc.text(`📍 ${eventLocation}`, 20, 55)
+  }
+  
+  yPosition = 80
+  
+  // Descripción del evento si existe
+  if (eventDescription) {
+    doc.setTextColor(...textColor)
+    doc.setFontSize(12)
+    doc.text(`Descripción: ${truncateText(eventDescription, 80)}`, 20, yPosition)
+    yPosition += 15
+  }
   
   // Información del reporte
   doc.setTextColor(...textColor)
-  doc.setFontSize(12)
-  doc.text(`Fecha del evento: ${getCurrentDate()}`, 20, yPosition)
-  doc.text(`Reporte generado: ${new Date().toLocaleString('es-ES')}`, 120, yPosition)
+  doc.setFontSize(11)
+  doc.text(`Reporte generado: ${new Date().toLocaleString('es-ES')}`, 20, yPosition)
   yPosition += 20
   
-  // Estadísticas principales en cajas
+  // Estadísticas principales en cajas mejoradas
   const statBoxes = [
     { label: 'Total Invitados', value: stats.total, color: [52, 144, 220] },
-    { label: 'QRs Enviados', value: stats.qrsSent, color: [255, 193, 7] },
-    { label: 'Asistieron', value: stats.attended, color: [40, 167, 69] },
+    { label: 'QRs Enviados', value: stats.sent || stats.qrsSent, color: [255, 193, 7] },
+    { label: 'Asistieron', value: stats.attended || stats.scanned, color: [40, 167, 69] },
     { label: 'Tasa Asistencia', value: `${stats.rate}%`, color: [111, 66, 193] }
   ]
   
   statBoxes.forEach((stat, index) => {
-    const x = 20 + (index % 2) * 85
-    const y = yPosition + Math.floor(index / 2) * 35
+    const x = 20 + (index % 2) * 90
+    const y = yPosition + Math.floor(index / 2) * 40
     
+    // Sombra del cuadro
+    doc.setFillColor(200, 200, 200)
+    doc.rect(x + 2, y + 2, 85, 35, 'F')
+    
+    // Cuadro principal
     doc.setFillColor(...stat.color)
-    doc.rect(x, y, 80, 30, 'F')
+    doc.rect(x, y, 85, 35, 'F')
     
     doc.setTextColor(255, 255, 255)
-    doc.setFontSize(20)
+    doc.setFontSize(22)
     doc.setFont(undefined, 'bold')
-    doc.text(stat.value.toString(), x + 40, y + 15, { align: 'center' })
+    doc.text(stat.value.toString(), x + 42.5, y + 18, { align: 'center' })
     
     doc.setFontSize(10)
     doc.setFont(undefined, 'normal')
-    doc.text(stat.label, x + 40, y + 25, { align: 'center' })
+    doc.text(stat.label, x + 42.5, y + 28, { align: 'center' })
   })
   
-  yPosition += 80
+  yPosition += 90
   
-  // Gráfico de asistencia (barra simple)
+  // Gráfico de asistencia mejorado
   doc.setTextColor(...textColor)
   doc.setFontSize(16)
   doc.setFont(undefined, 'bold')
-  doc.text('Tasa de Asistencia', 20, yPosition)
+  doc.text('Análisis de Asistencia', 20, yPosition)
   
   yPosition += 15
   
   const barWidth = 150
-  const barHeight = 20
+  const barHeight = 25
   const attendancePercentage = stats.rate / 100
   
-  // Barra de fondo
+  // Barra de fondo con borde
   doc.setFillColor(233, 236, 239)
   doc.rect(20, yPosition, barWidth, barHeight, 'F')
+  doc.setDrawColor(200, 200, 200)
+  doc.setLineWidth(0.5)
+  doc.rect(20, yPosition, barWidth, barHeight)
   
-  // Barra de progreso
+  // Barra de progreso con gradiente simulado
   doc.setFillColor(...statBoxes[2].color)
   doc.rect(20, yPosition, barWidth * attendancePercentage, barHeight, 'F')
   
   // Texto del porcentaje
   doc.setTextColor(255, 255, 255)
-  doc.setFontSize(12)
+  doc.setFontSize(14)
   doc.setFont(undefined, 'bold')
-  doc.text(`${stats.rate}%`, 20 + (barWidth * attendancePercentage) - 15, yPosition + 13)
+  const textX = Math.max(35, 20 + (barWidth * attendancePercentage) - 25)
+  doc.text(`${stats.rate}%`, textX, yPosition + 16)
   
-  yPosition += 35
+  // Estadísticas adicionales
+  doc.setTextColor(...textColor)
+  doc.setFontSize(11)
+  doc.setFont(undefined, 'normal')
+  doc.text(`${stats.attended || stats.scanned} de ${stats.total} invitados confirmaron asistencia`, 20, yPosition + 35)
   
-  // Estadísticas por hora (si existen)
+  yPosition += 50
+  
+  // Estadísticas por hora mejoradas
   if (hourlyStats && hourlyStats.length > 0) {
     doc.setTextColor(...textColor)
     doc.setFontSize(16)
@@ -249,22 +318,36 @@ const generateFullReportPDF = (eventName, data) => {
     const maxHourCount = Math.max(...hourlyStats.map(h => h.count))
     
     hourlyStats.forEach((hourStat, index) => {
-      const barLength = (hourStat.count / maxHourCount) * 100
-      const y = yPosition + index * 12
+      const barLength = (hourStat.count / maxHourCount) * 110
+      const y = yPosition + index * 14
+      
+      // Verificar nueva página
+      if (y > 270) {
+        doc.addPage()
+        yPosition = 20
+        doc.setTextColor(...textColor)
+        doc.setFontSize(16)
+        doc.setFont(undefined, 'bold')
+        doc.text('Entradas por Hora (continuación)', 20, yPosition)
+        yPosition += 15
+      }
       
       // Etiqueta de hora
       doc.setFontSize(10)
-      doc.text(`${hourStat.hour}:00`, 20, y + 6)
+      doc.setFont(undefined, 'normal')
+      doc.text(`${hourStat.hour}:00`, 20, y + 7)
       
-      // Barra
-      doc.setFillColor(200, 200, 200)
-      doc.rect(45, y, 100, 8, 'F')
+      // Barra de fondo
+      doc.setFillColor(240, 240, 240)
+      doc.rect(50, y, 110, 10, 'F')
       
+      // Barra de datos
       doc.setFillColor(...primaryColor)
-      doc.rect(45, y, barLength, 8, 'F')
+      doc.rect(50, y, barLength, 10, 'F')
       
-      // Cantidad
-      doc.text(hourStat.count.toString(), 150, y + 6)
+      // Cantidad y porcentaje
+      doc.text(`${hourStat.count}`, 170, y + 7)
+      doc.text(`(${hourStat.percentage.toFixed(1)}%)`, 185, y + 7)
     })
   }
   
@@ -284,24 +367,32 @@ const generateFullReportPDF = (eventName, data) => {
   
   yPosition = 50
   
+  // Resumen rápido
+  doc.setTextColor(...textColor)
+  doc.setFontSize(12)
+  doc.text(`Total: ${guests.length} invitados | QRs enviados: ${stats.sent || stats.qrsSent} | Asistentes: ${stats.attended || stats.scanned}`, 20, yPosition)
+  yPosition += 15
+  
   // Encabezados de tabla
   doc.setFillColor(248, 249, 250)
   doc.rect(20, yPosition, 170, 12, 'F')
   
   doc.setTextColor(...textColor)
-  doc.setFontSize(10)
+  doc.setFontSize(9)
   doc.setFont(undefined, 'bold')
   doc.text('N°', 25, yPosition + 8)
-  doc.text('Nombre', 40, yPosition + 8)
-  doc.text('Email', 90, yPosition + 8)
-  doc.text('QR', 140, yPosition + 8)
-  doc.text('Entró', 160, yPosition + 8)
+  doc.text('Nombre', 35, yPosition + 8)
+  doc.text('Email', 75, yPosition + 8)
+  doc.text('Teléfono', 115, yPosition + 8)
+  doc.text('QR', 145, yPosition + 8)
+  doc.text('Asistió', 160, yPosition + 8)
+  doc.text('Estado', 175, yPosition + 8)
   
   yPosition += 15
   
-  // Lista de invitados
+  // Lista de invitados mejorada
   doc.setFont(undefined, 'normal')
-  doc.setFontSize(9)
+  doc.setFontSize(8)
   
   guests.forEach((guest, index) => {
     if (yPosition > 270) {
@@ -313,17 +404,19 @@ const generateFullReportPDF = (eventName, data) => {
       doc.rect(20, yPosition, 170, 12, 'F')
       
       doc.setTextColor(...textColor)
-      doc.setFontSize(10)
+      doc.setFontSize(9)
       doc.setFont(undefined, 'bold')
       doc.text('N°', 25, yPosition + 8)
-      doc.text('Nombre', 40, yPosition + 8)
-      doc.text('Email', 90, yPosition + 8)
-      doc.text('QR', 140, yPosition + 8)
-      doc.text('Entró', 160, yPosition + 8)
+      doc.text('Nombre', 35, yPosition + 8)
+      doc.text('Email', 75, yPosition + 8)
+      doc.text('Teléfono', 115, yPosition + 8)
+      doc.text('QR', 145, yPosition + 8)
+      doc.text('Asistió', 160, yPosition + 8)
+      doc.text('Estado', 175, yPosition + 8)
       
       yPosition += 15
       doc.setFont(undefined, 'normal')
-      doc.setFontSize(9)
+      doc.setFontSize(8)
     }
     
     // Alternar color de fondo
@@ -335,46 +428,60 @@ const generateFullReportPDF = (eventName, data) => {
     // Datos del invitado
     doc.setTextColor(...textColor)
     doc.text(`${index + 1}`, 25, yPosition + 4)
-    doc.text(truncateText(guest.name, 20), 40, yPosition + 4)
-    doc.text(truncateText(guest.email, 20), 90, yPosition + 4)
+    doc.text(truncateText(guest.name, 18), 35, yPosition + 4)
+    doc.text(truncateText(guest.email, 18), 75, yPosition + 4)
+    doc.text(truncateText(guest.phone || '-', 12), 115, yPosition + 4)
     
-    // Estado QR
-    if (guest.qr_sent) {
+    // Estado QR con colores
+    if (guest.sent) {
       doc.setTextColor(40, 167, 69)
-      doc.text('✓', 145, yPosition + 4)
+      doc.text('✓', 148, yPosition + 4)
     } else {
       doc.setTextColor(220, 53, 69)
-      doc.text('✗', 145, yPosition + 4)
+      doc.text('✗', 148, yPosition + 4)
     }
     
-    // Estado entrada
-    if (guest.has_entered) {
+    // Estado asistencia
+    if (guest.scanned) {
       doc.setTextColor(40, 167, 69)
-      doc.text('✓', 165, yPosition + 4)
+      doc.text('✓', 163, yPosition + 4)
     } else {
       doc.setTextColor(220, 53, 69)
-      doc.text('✗', 165, yPosition + 4)
+      doc.text('✗', 163, yPosition + 4)
     }
+    
+    // Estado general
+    doc.setTextColor(...textColor)
+    doc.setFontSize(7)
+    let status = 'PENDIENTE'
+    if (guest.scanned) status = 'ASISTIÓ'
+    else if (guest.sent) status = 'QR ENVIADO'
+    
+    doc.text(status, 175, yPosition + 4)
+    doc.setFontSize(8)
     
     yPosition += 10
   })
   
   // ===== PÁGINA 3: SOLO ASISTENTES (si hay) =====
   
-  if (attendees.length > 0) {
+  if (attendees && attendees.length > 0) {
     doc.addPage()
     yPosition = 20
     
     // Encabezado
     doc.setFillColor(40, 167, 69)
-    doc.rect(0, 0, 210, 30, 'F')
+    doc.rect(0, 0, 210, 35, 'F')
     
     doc.setTextColor(255, 255, 255)
     doc.setFontSize(20)
     doc.setFont(undefined, 'bold')
-    doc.text('Detalle de Asistentes', 20, 20)
+    doc.text('Detalle de Asistentes Confirmados', 20, 20)
     
-    yPosition = 50
+    doc.setFontSize(12)
+    doc.text(`${attendees.length} personas asistieron al evento`, 20, 30)
+    
+    yPosition = 55
     
     // Encabezados
     doc.setFillColor(248, 249, 250)
@@ -385,8 +492,9 @@ const generateFullReportPDF = (eventName, data) => {
     doc.setFont(undefined, 'bold')
     doc.text('N°', 25, yPosition + 8)
     doc.text('Nombre', 40, yPosition + 8)
-    doc.text('Email', 90, yPosition + 8)
-    doc.text('Hora de Entrada', 140, yPosition + 8)
+    doc.text('Email', 85, yPosition + 8)
+    doc.text('Teléfono', 125, yPosition + 8)
+    doc.text('Hora Entrada', 160, yPosition + 8)
     
     yPosition += 15
     
@@ -408,8 +516,9 @@ const generateFullReportPDF = (eventName, data) => {
         doc.setFont(undefined, 'bold')
         doc.text('N°', 25, yPosition + 8)
         doc.text('Nombre', 40, yPosition + 8)
-        doc.text('Email', 90, yPosition + 8)
-        doc.text('Hora de Entrada', 140, yPosition + 8)
+        doc.text('Email', 85, yPosition + 8)
+        doc.text('Teléfono', 125, yPosition + 8)
+        doc.text('Hora Entrada', 160, yPosition + 8)
         
         yPosition += 15
         doc.setFont(undefined, 'normal')
@@ -421,16 +530,22 @@ const generateFullReportPDF = (eventName, data) => {
         doc.rect(20, yPosition - 2, 170, 10, 'F')
       }
       
-      const entryTime = new Date(attendee.entered_at).toLocaleTimeString('es-ES', {
-        hour: '2-digit',
-        minute: '2-digit'
-      })
+      const entryTime = attendee.scanned_at ? 
+        new Date(attendee.scanned_at).toLocaleTimeString('es-ES', {
+          hour: '2-digit',
+          minute: '2-digit'
+        }) : 
+        new Date(attendee.created_at).toLocaleTimeString('es-ES', {
+          hour: '2-digit',
+          minute: '2-digit'
+        })
       
       doc.setTextColor(...textColor)
       doc.text(`${index + 1}`, 25, yPosition + 4)
       doc.text(truncateText(attendee.name, 20), 40, yPosition + 4)
-      doc.text(truncateText(attendee.email, 20), 90, yPosition + 4)
-      doc.text(entryTime, 145, yPosition + 4)
+      doc.text(truncateText(attendee.email, 18), 85, yPosition + 4)
+      doc.text(truncateText(attendee.phone || '-', 12), 125, yPosition + 4)
+      doc.text(entryTime, 165, yPosition + 4)
       
       yPosition += 10
     })
@@ -450,7 +565,7 @@ const generateFullReportPDF = (eventName, data) => {
  * @param {Object} data - Datos de invitados
  */
 const generateGuestListPDF = (eventName, data) => {
-  const { guests } = data
+  const { guests, eventDate, eventLocation, stats } = data
   const doc = new jsPDF()
   
   const primaryColor = [102, 126, 234]
@@ -460,7 +575,7 @@ const generateGuestListPDF = (eventName, data) => {
   
   // Encabezado
   doc.setFillColor(...primaryColor)
-  doc.rect(0, 0, 210, 40, 'F')
+  doc.rect(0, 0, 210, 50, 'F')
   
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(24)
@@ -471,13 +586,31 @@ const generateGuestListPDF = (eventName, data) => {
   doc.setFont(undefined, 'normal')
   doc.text(eventName, 20, 35)
   
-  yPosition = 60
+  if (eventDate) {
+    doc.setFontSize(12)
+    doc.text(formatEventDate(eventDate), 20, 45)
+  }
   
-  // Información
+  yPosition = 65
+  
+  // Información del evento
+  if (eventLocation) {
+    doc.setTextColor(...textColor)
+    doc.setFontSize(12)
+    doc.text(`📍 Ubicación: ${eventLocation}`, 20, yPosition)
+    yPosition += 10
+  }
+  
+  // Estadísticas rápidas
   doc.setTextColor(...textColor)
   doc.setFontSize(12)
   doc.text(`Total de invitados: ${guests.length}`, 20, yPosition)
-  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 120, yPosition)
+  doc.text(`QRs enviados: ${stats.sent || 0}`, 100, yPosition)
+  doc.text(`Pendientes: ${stats.pending || 0}`, 160, yPosition)
+  yPosition += 5
+  
+  doc.setFontSize(11)
+  doc.text(`Generado: ${new Date().toLocaleString('es-ES')}`, 20, yPosition)
   
   yPosition += 20
   
@@ -490,7 +623,9 @@ const generateGuestListPDF = (eventName, data) => {
   doc.setFont(undefined, 'bold')
   doc.text('N°', 25, yPosition + 8)
   doc.text('Nombre', 40, yPosition + 8)
-  doc.text('Email', 110, yPosition + 8)
+  doc.text('Email', 95, yPosition + 8)
+  doc.text('Teléfono', 140, yPosition + 8)
+  doc.text('Estado', 175, yPosition + 8)
   
   yPosition += 15
   
@@ -512,7 +647,9 @@ const generateGuestListPDF = (eventName, data) => {
       doc.setFont(undefined, 'bold')
       doc.text('N°', 25, yPosition + 8)
       doc.text('Nombre', 40, yPosition + 8)
-      doc.text('Email', 110, yPosition + 8)
+      doc.text('Email', 95, yPosition + 8)
+      doc.text('Teléfono', 140, yPosition + 8)
+      doc.text('Estado', 175, yPosition + 8)
       
       yPosition += 15
       doc.setFont(undefined, 'normal')
@@ -524,10 +661,29 @@ const generateGuestListPDF = (eventName, data) => {
       doc.rect(20, yPosition - 3, 170, 12, 'F')
     }
     
+    // Estado del invitado
+    let status = 'PENDIENTE'
+    let statusColor = textColor
+    
+    if (guest.scanned) {
+      status = 'ASISTIÓ'
+      statusColor = [40, 167, 69]
+    } else if (guest.sent) {
+      status = 'QR ENVIADO'
+      statusColor = [255, 193, 7]
+    }
+    
     doc.setTextColor(...textColor)
     doc.text(`${index + 1}`, 25, yPosition + 4)
-    doc.text(truncateText(guest.name, 30), 40, yPosition + 4)
-    doc.text(truncateText(guest.email, 35), 110, yPosition + 4)
+    doc.text(truncateText(guest.name, 25), 40, yPosition + 4)
+    doc.text(truncateText(guest.email, 20), 95, yPosition + 4)
+    doc.text(truncateText(guest.phone || '-', 15), 140, yPosition + 4)
+    
+    // Estado con color
+    doc.setTextColor(...statusColor)
+    doc.setFontSize(9)
+    doc.text(status, 175, yPosition + 4)
+    doc.setFontSize(10)
     
     yPosition += 12
   })
@@ -541,7 +697,219 @@ const generateGuestListPDF = (eventName, data) => {
 }
 
 /**
- * Generar PDF con códigos QR individuales
+ * Generar PDF de reporte comparativo de eventos
+ * @param {Object} data - Datos de comparación
+ */
+const generateComparativeReportPDF = (data) => {
+  const { eventsData } = data
+  const doc = new jsPDF()
+  
+  const primaryColor = [102, 126, 234]
+  const textColor = [33, 37, 41]
+  
+  let yPosition = 20
+  
+  // Encabezado
+  doc.setFillColor(...primaryColor)
+  doc.rect(0, 0, 210, 40, 'F')
+  
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(24)
+  doc.setFont(undefined, 'bold')
+  doc.text('Reporte Comparativo de Eventos', 20, 25)
+  
+  doc.setFontSize(12)
+  doc.text(`${eventsData.length} eventos analizados`, 20, 35)
+  
+  yPosition = 60
+  
+  // Resumen general
+  const totalStats = eventsData.reduce((acc, eventData) => ({
+    events: acc.events + 1,
+    totalGuests: acc.totalGuests + eventData.stats.total,
+    totalAttended: acc.totalAttended + eventData.stats.scanned,
+    totalSent: acc.totalSent + eventData.stats.sent
+  }), { events: 0, totalGuests: 0, totalAttended: 0, totalSent: 0 })
+
+  const avgAttendance = totalStats.totalGuests > 0 ? 
+    Math.round((totalStats.totalAttended / totalStats.totalGuests) * 100) : 0
+
+  // Estadísticas generales
+  doc.setTextColor(...textColor)
+  doc.setFontSize(14)
+  doc.setFont(undefined, 'bold')
+  doc.text('Resumen General', 20, yPosition)
+  yPosition += 15
+
+  doc.setFillColor(248, 249, 250)
+  doc.rect(20, yPosition, 170, 40, 'F')
+
+  doc.setFontSize(12)
+  doc.setFont(undefined, 'normal')
+  doc.text(`Total de eventos: ${totalStats.events}`, 25, yPosition + 10)
+  doc.text(`Total invitados: ${totalStats.totalGuests}`, 25, yPosition + 20)
+  doc.text(`Total asistentes: ${totalStats.totalAttended}`, 25, yPosition + 30)
+  doc.text(`Promedio de asistencia: ${avgAttendance}%`, 120, yPosition + 20)
+
+  yPosition += 55
+
+  // Tabla comparativa
+  doc.setFontSize(14)
+  doc.setFont(undefined, 'bold')
+  doc.text('Comparación Detallada', 20, yPosition)
+  yPosition += 15
+
+  // Encabezados de tabla
+  doc.setFillColor(248, 249, 250)
+  doc.rect(20, yPosition, 170, 12, 'F')
+
+  doc.setFontSize(10)
+  doc.setFont(undefined, 'bold')
+  doc.text('Evento', 25, yPosition + 8)
+  doc.text('Fecha', 70, yPosition + 8)
+  doc.text('Invit.', 100, yPosition + 8)
+  doc.text('QR Env.', 120, yPosition + 8)
+  doc.text('Asist.', 145, yPosition + 8)
+  doc.text('Tasa %', 165, yPosition + 8)
+
+  yPosition += 15
+
+  // Datos de eventos
+  doc.setFont(undefined, 'normal')
+  doc.setFontSize(9)
+
+  eventsData.forEach((eventData, index) => {
+    if (yPosition > 270) {
+      doc.addPage()
+      yPosition = 20
+
+      // Repetir encabezados
+      doc.setFillColor(248, 249, 250)
+      doc.rect(20, yPosition, 170, 12, 'F')
+
+      doc.setTextColor(...textColor)
+      doc.setFontSize(10)
+      doc.setFont(undefined, 'bold')
+      doc.text('Evento', 25, yPosition + 8)
+      doc.text('Fecha', 70, yPosition + 8)
+      doc.text('Invit.', 100, yPosition + 8)
+      doc.text('QR Env.', 120, yPosition + 8)
+      doc.text('Asist.', 145, yPosition + 8)
+      doc.text('Tasa %', 165, yPosition + 8)
+
+      yPosition += 15
+      doc.setFont(undefined, 'normal')
+      doc.setFontSize(9)
+    }
+
+    if (index % 2 === 0) {
+      doc.setFillColor(252, 252, 252)
+      doc.rect(20, yPosition - 2, 170, 12, 'F')
+    }
+
+    doc.setTextColor(...textColor)
+    doc.text(truncateText(eventData.event.name, 20), 25, yPosition + 6)
+    doc.text(formatDate(eventData.event.date), 70, yPosition + 6)
+    doc.text(eventData.stats.total.toString(), 105, yPosition + 6)
+    doc.text(eventData.stats.sent.toString(), 125, yPosition + 6)
+    doc.text(eventData.stats.scanned.toString(), 150, yPosition + 6)
+    
+    // Color para tasa de asistencia
+    const rate = eventData.stats.rate
+    if (rate >= 80) doc.setTextColor(40, 167, 69)
+    else if (rate >= 60) doc.setTextColor(255, 193, 7)
+    else doc.setTextColor(220, 53, 69)
+    
+    doc.text(`${rate}%`, 170, yPosition + 6)
+
+    yPosition += 12
+  })
+
+  // Nueva página para detalles por evento
+  eventsData.forEach((eventData, index) => {
+    if (index === 0 || yPosition > 200) {
+      doc.addPage()
+      yPosition = 20
+    }
+
+    // Título del evento
+    doc.setTextColor(...primaryColor)
+    doc.setFontSize(16)
+    doc.setFont(undefined, 'bold')
+    doc.text(`${index + 1}. ${eventData.event.name}`, 20, yPosition)
+    yPosition += 15
+
+    // Información del evento
+    doc.setTextColor(...textColor)
+    doc.setFontSize(11)
+    doc.setFont(undefined, 'normal')
+    
+    if (eventData.event.date) {
+      doc.text(`📅 Fecha: ${formatEventDate(eventData.event.date)}`, 25, yPosition)
+      yPosition += 10
+    }
+    
+    if (eventData.event.location) {
+      doc.text(`📍 Ubicación: ${eventData.event.location}`, 25, yPosition)
+      yPosition += 10
+    }
+    
+    if (eventData.event.description) {
+      doc.text(`📝 Descripción: ${truncateText(eventData.event.description, 60)}`, 25, yPosition)
+      yPosition += 10
+    }
+
+    // Estadísticas del evento
+    yPosition += 5
+    doc.setFillColor(248, 249, 250)
+    doc.rect(25, yPosition, 160, 35, 'F')
+
+    doc.setFontSize(12)
+    doc.setFont(undefined, 'bold')
+    doc.text('Estadísticas', 30, yPosition + 10)
+
+    doc.setFontSize(10)
+    doc.setFont(undefined, 'normal')
+    doc.text(`Total invitados: ${eventData.stats.total}`, 30, yPosition + 20)
+    doc.text(`QRs enviados: ${eventData.stats.sent}`, 30, yPosition + 28)
+    doc.text(`Asistentes: ${eventData.stats.scanned}`, 110, yPosition + 20)
+    doc.text(`Tasa: ${eventData.stats.rate}%`, 110, yPosition + 28)
+
+    yPosition += 45
+
+    // Gráfico de barra simple para el evento
+    const eventBarWidth = 120
+    const eventBarHeight = 15
+    const eventFillWidth = (eventBarWidth * eventData.stats.rate) / 100
+
+    doc.setFillColor(233, 236, 239)
+    doc.rect(25, yPosition, eventBarWidth, eventBarHeight, 'F')
+
+    // Color basado en rendimiento
+    if (eventData.stats.rate >= 80) doc.setFillColor(40, 167, 69)
+    else if (eventData.stats.rate >= 60) doc.setFillColor(255, 193, 7)
+    else doc.setFillColor(220, 53, 69)
+
+    doc.rect(25, yPosition, eventFillWidth, eventBarHeight, 'F')
+
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(10)
+    doc.setFont(undefined, 'bold')
+    doc.text(`${eventData.stats.rate}%`, 30 + eventFillWidth - 15, yPosition + 10)
+
+    yPosition += 25
+  })
+
+  // Pie de página
+  addFooter(doc, 'Reporte Comparativo', 'Múltiples Eventos')
+
+  // Descargar
+  const fileName = `Reporte_Comparativo_Eventos_${getCurrentDate()}.pdf`
+  doc.save(fileName)
+}
+
+/**
+ * Generar PDF con códigos QR individuales (manteniendo funcionalidad original)
  * @param {Array} guestsWithQRs - Invitados con sus QRs
  * @param {string} eventName - Nombre del evento
  */
@@ -557,7 +925,6 @@ export const generateQRSheetPDF = (guestsWithQRs, eventName) => {
   const spacingY = 50
   
   let currentPage = 0
-  let qrCount = 0
   
   guestsWithQRs.forEach((guestData, index) => {
     const { guest, qrImageData } = guestData
@@ -602,7 +969,7 @@ export const generateQRSheetPDF = (guestsWithQRs, eventName) => {
 }
 
 /**
- * Añadir pie de página a todas las páginas
+ * Añadir pie de página a todas las páginas (mejorado)
  * @param {jsPDF} doc - Documento PDF
  * @param {string} title - Título del documento
  * @param {string} eventName - Nombre del evento
@@ -613,20 +980,23 @@ const addFooter = (doc, title, eventName) => {
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i)
     
-    // Línea separadora
-    doc.setDrawColor(200, 200, 200)
-    doc.line(20, 285, 190, 285)
+    // Línea separadora más elegante
+    doc.setDrawColor(180, 180, 180)
+    doc.setLineWidth(0.5)
+    doc.line(20, 283, 190, 283)
     
-    // Texto del pie
-    doc.setTextColor(100, 100, 100)
+    // Texto del pie con mejor formato
+    doc.setTextColor(120, 120, 120)
     doc.setFontSize(8)
     doc.setFont(undefined, 'normal')
     
-    const footerText = `${title} - ${eventName} | Generado el ${new Date().toLocaleString('es-ES')}`
-    doc.text(footerText, 20, 290)
+    const footerLeft = `${title} - ${eventName}`
+    const footerCenter = `Generado el ${new Date().toLocaleDateString('es-ES')} a las ${new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`
+    const footerRight = `Página ${i} de ${pageCount}`
     
-    // Número de página
-    doc.text(`Página ${i} de ${pageCount}`, 190, 290, { align: 'right' })
+    doc.text(footerLeft, 20, 288)
+    doc.text(footerCenter, 105, 288, { align: 'center' })
+    doc.text(footerRight, 190, 288, { align: 'right' })
   }
 }
 
@@ -662,7 +1032,36 @@ const getCurrentDate = () => {
 }
 
 /**
- * Generar PDF de estadísticas avanzadas
+ * Formatear fecha para mostrar en PDF
+ * @param {string} dateString - Fecha en formato ISO
+ * @returns {string} - Fecha formateada
+ */
+const formatDate = (dateString) => {
+  if (!dateString) return '-'
+  return new Date(dateString).toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit'
+  })
+}
+
+/**
+ * Formatear fecha del evento para mostrar completa
+ * @param {string} dateString - Fecha en formato ISO
+ * @returns {string} - Fecha formateada completa
+ */
+const formatEventDate = (dateString) => {
+  if (!dateString) return ''
+  return new Date(dateString).toLocaleDateString('es-ES', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
+}
+
+/**
+ * Generar PDF de estadísticas avanzadas (manteniendo funcionalidad original)
  * @param {Object} statsData - Datos estadísticos
  * @param {string} eventName - Nombre del evento
  */
@@ -705,14 +1104,12 @@ export const generateAdvancedStatsPDF = (statsData, eventName) => {
     yPos += 20
   }
   
-  // Más estadísticas según necesidades...
-  
   const fileName = `Estadisticas_Avanzadas_${sanitizeFileName(eventName)}_${getCurrentDate()}.pdf`
   doc.save(fileName)
 }
 
 /**
- * Exportar datos como CSV
+ * Exportar datos como CSV (manteniendo funcionalidad original)
  * @param {Array} data - Datos a exportar
  * @param {string} filename - Nombre del archivo
  * @param {Array} headers - Encabezados de columnas
@@ -740,7 +1137,7 @@ export const exportToCSV = (data, filename, headers) => {
 }
 
 /**
- * Configuraciones predefinidas de PDF
+ * Configuraciones predefinidas de PDF (manteniendo funcionalidad original)
  */
 export const pdfConfigs = {
   // Configuración para eventos pequeños
