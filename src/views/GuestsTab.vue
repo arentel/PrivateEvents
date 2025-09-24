@@ -384,7 +384,7 @@ const formatDate = (dateString: string) => {
   })
 }
 
-// Función para añadir invitados - CORREGIDA para nueva estructura
+// Función para añadir invitados - OPTIMIZADA
 const addGuests = async () => {
   if (!guestInput.value.trim()) {
     const toast = await toastController.create({
@@ -711,7 +711,7 @@ const deleteGuest = async () => {
   await alert.present()
 }
 
-// Funciones de utilidad
+// Funciones de utilidad - ACTUALIZADAS para nueva estructura
 const getStatusColor = (guest: Guest) => {
   if (guest.has_entered || guest.scanned) return 'success'
   if (guest.qr_sent || guest.sent) return 'warning'
@@ -720,7 +720,7 @@ const getStatusColor = (guest: Guest) => {
 
 const getStatusText = (guest: Guest) => {
   if (guest.has_entered || guest.scanned) return 'VALIDADO'
-  if (guest.qr_sent || guest.sent) return 'QR ENVIADO'
+  if (guest.qr_sent || guest.sent) return 'PDF ENVIADO'
   return 'PENDIENTE'
 }
 

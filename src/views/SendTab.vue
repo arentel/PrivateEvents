@@ -242,7 +242,7 @@ import { eventsStore, type Guest } from '@/stores/events'
 // @ts-ignore
 import { supabase } from '@/services/supabase.js'
 
-// Importaciones del servicio de email
+// Importaciones del servicio de email actualizado
 // @ts-ignore
 import { sendQREmail, sendBulkQREmails, diagnoseEmailJS } from '@/services/email'
 
@@ -344,7 +344,7 @@ const selectEvent = (eventId: string) => {
   }
 }
 
-// Función para enviar todos los QRs - ACTUALIZADA para nueva estructura
+// Función para enviar todos los QRs - ACTUALIZADA para nueva estructura con PDF
 const sendAllQRs = async () => {
   if (!currentEvent.value) {
     const toast = await toastController.create({
@@ -369,7 +369,7 @@ const sendAllQRs = async () => {
   }
 
   const confirm = window.confirm(
-    `¿Enviar QRs a ${pendingGuests.value.length} invitados del evento "${currentEvent.value.name}"?`
+    `¿Enviar entradas con PDF y QRs a ${pendingGuests.value.length} invitados del evento "${currentEvent.value.name}"?`
   )
   
   if (!confirm) return
@@ -378,14 +378,14 @@ const sendAllQRs = async () => {
   sendProgress.value = 0
   sentCount.value = 0
   totalToSend.value = pendingGuests.value.length
-  currentSendStatus.value = 'Preparando envío...'
+  currentSendStatus.value = 'Preparando envío con PDFs...'
 
   try {
     const guestsToSend = [...pendingGuests.value]
     
-    console.log('📧 Preparando envío masivo para', guestsToSend.length, 'invitados')
+    console.log('📧 Preparando envío masivo con PDF tickets para', guestsToSend.length, 'invitados')
     
-    // Preparar datos para envío masivo
+    // Preparar datos para envío masivo con información del evento para PDF
     const guestsWithQRs = guestsToSend.map(guest => {
       if (!currentEvent.value) throw new Error('No hay evento seleccionado')
       
@@ -404,49 +404,52 @@ const sendAllQRs = async () => {
       return {
         guest: {
           ...guest,
-          event_name: currentEvent.value.name
+          event_name: currentEvent.value.name,
+          event_id: currentEvent.value.id
         },
         qrCode: JSON.stringify(qrData)
       }
     })
 
-    // Opciones para el email
+    // Opciones para el email con información completa para PDF
     const emailOptions = {
+      eventId: currentEvent.value.id,
       eventName: currentEvent.value.name,
       eventDate: formatDate(currentEvent.value.date),
       eventLocation: currentEvent.value.location || 'Ubicación por confirmar',
-      organizerName: 'Organizador del Evento'
+      organizerName: 'Organizador del Evento',
+      logoBase64: null // Aquí podrías añadir un logo si lo tienes
     }
 
-    // Callback de progreso
+    // Callback de progreso actualizado
     const progressCallback = (progress: any) => {
       sendProgress.value = progress.percentage / 100
       
       let statusText = ''
       switch (progress.status) {
         case 'sending':
-          statusText = `Enviando a ${progress.currentGuest}...`
+          statusText = `Generando PDF y enviando a ${progress.currentGuest}...`
           break
         case 'success':
-          statusText = `✅ Enviado a ${progress.currentGuest}`
+          statusText = `✅ PDF enviado a ${progress.currentGuest}`
           sentCount.value = progress.current
           break
         case 'simulated':
-          statusText = `📧 Simulado para ${progress.currentGuest}`
+          statusText = `📧 Simulado (con PDF) para ${progress.currentGuest}`
           sentCount.value = progress.current
           break
         case 'error':
           statusText = `❌ Error con ${progress.currentGuest}`
           break
         default:
-          statusText = `Procesando ${progress.currentGuest}...`
+          statusText = `Procesando PDF para ${progress.currentGuest}...`
       }
       
       currentSendStatus.value = statusText
     }
 
-    // Usar la función de envío masivo
-    console.log('🚀 Iniciando envío masivo...')
+    // Usar la función de envío masivo actualizada
+    console.log('🚀 Iniciando envío masivo con PDF tickets...')
     const results = await sendBulkQREmails(guestsWithQRs, emailOptions, progressCallback)
     
     console.log('📊 Resultados del envío:', results)
@@ -471,33 +474,35 @@ const sendAllQRs = async () => {
         guest.sent = true // Alias para compatibilidad
         guest.sent_at = new Date().toISOString()
         ;(guest as any).simulated_send = results.simulated > 0
+        ;(guest as any).has_pdf = true
         updatedGuests++
       }
     }
     
-    currentSendStatus.value = '✅ Envío completado'
+    currentSendStatus.value = '✅ Envío con PDFs completado'
     
-    // Mostrar resultado detallado
+    // Mostrar resultado detallado incluyendo info de PDFs
     let message = ''
     let toastColor = 'success'
     
     if (results.failed > 0) {
-      message = `⚠️ ${results.sent || 0} enviados, ${results.failed} fallaron`
+      message = `⚠️ ${results.sent || 0} PDFs enviados, ${results.failed} fallaron`
       toastColor = 'warning'
     } else if (results.simulated > 0) {
-      message = `📧 ${results.simulated} QRs procesados (modo simulación - verificar configuración EmailJS)`
+      message = `📧 ${results.simulated} entradas PDF procesadas (modo simulación - verificar configuración EmailJS)`
       toastColor = 'warning'
     } else if (results.sent > 0) {
-      message = `✅ ${results.sent} QRs enviados correctamente`
+      const pdfText = results.withPDF ? ` con ${results.withPDF} PDFs adjuntos` : ''
+      message = `✅ ${results.sent} entradas enviadas correctamente${pdfText}`
       toastColor = 'success'
     } else {
-      message = `❌ No se pudo enviar ningún QR`
+      message = `❌ No se pudo enviar ninguna entrada`
       toastColor = 'danger'
     }
     
     const toast = await toastController.create({
       message,
-      duration: 4000,
+      duration: 5000,
       color: toastColor,
       position: 'top'
     })
@@ -526,7 +531,7 @@ const sendAllQRs = async () => {
     }
     
   } catch (error: any) {
-    console.error('❌ Error sending QRs:', error)
+    console.error('❌ Error sending QRs with PDFs:', error)
     
     const toast = await toastController.create({
       message: `Error durante el envío masivo: ${error?.message || 'Error desconocido'}`,
@@ -540,7 +545,7 @@ const sendAllQRs = async () => {
   }
 }
 
-// Función para enviar QR individual - ACTUALIZADA para nueva estructura
+// Función para enviar QR individual - ACTUALIZADA para nueva estructura con PDF
 const sendSingleQR = async (guest: Guest) => {
   if (!currentEvent.value) {
     const toast = await toastController.create({
@@ -554,7 +559,7 @@ const sendSingleQR = async (guest: Guest) => {
   }
 
   try {
-    console.log('📧 Enviando QR individual a:', guest.name)
+    console.log('📧 Enviando entrada PDF individual a:', guest.name)
     
     // Generar datos del QR
     const qrData = {
@@ -569,21 +574,24 @@ const sendSingleQR = async (guest: Guest) => {
       version: '1.0'
     }
     
-    // Preparar guest con event_name
+    // Preparar guest con event_name e información completa
     const guestWithEvent = {
       ...guest,
-      event_name: currentEvent.value.name
+      event_name: currentEvent.value.name,
+      event_id: currentEvent.value.id
     }
     
-    // Opciones para el email
+    // Opciones para el email con información completa para PDF
     const emailOptions = {
+      eventId: currentEvent.value.id,
       eventName: currentEvent.value.name,
       eventDate: formatDate(currentEvent.value.date),
       eventLocation: currentEvent.value.location || 'Ubicación por confirmar',
-      organizerName: 'Organizador del Evento'
+      organizerName: 'Organizador del Evento',
+      logoBase64: null // Aquí podrías añadir un logo si lo tienes
     }
 
-    // Enviar usando la función de email.js
+    // Enviar usando la función de email.js actualizada
     const result = await sendQREmail(guestWithEvent, JSON.stringify(qrData), emailOptions)
     
     if (result.success) {
@@ -606,10 +614,12 @@ const sendSingleQR = async (guest: Guest) => {
       guest.sent = true // Alias para compatibilidad
       guest.sent_at = new Date().toISOString()
       ;(guest as any).simulated_send = result.simulated
+      ;(guest as any).has_pdf = result.hasPDF
       
+      const pdfText = result.hasPDF ? ' con PDF adjunto' : ''
       const message = result.simulated 
-        ? `📧 Envío simulado para ${guest.name} (configurar variables EmailJS)`
-        : `✅ QR enviado a ${guest.name}`
+        ? `📧 Envío simulado${pdfText} para ${guest.name} (configurar variables EmailJS)`
+        : `✅ Entrada${pdfText} enviada a ${guest.name}`
       
       const toast = await toastController.create({
         message,
@@ -620,11 +630,11 @@ const sendSingleQR = async (guest: Guest) => {
       await toast.present()
     }
   } catch (error: any) {
-    console.error('❌ Error sending single QR:', error)
+    console.error('❌ Error sending single QR with PDF:', error)
     
     const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
     const toast = await toastController.create({
-      message: `Error al enviar QR a ${guest.name}: ${errorMessage}`,
+      message: `Error al enviar entrada PDF a ${guest.name}: ${errorMessage}`,
       duration: 4000,
       color: 'danger',
       position: 'top'

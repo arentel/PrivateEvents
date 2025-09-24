@@ -35,6 +35,7 @@
     "html5-qrcode": "^2.3.8",
     "ionicons": "^7.0.0",
     "jspdf": "^3.0.3",
+    "qrcode": "^1.5.4",
     "qrious": "^4.0.2",
     "resend": "^6.1.0",
     "vue": "^3.3.0",
@@ -42,6 +43,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "7.4.3",
+    "@types/qrcode": "^1.5.5",
     "@vitejs/plugin-legacy": "^5.0.0",
     "@vitejs/plugin-vue": "^4.0.0",
     "@vue/eslint-config-typescript": "^12.0.0",
