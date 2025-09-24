@@ -230,7 +230,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onActivated } from 'vue'
 import {
   IonPage,
   IonHeader,
@@ -344,6 +344,70 @@ const recentEntriesDisplay = computed(() =>
   )
 )
 
+// Función para cargar entradas recientes desde la base de datos
+const loadRecentEntries = async () => {
+  try {
+    console.log('Cargando entradas recientes desde la base de datos...')
+    
+    // Obtener invitados que han entrado hoy
+    const today = new Date().toISOString().split('T')[0]
+    
+    const { data: entries, error } = await supabase
+      .from('guests')
+      .select('*')
+      .eq('has_entered', true)
+      .gte('entered_at', `${today}T00:00:00`)
+      .lte('entered_at', `${today}T23:59:59`)
+      .order('entered_at', { ascending: false })
+      .limit(20)
+    
+    if (error) {
+      console.error('Error loading recent entries:', error)
+      return
+    }
+    
+    recentEntries.value = entries || []
+    
+    console.log('Entradas recientes cargadas:', recentEntries.value.length)
+    
+  } catch (error) {
+    console.error('Error cargando entradas recientes:', error)
+  }
+}
+
+// Función para cargar estadísticas del día
+const loadTodayStats = async () => {
+  try {
+    const today = new Date().toISOString().split('T')[0]
+    
+    // Contar entradas del día
+    const { data: todayEntries, error: entriesError } = await supabase
+      .from('guests')
+      .select('has_entered, entered_at')
+      .eq('has_entered', true)
+      .gte('entered_at', `${today}T00:00:00`)
+      .lte('entered_at', `${today}T23:59:59`)
+    
+    if (entriesError) {
+      console.error('Error loading today stats:', entriesError)
+      return
+    }
+    
+    const todaySuccessful = (todayEntries || []).length
+    
+    // Actualizar estadísticas
+    successfulEntries.value = todaySuccessful
+    
+    // Las estadísticas de validaciones totales y rechazadas se mantienen en memoria
+    // durante la sesión, pero se resetean al recargar
+    
+    console.log('Estadísticas del día cargadas:', { successful: todaySuccessful })
+    
+  } catch (error) {
+    console.error('Error loading today stats:', error)
+  }
+}
+
 // Funciones utilitarias
 const showToast = async (message: string, color: string = 'primary') => {
   const toast = await toastController.create({
@@ -356,7 +420,9 @@ const showToast = async (message: string, color: string = 'primary') => {
 }
 
 const formatDateTime = (dateString: string) => {
+  if (!dateString) return ''
   return new Date(dateString).toLocaleString('es-ES', {
+    timeZone: 'Europe/Madrid',
     day: '2-digit',
     month: '2-digit',
     hour: '2-digit',
@@ -620,6 +686,7 @@ const validateScannedCode = async (qrCode: string) => {
       entered_at: madridTime
     }
     
+    // Agregar al principio de la lista de entradas recientes
     recentEntries.value.unshift(updatedGuest)
     
     showValidationResult(
@@ -701,6 +768,7 @@ const searchGuest = async () => {
       entered_at: madridTime
     }
     
+    // Agregar a entradas recientes
     recentEntries.value.unshift(updatedGuest)
     
     showValidationResult(
@@ -711,6 +779,7 @@ const searchGuest = async () => {
     )
     
     successfulEntries.value++
+    totalValidations.value++
     showToast(`✅ ${guest.name} validado manualmente`, 'success')
     
   } catch (error: any) {
@@ -756,9 +825,30 @@ const clearValidationStats = () => {
   }
 }
 
+// Función para refrescar datos manualmente
+const refreshData = async () => {
+  await Promise.all([
+    loadRecentEntries(),
+    loadTodayStats()
+  ])
+  showToast('Datos actualizados', 'success')
+}
+
 // Ciclo de vida
-onMounted(() => {
-  console.log('ScanTab mounted')
+onMounted(async () => {
+  console.log('ScanTab mounted - loading data...')
+  
+  // Cargar entradas recientes y estadísticas
+  await Promise.all([
+    loadRecentEntries(),
+    loadTodayStats()
+  ])
+})
+
+// Recargar datos cuando se activa la vista
+onActivated(async () => {
+  console.log('ScanTab activated - refreshing recent entries...')
+  await loadRecentEntries()
 })
 
 onUnmounted(async () => {

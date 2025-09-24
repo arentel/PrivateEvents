@@ -3,12 +3,23 @@
     <ion-header>
       <ion-toolbar>
         <ion-title>📊 Reportes</ion-title>
+        <ion-buttons slot="end">
+          <ion-button @click="refreshData">
+            <ion-icon name="refresh-outline"></ion-icon>
+          </ion-button>
+        </ion-buttons>
       </ion-toolbar>
     </ion-header>
     
     <ion-content>
+      <!-- Cargando -->
+      <div v-if="isLoading" class="loading-container">
+        <ion-spinner></ion-spinner>
+        <p>Cargando datos...</p>
+      </div>
+
       <!-- Selector de Evento -->
-      <ion-card v-if="eventsStore.events.length > 1">
+      <ion-card v-if="!isLoading && eventsStore.events.length > 1">
         <ion-card-header>
           <ion-card-title>Seleccionar Evento</ion-card-title>
         </ion-card-header>
@@ -38,7 +49,7 @@
       </ion-card>
 
       <!-- Evento actual si solo hay uno -->
-      <ion-card v-else-if="selectedEvent">
+      <ion-card v-else-if="!isLoading && selectedEvent">
         <ion-card-content>
           <div class="current-event-header">
             <h2>{{ selectedEvent.name }}</h2>
@@ -48,7 +59,7 @@
       </ion-card>
 
       <!-- Estadísticas principales -->
-      <ion-card v-if="selectedEvent">
+      <ion-card v-if="!isLoading && selectedEvent">
         <ion-card-header>
           <ion-card-title>Resumen de {{ selectedEvent.name }}</ion-card-title>
         </ion-card-header>
@@ -62,7 +73,7 @@
             </ion-col>
             <ion-col size="6">
               <div class="stat-card">
-                <div class="stat-number">{{ eventStats.scanned }}</div>
+                <div class="stat-number">{{ eventStats.attended }}</div>
                 <div class="stat-label">Asistieron</div>
               </div>
             </ion-col>
@@ -91,14 +102,14 @@
               color="success"
             ></ion-progress-bar>
             <p class="progress-text">
-              {{ eventStats.scanned }} de {{ eventStats.total }} invitados asistieron
+              {{ eventStats.attended }} de {{ eventStats.total }} invitados asistieron
             </p>
           </div>
         </ion-card-content>
       </ion-card>
 
       <!-- Generación de PDFs -->
-      <ion-card v-if="selectedEvent && eventStats.total > 0">
+      <ion-card v-if="!isLoading && selectedEvent && eventStats.total > 0">
         <ion-card-header>
           <ion-card-title>Generar Reportes PDF</ion-card-title>
         </ion-card-header>
@@ -106,11 +117,11 @@
           <ion-button 
             expand="block" 
             @click="generateAttendeesPDF"
-            :disabled="eventStats.scanned === 0 || isGeneratingPDF"
+            :disabled="eventStats.attended === 0 || isGeneratingPDF"
             color="success"
           >
             <ion-icon name="document-text-outline" slot="start"></ion-icon>
-            {{ isGeneratingPDF ? 'Generando...' : `PDF Solo Asistentes (${eventStats.scanned})` }}
+            {{ isGeneratingPDF ? 'Generando...' : `PDF Solo Asistentes (${eventStats.attended})` }}
           </ion-button>
           
           <ion-button 
@@ -141,14 +152,14 @@
       </ion-card>
 
       <!-- Filtros y vista de datos -->
-      <ion-card v-if="selectedEvent && eventStats.total > 0">
+      <ion-card v-if="!isLoading && selectedEvent && eventStats.total > 0">
         <ion-card-header>
           <ion-card-title>Ver Datos del Evento</ion-card-title>
         </ion-card-header>
         <ion-card-content>
           <ion-segment v-model="selectedView">
-            <ion-segment-button value="scanned">
-              <ion-label>Asistentes ({{ eventStats.scanned }})</ion-label>
+            <ion-segment-button value="attended">
+              <ion-label>Asistentes ({{ eventStats.attended }})</ion-label>
             </ion-segment-button>
             <ion-segment-button value="all">
               <ion-label>Todos ({{ eventStats.total }})</ion-label>
@@ -164,7 +175,7 @@
       </ion-card>
 
       <!-- Lista de invitados según filtro -->
-      <ion-card v-if="selectedEvent && eventStats.total > 0">
+      <ion-card v-if="!isLoading && selectedEvent && eventStats.total > 0">
         <ion-card-header>
           <ion-card-title>{{ getListTitle() }}</ion-card-title>
         </ion-card-header>
@@ -186,24 +197,24 @@
                 <h2>{{ index + 1 }}. {{ guest.name }}</h2>
                 <p>{{ guest.email }}</p>
                 <p v-if="guest.phone" class="detail">📱 {{ guest.phone }}</p>
-                <p v-if="guest.sent_at" class="detail">
-                  QR enviado: {{ formatDate(guest.sent_at) }}
+                <p v-if="guest.qr_sent_at || guest.sent_at" class="detail">
+                  QR enviado: {{ formatDate(guest.qr_sent_at || guest.sent_at) }}
                 </p>
-                <p v-if="guest.scanned_at" class="detail">
-                  Entrada: {{ formatDate(guest.scanned_at) }}
+                <p v-if="guest.entered_at" class="detail">
+                  Entrada: {{ formatDate(guest.entered_at) }}
                 </p>
               </ion-label>
               
               <div slot="end" class="status-indicators">
                 <ion-chip 
-                  v-if="guest.scanned" 
+                  v-if="guest.has_entered" 
                   color="success"
                   size="small"
                 >
                   ASISTIÓ
                 </ion-chip>
                 <ion-chip 
-                  v-else-if="guest.sent" 
+                  v-else-if="guest.qr_sent || guest.sent" 
                   color="warning"
                   size="small"
                 >
@@ -227,7 +238,7 @@
       </ion-card>
 
       <!-- Estadísticas por hora (si hay asistentes) -->
-      <ion-card v-if="selectedEvent && eventStats.scanned > 0">
+      <ion-card v-if="!isLoading && selectedEvent && eventStats.attended > 0">
         <ion-card-header>
           <ion-card-title>Entradas por Hora</ion-card-title>
         </ion-card-header>
@@ -252,7 +263,7 @@
       </ion-card>
 
       <!-- Comparativa de eventos (si hay múltiples) -->
-      <ion-card v-if="eventsStore.events.length > 1">
+      <ion-card v-if="!isLoading && eventsStore.events.length > 1">
         <ion-card-header>
           <ion-card-title>Comparativa de Eventos</ion-card-title>
         </ion-card-header>
@@ -285,7 +296,7 @@
       </ion-card>
 
       <!-- Botones de utilidad -->
-      <ion-card v-if="selectedEvent">
+      <ion-card v-if="!isLoading && selectedEvent">
         <ion-card-content>
           <ion-button 
             expand="block" 
@@ -300,7 +311,7 @@
       </ion-card>
 
       <!-- Estado vacío -->
-      <ion-card v-if="eventsStore.events.length === 0">
+      <ion-card v-if="!isLoading && eventsStore.events.length === 0">
         <ion-card-content>
           <div class="empty-state">
             <ion-icon name="calendar-outline" size="large"></ion-icon>
@@ -326,10 +337,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, computed, watch, onActivated } from 'vue'
 import {
-  IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
-  IonCard, IonCardHeader, IonCardTitle, IonCardContent,
+  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons,
+  IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonSpinner,
   IonButton, IonIcon, IonProgressBar, IonSegment, IonSegmentButton,
   IonLabel, IonList, IonItem, IonChip, IonToast, IonRow, IonCol,
   IonSelect, IonSelectOption
@@ -341,12 +352,18 @@ import {
 } from 'ionicons/icons'
 import { eventsStore } from '../stores/events'
 import { generatePDF } from '../services/pdf'
+// Importar supabase directamente para recargar datos
+import { supabase } from '../services/supabase'
 
 // Estado reactivo
 const selectedEventId = ref(null)
-const selectedView = ref('scanned')
+const selectedView = ref('attended')
 const isGeneratingPDF = ref(false)
 const lastPDFGenerated = ref(null)
+const isLoading = ref(true)
+
+// Datos locales para asegurar reactividad
+const localGuests = ref([])
 
 const toast = ref({
   isOpen: false,
@@ -354,7 +371,7 @@ const toast = ref({
   color: 'success'
 })
 
-// Computed properties
+// Computed properties corregidos
 const selectedEvent = computed(() => {
   if (!selectedEventId.value) return null
   return eventsStore.events.find(e => e.id === selectedEventId.value) || null
@@ -362,22 +379,23 @@ const selectedEvent = computed(() => {
 
 const eventGuests = computed(() => {
   if (!selectedEventId.value) return []
-  return eventsStore.guests.filter(g => g.event_id === selectedEventId.value)
+  // Usar datos locales que se actualizan automáticamente
+  return localGuests.value.filter(g => g.event_id === selectedEventId.value)
 })
 
 const eventStats = computed(() => {
   const guests = eventGuests.value
   return {
     total: guests.length,
-    sent: guests.filter(g => g.sent).length,
-    scanned: guests.filter(g => g.scanned).length,
-    pending: guests.filter(g => !g.sent).length,
+    sent: guests.filter(g => g.qr_sent || g.sent).length,
+    attended: guests.filter(g => g.has_entered).length, // Usar has_entered consistentemente
+    pending: guests.filter(g => !(g.qr_sent || g.sent)).length,
     confirmed: guests.filter(g => g.confirmed).length
   }
 })
 
 const attendanceRate = computed(() => 
-  eventStats.value.total > 0 ? Math.round((eventStats.value.scanned / eventStats.value.total) * 100) : 0
+  eventStats.value.total > 0 ? Math.round((eventStats.value.attended / eventStats.value.total) * 100) : 0
 )
 
 // Computed property para lista actual según filtro
@@ -385,21 +403,21 @@ const currentList = computed(() => {
   const guests = eventGuests.value
   
   switch (selectedView.value) {
-    case 'scanned':
+    case 'attended':
       return guests
-        .filter(g => g.scanned)
-        .sort((a, b) => new Date(a.scanned_at || a.created_at) - new Date(b.scanned_at || b.created_at))
+        .filter(g => g.has_entered) // Usar has_entered consistentemente
+        .sort((a, b) => new Date(b.entered_at || b.created_at) - new Date(a.entered_at || a.created_at))
     case 'all':
       return guests
         .sort((a, b) => a.name.localeCompare(b.name))
     case 'pending':
       return guests
-        .filter(g => !g.sent)
+        .filter(g => !(g.qr_sent || g.sent))
         .sort((a, b) => a.name.localeCompare(b.name))
     case 'sent':
       return guests
-        .filter(g => g.sent && !g.scanned)
-        .sort((a, b) => new Date(a.sent_at || a.created_at) - new Date(b.sent_at || b.created_at))
+        .filter(g => (g.qr_sent || g.sent) && !g.has_entered)
+        .sort((a, b) => new Date(b.qr_sent_at || b.sent_at || b.created_at) - new Date(a.qr_sent_at || a.sent_at || a.created_at))
     default:
       return []
   }
@@ -407,13 +425,14 @@ const currentList = computed(() => {
 
 // Computed property para estadísticas por hora
 const hourlyStats = computed(() => {
-  const scannedGuests = eventGuests.value.filter(g => g.scanned && g.scanned_at)
-  if (scannedGuests.length === 0) return []
+  const attendedGuests = eventGuests.value.filter(g => g.has_entered && g.entered_at)
+  if (attendedGuests.length === 0) return []
   
   const hourCounts = {}
   
-  scannedGuests.forEach(guest => {
-    const date = new Date(guest.scanned_at)
+  attendedGuests.forEach(guest => {
+    // Parseamos la fecha considerando la zona horaria Madrid
+    const date = new Date(guest.entered_at)
     const hour = date.getHours()
     hourCounts[hour] = (hourCounts[hour] || 0) + 1
   })
@@ -428,6 +447,32 @@ const hourlyStats = computed(() => {
     }))
     .sort((a, b) => a.hour.localeCompare(b.hour))
 })
+
+// Función para cargar datos desde Supabase
+const loadGuestsData = async () => {
+  try {
+    isLoading.value = true
+    
+    // Cargar todos los invitados directamente desde Supabase
+    const { data: guests, error } = await supabase
+      .from('guests')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    localGuests.value = guests || []
+    
+    console.log('Invitados cargados desde Supabase:', localGuests.value.length)
+    console.log('Invitados que han entrado:', localGuests.value.filter(g => g.has_entered).length)
+    
+  } catch (error) {
+    console.error('Error cargando invitados:', error)
+    showToast('Error al cargar datos', 'danger')
+  } finally {
+    isLoading.value = false
+  }
+}
 
 // Watch para mantener sincronizado con el evento actual del store
 watch(() => eventsStore.currentEventId, (newEventId) => {
@@ -450,18 +495,26 @@ const onEventChange = (event) => {
   const eventId = event.detail.value
   selectedEventId.value = eventId
   eventsStore.setCurrentEvent(eventId)
-  selectedView.value = 'scanned' // Reset view cuando cambia evento
+  selectedView.value = 'attended' // Reset view cuando cambia evento
 }
 
 // Función para refrescar datos
 const refreshData = async () => {
-  await eventsStore.forceReload()
-  showToast('Datos actualizados')
+  try {
+    await Promise.all([
+      eventsStore.forceReload(),
+      loadGuestsData()
+    ])
+    showToast('Datos actualizados')
+  } catch (error) {
+    console.error('Error refreshing data:', error)
+    showToast('Error al actualizar datos', 'danger')
+  }
 }
 
 // Función para generar PDF de asistentes
 const generateAttendeesPDF = async () => {
-  if (eventStats.value.scanned === 0) {
+  if (eventStats.value.attended === 0) {
     showToast('No hay asistentes para generar PDF', 'warning')
     return
   }
@@ -469,7 +522,7 @@ const generateAttendeesPDF = async () => {
   isGeneratingPDF.value = true
   
   try {
-    const attendeesList = eventGuests.value.filter(g => g.scanned)
+    const attendeesList = eventGuests.value.filter(g => g.has_entered)
     
     await generatePDF({
       type: 'attendees',
@@ -479,7 +532,7 @@ const generateAttendeesPDF = async () => {
       attendees: attendeesList,
       stats: {
         total: eventStats.value.total,
-        attended: eventStats.value.scanned,
+        attended: eventStats.value.attended,
         rate: attendanceRate.value
       }
     })
@@ -489,7 +542,7 @@ const generateAttendeesPDF = async () => {
     
   } catch (error) {
     console.error('Error generating PDF:', error)
-    showToast('Error al generar PDF', 'danger')
+    showToast('Error al generar PDF: ' + error.message, 'danger')
   } finally {
     isGeneratingPDF.value = false
   }
@@ -512,10 +565,10 @@ const generateFullReportPDF = async () => {
       eventLocation: selectedEvent.value.location,
       eventDescription: selectedEvent.value.description,
       guests: eventGuests.value,
-      attendees: eventGuests.value.filter(g => g.scanned),
+      attendees: eventGuests.value.filter(g => g.has_entered),
       stats: {
         total: eventStats.value.total,
-        attended: eventStats.value.scanned,
+        attended: eventStats.value.attended,
         sent: eventStats.value.sent,
         pending: eventStats.value.pending,
         rate: attendanceRate.value
@@ -528,7 +581,7 @@ const generateFullReportPDF = async () => {
     
   } catch (error) {
     console.error('Error generating full report:', error)
-    showToast('Error al generar reporte', 'danger')
+    showToast('Error al generar reporte: ' + error.message, 'danger')
   } finally {
     isGeneratingPDF.value = false
   }
@@ -562,7 +615,7 @@ const generateGuestListPDF = async () => {
     
   } catch (error) {
     console.error('Error generating guest list:', error)
-    showToast('Error al generar lista', 'danger')
+    showToast('Error al generar lista: ' + error.message, 'danger')
   } finally {
     isGeneratingPDF.value = false
   }
@@ -579,15 +632,15 @@ const generateComparativeReport = async () => {
   
   try {
     const eventsData = eventsStore.events.map(event => {
-      const eventGuests = eventsStore.guests.filter(g => g.event_id === event.id)
+      const eventGuestsForComparison = localGuests.value.filter(g => g.event_id === event.id)
       return {
         event,
-        guests: eventGuests,
+        guests: eventGuestsForComparison,
         stats: {
-          total: eventGuests.length,
-          sent: eventGuests.filter(g => g.sent).length,
-          scanned: eventGuests.filter(g => g.scanned).length,
-          rate: eventGuests.length > 0 ? Math.round((eventGuests.filter(g => g.scanned).length / eventGuests.length) * 100) : 0
+          total: eventGuestsForComparison.length,
+          sent: eventGuestsForComparison.filter(g => g.qr_sent || g.sent).length,
+          scanned: eventGuestsForComparison.filter(g => g.has_entered).length,
+          rate: eventGuestsForComparison.length > 0 ? Math.round((eventGuestsForComparison.filter(g => g.has_entered).length / eventGuestsForComparison.length) * 100) : 0
         }
       }
     })
@@ -602,7 +655,7 @@ const generateComparativeReport = async () => {
     
   } catch (error) {
     console.error('Error generating comparative report:', error)
-    showToast('Error al generar reporte comparativo', 'danger')
+    showToast('Error al generar reporte comparativo: ' + error.message, 'danger')
   } finally {
     isGeneratingPDF.value = false
   }
@@ -635,10 +688,10 @@ const generateCSV = (data) => {
     guest.name,
     guest.email,
     guest.phone || '',
-    guest.sent ? 'Sí' : 'No',
-    guest.scanned ? 'Sí' : 'No',
-    guest.sent_at ? formatDate(guest.sent_at) : '',
-    guest.scanned_at ? formatDate(guest.scanned_at) : ''
+    (guest.qr_sent || guest.sent) ? 'Sí' : 'No',
+    guest.has_entered ? 'Sí' : 'No',
+    (guest.qr_sent_at || guest.sent_at) ? formatDate(guest.qr_sent_at || guest.sent_at) : '',
+    guest.entered_at ? formatDate(guest.entered_at) : ''
   ])
   
   return [headers, ...rows]
@@ -648,16 +701,16 @@ const generateCSV = (data) => {
 
 // Funciones para estadísticas de eventos
 const getEventGuestCount = (eventId) => {
-  return eventsStore.guests.filter(g => g.event_id === eventId).length
+  return localGuests.value.filter(g => g.event_id === eventId).length
 }
 
 const getEventAttendanceCount = (eventId) => {
-  return eventsStore.guests.filter(g => g.event_id === eventId && g.scanned).length
+  return localGuests.value.filter(g => g.event_id === eventId && g.has_entered).length
 }
 
 const getEventAttendanceRate = (eventId) => {
-  const guests = eventsStore.guests.filter(g => g.event_id === eventId)
-  const attended = guests.filter(g => g.scanned).length
+  const guests = localGuests.value.filter(g => g.event_id === eventId)
+  const attended = guests.filter(g => g.has_entered).length
   return guests.length > 0 ? Math.round((attended / guests.length) * 100) : 0
 }
 
@@ -666,14 +719,14 @@ const getListTitle = () => {
   if (!selectedEvent.value) return 'Lista'
   
   switch (selectedView.value) {
-    case 'scanned':
-      return `Asistentes de ${selectedEvent.value.name} (${eventStats.value.scanned})`
+    case 'attended':
+      return `Asistentes de ${selectedEvent.value.name} (${eventStats.value.attended})`
     case 'all':
       return `Todos los Invitados de ${selectedEvent.value.name} (${eventStats.value.total})`
     case 'pending':
       return `Sin QR de ${selectedEvent.value.name} (${eventStats.value.pending})`
     case 'sent':
-      return `Con QR de ${selectedEvent.value.name} (${eventStats.value.sent - eventStats.value.scanned})`
+      return `Con QR de ${selectedEvent.value.name} (${eventStats.value.sent - eventStats.value.attended})`
     default:
       return 'Lista'
   }
@@ -681,7 +734,7 @@ const getListTitle = () => {
 
 const getEmptyMessage = () => {
   switch (selectedView.value) {
-    case 'scanned':
+    case 'attended':
       return 'No hay asistentes registrados aún en este evento'
     case 'all':
       return 'No hay invitados en este evento'
@@ -716,18 +769,41 @@ const formatEventDate = (dateString) => {
   })
 }
 
-// Inicializar al montar
+// Inicializar al montar y cuando se activa la vista
 onMounted(async () => {
-  await eventsStore.init()
-  
-  // Si hay eventos y no hay uno seleccionado, seleccionar el primero o el actual
-  if (eventsStore.events.length > 0) {
-    selectedEventId.value = eventsStore.currentEventId || eventsStore.events[0].id
+  try {
+    // Cargar eventos primero
+    await eventsStore.init()
+    
+    // Cargar invitados
+    await loadGuestsData()
+    
+    // Si hay eventos y no hay uno seleccionado, seleccionar el primero o el actual
+    if (eventsStore.events.length > 0) {
+      selectedEventId.value = eventsStore.currentEventId || eventsStore.events[0].id
+    }
+  } catch (error) {
+    console.error('Error initializing reports:', error)
   }
+})
+
+// Recargar datos cuando se activa la vista (importante para sincronización)
+onActivated(async () => {
+  console.log('ReportsTab activated - refreshing data')
+  await loadGuestsData()
 })
 </script>
 
 <style scoped>
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  color: var(--ion-color-medium);
+}
+
 .current-event-header h2 {
   margin: 0 0 4px 0;
   color: var(--ion-color-primary);
