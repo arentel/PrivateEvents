@@ -13,6 +13,30 @@
           <ion-card-title>Escanear Código QR</ion-card-title>
         </ion-card-header>
         <ion-card-content>
+          <!-- Resultado de validación inline -->
+          <div v-if="validationResult.show" :class="['validation-inline', validationResult.type]">
+            <div class="validation-content">
+              <ion-icon :name="getResultIcon()" size="large"></ion-icon>
+              <div>
+                <h3>{{ validationResult.title }}</h3>
+                <p>{{ validationResult.message }}</p>
+                <div v-if="validationResult.guest" class="guest-info">
+                  <strong>{{ validationResult.guest.name }}</strong>
+                  <br>
+                  <small>{{ validationResult.guest.email }}</small>
+                </div>
+              </div>
+            </div>
+            <ion-button 
+              fill="clear" 
+              size="small"
+              @click="validationResult.show = false"
+              class="close-inline-btn"
+            >
+              <ion-icon name="close-outline"></ion-icon>
+            </ion-button>
+          </div>
+
           <div class="scanner-container">
             <div v-if="!scannerActive && !isLoading" class="scanner-placeholder">
               <ion-icon name="qr-code-outline" size="large"></ion-icon>
@@ -199,42 +223,6 @@
             <ion-icon name="checkmark-outline" slot="start"></ion-icon>
             Validar Código
           </ion-button>
-        </div>
-      </ion-content>
-    </ion-modal>
-
-    <!-- Resultado de validación -->
-    <ion-modal 
-      :is-open="validationResult.show" 
-      @did-dismiss="validationResult.show = false"
-    >
-      <ion-content>
-        <div :class="['validation-result', validationResult.type]">
-          <ion-button 
-            fill="clear" 
-            class="close-result-btn"
-            @click="validationResult.show = false"
-          >
-            <ion-icon name="close-outline"></ion-icon>
-          </ion-button>
-          
-          <div class="result-icon">
-            <ion-icon :name="getResultIcon()" size="large"></ion-icon>
-          </div>
-          
-          <div class="result-content">
-            <h2>{{ validationResult.title }}</h2>
-            <p class="result-message">{{ validationResult.message }}</p>
-            
-            <div v-if="validationResult.guest" class="guest-details">
-              <p><strong>Nombre:</strong> {{ validationResult.guest.name }}</p>
-              <p><strong>Email:</strong> {{ validationResult.guest.email }}</p>
-              <p v-if="validationResult.guest.phone"><strong>Teléfono:</strong> {{ validationResult.guest.phone }}</p>
-              <p v-if="validationResult.guest.entered_at">
-                <strong>Hora de entrada:</strong> {{ formatDateTime(validationResult.guest.entered_at || '') }}
-              </p>
-            </div>
-          </div>
         </div>
       </ion-content>
     </ion-modal>
@@ -642,12 +630,12 @@ const validateScannedCode = async (qrCode: string) => {
     )
     
     successfulEntries.value++
-    showToast(`✅ ${guest.name} ha ingresado correctamente`, 'success')
+    showToast(`${guest.name} ha ingresado correctamente`, 'success')
     
-    // Auto-ocultar después de unos segundos
+    // Auto-ocultar después de 4 segundos
     setTimeout(() => {
       validationResult.value.show = false
-    }, 5000)
+    }, 4000)
     
   } catch (error: any) {
     console.error('Error validating QR:', error)
@@ -840,70 +828,79 @@ onUnmounted(async () => {
   height: auto !important;
 }
 
-.manual-qr-btn {
-  margin-top: 1rem;
-}
-
-.validation-result {
-  padding: 1.5rem;
+/* Validación inline */
+.validation-inline {
+  margin-bottom: 1rem;
+  padding: 1rem;
   border-radius: 8px;
-  text-align: center;
   position: relative;
+  animation: slideDown 0.3s ease-out;
 }
 
-.validation-result.success {
+.validation-inline.success {
   background: linear-gradient(135deg, #d4edda, #c3e6cb);
   color: #155724;
   border: 2px solid #28a745;
 }
 
-.validation-result.warning {
+.validation-inline.warning {
   background: linear-gradient(135deg, #fff3cd, #ffeaa7);
   color: #856404;
   border: 2px solid #ffc107;
 }
 
-.validation-result.error {
+.validation-inline.error {
   background: linear-gradient(135deg, #f8d7da, #f5c6cb);
   color: #721c24;
   border: 2px solid #dc3545;
 }
 
-.result-icon {
-  margin-bottom: 1rem;
+.validation-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
 
-.result-content h2 {
-  margin-bottom: 1rem;
+.validation-content ion-icon {
+  flex-shrink: 0;
+}
+
+.validation-content h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
   font-weight: bold;
-  font-size: 1.2rem;
 }
 
-.guest-details {
-  background: rgba(255, 255, 255, 0.8);
-  padding: 1rem;
-  border-radius: 6px;
-  margin: 1rem 0;
-  text-align: left;
-  backdrop-filter: blur(10px);
-}
-
-.guest-details p {
-  margin-bottom: 0.5rem;
+.validation-content p {
+  margin: 0;
   font-size: 0.9rem;
 }
 
-.result-message {
-  font-style: italic;
-  margin-top: 1rem;
-  font-weight: 500;
+.guest-info {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
 }
 
-.close-result-btn {
+.close-inline-btn {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 8px;
+  right: 8px;
   --color: currentColor;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.manual-qr-btn {
+  margin-top: 1rem;
 }
 
 .stat-card {
