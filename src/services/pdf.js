@@ -373,7 +373,7 @@ const generateFullReportPDF = (eventName, data) => {
   doc.text(`Total: ${guests.length} invitados | QRs enviados: ${stats.sent || stats.qrsSent} | Asistentes: ${stats.attended || stats.scanned}`, 20, yPosition)
   yPosition += 15
   
-  // Encabezados de tabla
+  // Encabezados de tabla mejorados
   doc.setFillColor(248, 249, 250)
   doc.rect(20, yPosition, 170, 12, 'F')
   
@@ -384,13 +384,13 @@ const generateFullReportPDF = (eventName, data) => {
   doc.text('Nombre', 35, yPosition + 8)
   doc.text('Email', 75, yPosition + 8)
   doc.text('Teléfono', 115, yPosition + 8)
-  doc.text('QR', 145, yPosition + 8)
-  doc.text('Asistió', 160, yPosition + 8)
-  doc.text('Estado', 175, yPosition + 8)
+  doc.text('QR Env.', 145, yPosition + 8)
+  doc.text('Asistió', 165, yPosition + 8)
+  doc.text('Estado', 180, yPosition + 8)
   
   yPosition += 15
   
-  // Lista de invitados mejorada
+  // Tabla de todos los invitados mejorada
   doc.setFont(undefined, 'normal')
   doc.setFontSize(8)
   
@@ -411,8 +411,8 @@ const generateFullReportPDF = (eventName, data) => {
       doc.text('Email', 75, yPosition + 8)
       doc.text('Teléfono', 115, yPosition + 8)
       doc.text('QR', 145, yPosition + 8)
-      doc.text('Asistió', 160, yPosition + 8)
-      doc.text('Estado', 175, yPosition + 8)
+      doc.text('Asistió', 165, yPosition + 8)
+      doc.text('Estado', 180, yPosition + 8)
       
       yPosition += 15
       doc.setFont(undefined, 'normal')
@@ -432,32 +432,40 @@ const generateFullReportPDF = (eventName, data) => {
     doc.text(truncateText(guest.email, 18), 75, yPosition + 4)
     doc.text(truncateText(guest.phone || '-', 12), 115, yPosition + 4)
     
-    // Estado QR con colores
+    // Estado QR - usar SÍ/NO en lugar de checkmarks
+    doc.setTextColor(...textColor)
     if (guest.qr_sent || guest.sent) {
       doc.setTextColor(40, 167, 69)
-      doc.text('✓', 148, yPosition + 4)
+      doc.text('SÍ', 148, yPosition + 4)
     } else {
       doc.setTextColor(220, 53, 69)
-      doc.text('✗', 148, yPosition + 4)
+      doc.text('NO', 148, yPosition + 4)
     }
     
-    // Estado asistencia
+    // Estado asistencia - usar SÍ/NO en lugar de checkmarks
     if (guest.has_entered) {
       doc.setTextColor(40, 167, 69)
-      doc.text('✓', 163, yPosition + 4)
+      doc.text('SÍ', 168, yPosition + 4)
     } else {
       doc.setTextColor(220, 53, 69)
-      doc.text('✗', 163, yPosition + 4)
+      doc.text('NO', 168, yPosition + 4)
     }
     
     // Estado general
     doc.setTextColor(...textColor)
     doc.setFontSize(7)
     let status = 'PENDIENTE'
-    if (guest.has_entered) status = 'ASISTIÓ'
-    else if (guest.qr_sent || guest.sent) status = 'QR ENVIADO'
+    if (guest.has_entered) {
+      status = 'ASISTIÓ'
+      doc.setTextColor(40, 167, 69)
+    } else if (guest.qr_sent || guest.sent) {
+      status = 'QR ENVIADO'
+      doc.setTextColor(255, 140, 0)
+    } else {
+      doc.setTextColor(220, 53, 69)
+    }
     
-    doc.text(status, 175, yPosition + 4)
+    doc.text(truncateText(status, 8), 180, yPosition + 4)
     doc.setFontSize(8)
     
     yPosition += 10
@@ -614,24 +622,24 @@ const generateGuestListPDF = (eventName, data) => {
   
   yPosition += 20
   
-  // Encabezados de tabla
+  // Encabezados de tabla mejorados
   doc.setFillColor(248, 249, 250)
   doc.rect(20, yPosition, 170, 12, 'F')
   
   doc.setTextColor(...textColor)
-  doc.setFontSize(11)
+  doc.setFontSize(10)
   doc.setFont(undefined, 'bold')
   doc.text('N°', 25, yPosition + 8)
   doc.text('Nombre', 40, yPosition + 8)
   doc.text('Email', 95, yPosition + 8)
   doc.text('Teléfono', 140, yPosition + 8)
-  doc.text('Estado', 175, yPosition + 8)
+  doc.text('Estado', 170, yPosition + 8)
   
   yPosition += 15
   
-  // Lista de invitados
+  // Lista de invitados mejorada
   doc.setFont(undefined, 'normal')
-  doc.setFontSize(10)
+  doc.setFontSize(9)
   
   guests.forEach((guest, index) => {
     if (yPosition > 270) {
@@ -643,47 +651,51 @@ const generateGuestListPDF = (eventName, data) => {
       doc.rect(20, yPosition, 170, 12, 'F')
       
       doc.setTextColor(...textColor)
-      doc.setFontSize(11)
+      doc.setFontSize(10)
       doc.setFont(undefined, 'bold')
       doc.text('N°', 25, yPosition + 8)
       doc.text('Nombre', 40, yPosition + 8)
       doc.text('Email', 95, yPosition + 8)
       doc.text('Teléfono', 140, yPosition + 8)
-      doc.text('Estado', 175, yPosition + 8)
+      doc.text('Estado', 170, yPosition + 8)
       
       yPosition += 15
       doc.setFont(undefined, 'normal')
-      doc.setFontSize(10)
+      doc.setFontSize(9)
     }
     
+    // Alternar color de fondo
     if (index % 2 === 0) {
       doc.setFillColor(249, 249, 249)
       doc.rect(20, yPosition - 3, 170, 12, 'F')
     }
     
-    // Estado del invitado
+    // Estado del invitado con mejor formato
     let status = 'PENDIENTE'
-    let statusColor = textColor
+    let statusColor = [220, 53, 69] // Rojo para pendiente
     
     if (guest.has_entered) {
       status = 'ASISTIÓ'
-      statusColor = [40, 167, 69]
+      statusColor = [40, 167, 69] // Verde para asistió
     } else if (guest.qr_sent || guest.sent) {
       status = 'QR ENVIADO'
-      statusColor = [255, 193, 7]
+      statusColor = [255, 140, 0] // Naranja para QR enviado
     }
     
+    // Datos del invitado
     doc.setTextColor(...textColor)
     doc.text(`${index + 1}`, 25, yPosition + 4)
     doc.text(truncateText(guest.name, 25), 40, yPosition + 4)
     doc.text(truncateText(guest.email, 20), 95, yPosition + 4)
     doc.text(truncateText(guest.phone || '-', 15), 140, yPosition + 4)
     
-    // Estado con color
+    // Estado con color apropiado
     doc.setTextColor(...statusColor)
+    doc.setFontSize(8)
+    doc.setFont(undefined, 'bold')
+    doc.text(status, 170, yPosition + 4)
     doc.setFontSize(9)
-    doc.text(status, 175, yPosition + 4)
-    doc.setFontSize(10)
+    doc.setFont(undefined, 'normal')
     
     yPosition += 12
   })
