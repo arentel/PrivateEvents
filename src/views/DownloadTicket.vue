@@ -1,14 +1,9 @@
 <template>
   <ion-page>
-    <!-- Header con botón de admin -->
+    <!-- Header limpio -->
     <ion-header>
       <ion-toolbar>
         <ion-title>Descarga de Entrada</ion-title>
-        <ion-buttons slot="end">
-          <ion-button @click="goToAdminLogin" fill="clear" size="small">
-            <ion-icon :icon="settingsOutline" slot="icon-only"></ion-icon>
-          </ion-button>
-        </ion-buttons>
       </ion-toolbar>
     </ion-header>
     
@@ -45,6 +40,7 @@
                 <h3>¿Eres organizador de eventos?</h3>
                 <p>Accede al panel de administración para gestionar tus eventos e invitados.</p>
                 <ion-button @click="goToAdminLogin" expand="block" fill="outline">
+                  <ion-icon :icon="settingsOutline" slot="start"></ion-icon>
                   Acceso Administrador
                 </ion-button>
               </ion-card-content>
@@ -102,21 +98,6 @@
               </p>
             </div>
 
-            <!-- Información adicional -->
-            <div class="info-section">
-              <ion-card class="info-card">
-                <ion-card-content>
-                  <h3><ion-icon :icon="informationCircleOutline"></ion-icon> Información Importante</h3>
-                  <ul>
-                    <li>Presenta tu entrada (PDF o QR) en el evento</li>
-                    <li>Válida solo para: <strong>{{ ticketData.guest.name }}</strong></li>
-                    <li>Código único: <code>{{ ticketData.code.substring(0, 12) }}...</code></li>
-                    <li>Expira el: <strong>{{ formatDate(ticketData.expires) }}</strong></li>
-                  </ul>
-                </ion-card-content>
-              </ion-card>
-            </div>
-
             <!-- Vista previa del QR -->
             <div class="qr-preview" v-if="qrImageUrl">
               <h3>Vista previa del código QR:</h3>
@@ -151,16 +132,11 @@
           </ion-card-content>
         </ion-card>
 
-        <!-- Información de ayuda -->
-        <ion-card v-if="!loading && !error" class="help-card">
+        <!-- Información de ayuda simplificada -->
+        <ion-card v-if="!loading && !error && ticketData" class="help-card">
           <ion-card-content>
-            <h3><ion-icon :icon="helpCircleOutline"></ion-icon> ¿Problemas con la descarga?</h3>
-            <ul>
-              <li>Asegúrate de tener espacio suficiente en tu dispositivo</li>
-              <li>Verifica que tu navegador permite descargas</li>
-              <li>Si persisten los problemas, usa el código QR directamente</li>
-              <li>Contacta al organizador si necesitas ayuda adicional</li>
-            </ul>
+            <h3><ion-icon :icon="helpCircleOutline"></ion-icon> ¿Necesitas Ayuda?</h3>
+            <p>Si tienes problemas con la descarga o dudas sobre el evento, contacta directamente con el organizador.</p>
           </ion-card-content>
         </ion-card>
       </div>
@@ -541,37 +517,6 @@ watch(() => route.params.code, async (newCode) => {
   margin: 24px 0;
 }
 
-.info-card {
-  background: var(--ion-color-warning-tint);
-  border: 1px solid var(--ion-color-warning);
-}
-
-.info-card h3 {
-  color: var(--ion-color-warning-shade);
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.info-card ul {
-  margin: 0;
-  padding-left: 16px;
-}
-
-.info-card li {
-  margin-bottom: 6px;
-  color: var(--ion-color-warning-shade);
-}
-
-.info-card code {
-  background: var(--ion-color-warning-tint);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: 'Courier New', monospace;
-  font-size: 0.9em;
-}
-
 .qr-preview {
   margin-top: 24px;
   text-align: center;
@@ -615,13 +560,8 @@ watch(() => route.params.code, async (newCode) => {
   gap: 8px;
 }
 
-.help-card ul {
+.help-card p {
   margin: 0;
-  padding-left: 16px;
-}
-
-.help-card li {
-  margin-bottom: 8px;
   color: var(--ion-color-dark);
   line-height: 1.4;
 }
