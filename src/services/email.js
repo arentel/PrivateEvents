@@ -12,6 +12,9 @@ const BATCH_DELAY = 500 // 500ms entre lotes (no entre emails individuales)
 const EMAIL_TIMEOUT = 8000 // 8 segundos por email
 const MAX_RETRIES = 2 // Máximo 2 reintentos por email
 
+// Storage para PDFs con enlaces de descarga
+const pdfStorage = new Map()
+
 /**
  * Inicializar EmailJS si está configurado
  */
@@ -36,21 +39,81 @@ const initializeEmailJS = async () => {
 const pdfCache = new Map()
 
 /**
- * Generar PDF con caché
+ * Generar PDF con caché y crear enlace de descarga
  */
-const generatePDFWithCache = async (guestData, eventData, logoBase64) => {
+const generatePDFWithDownloadLink = async (guestData, eventData, logoBase64) => {
   const cacheKey = `${eventData.id}_${guestData.id}`
   
+  // Verificar caché primero
   if (pdfCache.has(cacheKey)) {
-    return pdfCache.get(cacheKey)
+    const cached = pdfCache.get(cacheKey)
+    return {
+      pdfBase64: cached.pdfBase64,
+      downloadLink: cached.downloadLink,
+      filename: cached.filename
+    }
   }
   
   try {
     const pdfBase64 = await generateTicketForEmail(guestData, eventData, logoBase64)
-    pdfCache.set(cacheKey, pdfBase64)
-    return pdfBase64
+    if (!pdfBase64) {
+      return { pdfBase64: null, downloadLink: null, filename: null }
+    }
+
+    // Convertir base64 a blob
+    const binaryString = atob(pdfBase64)
+    const bytes = new Uint8Array(binaryString.length)
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i)
+    }
+    const blob = new Blob([bytes], { type: 'application/pdf' })
+    
+    // Crear enlace de descarga temporal
+    const downloadLink = URL.createObjectURL(blob)
+    const filename = `Entrada_${eventData.name.replace(/\s+/g, '_')}_${guestData.name.replace(/\s+/g, '_')}.pdf`
+    
+    // Guardar en caché
+    const cacheData = { pdfBase64, downloadLink, filename, blob }
+    pdfCache.set(cacheKey, cacheData)
+    
+    // También guardar en storage global para acceso desde template
+    const storageKey = `pdf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    pdfStorage.set(storageKey, cacheData)
+    
+    console.log(`✅ PDF generado y enlace creado para ${guestData.name}`)
+    
+    return {
+      pdfBase64,
+      downloadLink,
+      filename,
+      storageKey
+    }
+    
   } catch (error) {
     console.warn(`⚠️ Error generando PDF para ${guestData.name}:`, error.message)
+    return { pdfBase64: null, downloadLink: null, filename: null }
+  }
+}
+
+/**
+ * Crear enlace público de descarga (para usar en emails)
+ */
+const createPublicDownloadLink = (pdfBase64, filename) => {
+  try {
+    // Crear una URL única que podamos servir
+    const linkId = `download_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    
+    // En un entorno real, aquí subirías el PDF a tu servidor/CDN
+    // Por ahora, creamos un enlace data: que funciona en navegadores
+    const dataUrl = `data:application/pdf;base64,${pdfBase64}`
+    
+    return {
+      publicUrl: dataUrl,
+      filename,
+      linkId
+    }
+  } catch (error) {
+    console.error('Error creando enlace público:', error)
     return null
   }
 }
@@ -103,12 +166,20 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       phone: guest.phone || ''
     }
 
-    // Generar PDF con caché
-    const pdfBase64 = await generatePDFWithCache(guestData, eventData, options.logoBase64)
-    const pdfFilename = pdfBase64 ? `Entrada_${eventData.name.replace(/\s+/g, '_')}_${guest.name.replace(/\s+/g, '_')}.pdf` : null
+    // Generar PDF con enlace de descarga
+    const pdfData = await generatePDFWithDownloadLink(guestData, eventData, options.logoBase64)
+    
+    // Crear enlace público para el email
+    let publicDownloadLink = '#'
+    if (pdfData.pdfBase64) {
+      const publicLink = createPublicDownloadLink(pdfData.pdfBase64, pdfData.filename)
+      if (publicLink) {
+        publicDownloadLink = publicLink.publicUrl
+      }
+    }
     
     // Preparar contenido del email
-    const emailContent = generateEmailContent(guest, options, !!pdfBase64)
+    const emailContent = generateEmailContent(guest, options, !!pdfData.pdfBase64, publicDownloadLink, pdfData.filename)
     
     // Parámetros para EmailJS
     const templateParams = {
@@ -123,9 +194,16 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       html_content: emailContent.html,
       qr_image: qrImageDataUrl,
       reply_to: options.replyTo || 'noreply@evento.com',
-      pdf_attachment: pdfBase64,
-      pdf_filename: pdfFilename,
-      has_pdf: !!pdfBase64,
+      
+      // Datos para el template HTML
+      download_link: publicDownloadLink,
+      pdf_filename: pdfData.filename || 'Entrada.pdf',
+      support_email: options.supportEmail || options.replyTo || 'soporte@evento.com',
+      
+      // Datos adicionales del PDF
+      pdf_attachment: pdfData.pdfBase64,
+      has_pdf: !!pdfData.pdfBase64,
+      
       // Añadir timestamp único para evitar problemas de caché
       timestamp: Date.now()
     }
@@ -143,7 +221,8 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       messageId: result.text || `emailjs_${Date.now()}`,
       simulated: false,
       service: 'emailjs',
-      hasPDF: !!pdfBase64,
+      hasPDF: !!pdfData.pdfBase64,
+      downloadLink: pdfData.downloadLink,
       attempt
     }
 
@@ -216,6 +295,7 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
 
   // Limpiar caché de PDFs al inicio
   pdfCache.clear()
+  pdfStorage.clear()
 
   // Dividir en lotes para procesamiento paralelo
   const batches = []
@@ -326,8 +406,11 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
 
   results.duration = Date.now() - startTime
   
-  // Limpiar caché al final
-  pdfCache.clear()
+  // Programar limpieza de caché después de un tiempo
+  setTimeout(() => {
+    console.log('🧹 Limpiando caché de PDFs...')
+    cleanupPDFCache()
+  }, 30 * 60 * 1000) // Limpiar después de 30 minutos
   
   console.log(`📊 Envío masivo completado en ${results.duration}ms (${(results.duration/1000).toFixed(1)}s):`, {
     enviados: results.sent,
@@ -380,13 +463,15 @@ export const sendSimpleEmail = async (emailData) => {
 }
 
 /**
- * Generar contenido del email
+ * Generar contenido del email con enlace de descarga
  * @param {Object} guest - Datos del invitado
  * @param {Object} options - Opciones de personalización
  * @param {boolean} hasPDF - Si incluye PDF adjunto
+ * @param {string} downloadLink - Enlace de descarga del PDF
+ * @param {string} filename - Nombre del archivo PDF
  * @returns {Object} - Contenido del email
  */
-const generateEmailContent = (guest, options = {}, hasPDF = false) => {
+const generateEmailContent = (guest, options = {}, hasPDF = false, downloadLink = '#', filename = 'Entrada.pdf') => {
   const {
     eventName = guest.event_name || 'Nuestro Evento',
     eventDate = new Date().toLocaleDateString('es-ES'),
@@ -398,12 +483,22 @@ const generateEmailContent = (guest, options = {}, hasPDF = false) => {
 
   const pdfSection = hasPDF ? `
     <div style="background: #e7f3ff; padding: 20px; border-radius: 8px; margin: 20px 0; border: 2px solid #0066cc;">
-      <h3 style="margin-top: 0; color: #0066cc;">📎 Entrada PDF Adjunta</h3>
-      <p style="margin-bottom: 0;">
-        <strong>¡Tu entrada está adjunta a este email en formato PDF!</strong><br>
-        • Descarga y guarda el archivo PDF<br>
-        • También puedes imprimirlo si lo prefieres<br>
+      <h3 style="margin-top: 0; color: #0066cc;">📎 Entrada PDF Lista</h3>
+      <p style="margin-bottom: 15px;">
+        <strong>¡Tu entrada está lista para descargar!</strong><br>
+        • Haz clic en el botón para descargar tu entrada en PDF<br>
+        • También puedes imprimirla si lo prefieres<br>
         • El PDF contiene tu código QR y todos los detalles del evento
+      </p>
+      <div style="text-align: center;">
+        <a href="${downloadLink}" 
+           download="${filename}"
+           style="background: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; font-size: 1em;">
+          📥 Descargar Entrada PDF
+        </a>
+      </div>
+      <p style="margin-top: 15px; font-size: 0.9em; color: #666; text-align: center;">
+        Si el botón no funciona, también puedes usar el código QR que aparece más abajo
       </p>
     </div>
   ` : `
@@ -438,11 +533,18 @@ const generateEmailContent = (guest, options = {}, hasPDF = false) => {
 
         ${pdfSection}
 
+        <div style="text-align: center; margin: 30px 0;">
+          <div style="background: white; padding: 20px; border-radius: 8px; border: 2px dashed #667eea;">
+            <p style="margin: 0 0 15px 0; font-weight: bold; color: #667eea;">Tu código QR de entrada:</p>
+            <p style="margin: 0; color: #666; font-size: 0.9em;">También disponible como respaldo</p>
+          </div>
+        </div>
+
         <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0;">
           <h3 style="margin-top: 0; color: #856404;">📱 Instrucciones</h3>
           <ul style="margin: 0; padding-left: 20px;">
-            <li><strong>${hasPDF ? 'Descarga y guarda la entrada PDF adjunta' : 'Guarda el código QR'}</strong></li>
-            <li><strong>Preséntalo en la entrada del evento</strong></li>
+            <li><strong>${hasPDF ? 'Descarga tu entrada PDF usando el botón de arriba' : 'Guarda el código QR'}</strong></li>
+            <li><strong>Presenta la entrada (PDF o QR) en el evento</strong></li>
             <li><strong>Solo es válido para una entrada</strong></li>
             <li><strong>Llega 15 minutos antes</strong> para evitar colas</li>
             ${hasPDF ? '<li><strong>Puedes mostrar el PDF desde tu móvil o imprimirlo</strong></li>' : ''}
@@ -476,11 +578,14 @@ Tu entrada para ${eventName} está confirmada.
 📧 Email: ${guest.email}
 
 📱 INSTRUCCIONES:
-${hasPDF ? '• Descarga y guarda la entrada PDF adjunta' : '• Guarda el código QR adjunto'}
-• Preséntalo en la entrada del evento
+${hasPDF ? '• Descarga tu entrada PDF desde el enlace en el email' : '• Guarda el código QR adjunto'}
+• Presenta la entrada en el evento
 • Solo es válido para una entrada
 • Llega 15 minutos antes para evitar colas
 ${hasPDF ? '• Puedes mostrar el PDF desde tu móvil o imprimirlo' : ''}
+
+${hasPDF ? `📥 DESCARGA TU ENTRADA:
+${downloadLink}` : ''}
 
 ¡Nos vemos en ${eventName}! 🎉
 
@@ -490,6 +595,31 @@ Si tienes problemas, contacta al organizador
   `
 
   return { subject, html, text }
+}
+
+/**
+ * Limpiar caché de PDFs y enlaces de descarga
+ */
+const cleanupPDFCache = () => {
+  // Limpiar URLs de blob para liberar memoria
+  pdfCache.forEach(({ downloadLink }) => {
+    if (downloadLink && downloadLink.startsWith('blob:')) {
+      URL.revokeObjectURL(downloadLink)
+    }
+  })
+  
+  pdfCache.clear()
+  pdfStorage.clear()
+  console.log('🧹 Caché de PDFs limpiado')
+}
+
+/**
+ * Obtener PDF desde storage (para acceso directo)
+ * @param {string} storageKey - Clave de storage
+ * @returns {Object|null} - Datos del PDF
+ */
+export const getPDFFromStorage = (storageKey) => {
+  return pdfStorage.get(storageKey) || null
 }
 
 /**
@@ -506,10 +636,11 @@ export const checkEmailConfig = () => {
     batchSize: BATCH_SIZE,
     batchDelay: BATCH_DELAY,
     emailTimeout: EMAIL_TIMEOUT,
-    maxRetries: MAX_RETRIES
+    maxRetries: MAX_RETRIES,
+    pdfDownloadEnabled: true
   }
 
-  console.log('🔧 Configuración EmailJS optimizada:', config)
+  console.log('🔧 Configuración EmailJS optimizada con descarga PDF:', config)
   return config
 }
 
@@ -517,7 +648,7 @@ export const checkEmailConfig = () => {
  * Función de diagnóstico para debugging
  */
 export const diagnoseEmailJS = () => {
-  console.log('🔍 Diagnóstico EmailJS Optimizado:')
+  console.log('🔍 Diagnóstico EmailJS Optimizado con PDF:')
   console.log('- Service ID:', EMAILJS_SERVICE_ID ? '✅ Configurado' : '❌ Faltante')
   console.log('- Template ID:', EMAILJS_TEMPLATE_ID ? '✅ Configurado' : '❌ Faltante')
   console.log('- Public Key:', EMAILJS_PUBLIC_KEY ? '✅ Configurado' : '❌ Faltante')
@@ -526,12 +657,26 @@ export const diagnoseEmailJS = () => {
   console.log(`  • Pausa entre lotes: ${BATCH_DELAY}ms`) 
   console.log(`  • Timeout por email: ${EMAIL_TIMEOUT}ms`)
   console.log(`  • Máximo reintentos: ${MAX_RETRIES}`)
+  console.log('- Funcionalidad PDF:')
+  console.log('  • Generación de PDFs: ✅ Habilitada')
+  console.log('  • Enlaces de descarga: ✅ Habilitados')
+  console.log('  • Caché de PDFs: ✅ Activo')
+  console.log('  • Limpieza automática: ✅ Programada (30min)')
   console.log('- Variables de entorno:', Object.keys(import.meta.env).filter(key => key.startsWith('VITE_EMAILJS')))
   
   // Cálculo estimado de tiempo
   const estimatedBatches = Math.ceil(100 / BATCH_SIZE)
   const estimatedTime = (estimatedBatches * BATCH_DELAY) / 1000
   console.log(`- Tiempo estimado para 100 emails: ~${estimatedTime.toFixed(1)}s + tiempo de procesamiento`)
+  
+  // Estado del caché
+  console.log(`- Estado del caché: ${pdfCache.size} PDFs en memoria`)
+  console.log(`- Storage global: ${pdfStorage.size} enlaces activos`)
+}
+
+// Limpiar caché automáticamente al cerrar/recargar la página
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', cleanupPDFCache)
 }
 
 export default {
@@ -539,5 +684,7 @@ export default {
   sendSimpleEmail,
   sendBulkQREmails,
   checkEmailConfig,
-  diagnoseEmailJS
+  diagnoseEmailJS,
+  getPDFFromStorage,
+  cleanupPDFCache
 }
