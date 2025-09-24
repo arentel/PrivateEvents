@@ -18,6 +18,11 @@ const routes: Array<RouteRecordRaw> = [
     }
   },
   {
+  path: '/download-ticket/:code',
+  name: 'DownloadTicket',
+  component: () => import('@/views/DownloadTicket.vue')
+  },
+  {
     path: '/tabs/',
     component: TabsPage,
     meta: { requiresAuth: true },

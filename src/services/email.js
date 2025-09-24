@@ -1,5 +1,7 @@
 import { generateQRImage } from './qr.js'
 import { generateTicketForEmail } from './ticketPDF.js'
+// @ts-ignore
+import { supabase } from './supabase.js'
 
 // Configuración EmailJS
 const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID
@@ -7,13 +9,13 @@ const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID
 const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY
 
 // Configuración de envío paralelo
-const BATCH_SIZE = 15 // Enviar 15 emails simultáneamente
-const BATCH_DELAY = 500 // 500ms entre lotes (no entre emails individuales)
-const EMAIL_TIMEOUT = 8000 // 8 segundos por email
-const MAX_RETRIES = 2 // Máximo 2 reintentos por email
+const BATCH_SIZE = 15
+const BATCH_DELAY = 500
+const EMAIL_TIMEOUT = 8000
+const MAX_RETRIES = 2
 
 /**
- * Inicializar EmailJS si está configurado
+ * Inicializar EmailJS
  */
 const initializeEmailJS = async () => {
   if (EMAILJS_PUBLIC_KEY) {
@@ -31,55 +33,431 @@ const initializeEmailJS = async () => {
 }
 
 /**
- * Cache de PDFs para evitar regenerar el mismo PDF múltiples veces
+ * Generar código único para descarga
  */
-const pdfCache = new Map()
+const generateDownloadCode = (guestId, eventId) => {
+  const timestamp = Date.now()
+  const random = Math.random().toString(36).substr(2, 9)
+  return `${eventId}_${guestId}_${timestamp}_${random}`.replace(/-/g, '').toLowerCase()
+}
 
 /**
- * Generar PDF con caché optimizado para EmailJS
+ * Verificar si Supabase está disponible y configurado
  */
-const generatePDFWithCache = async (guestData, eventData, logoBase64) => {
-  const cacheKey = `${eventData.id}_${guestData.id}`
-  
-  if (pdfCache.has(cacheKey)) {
-    return pdfCache.get(cacheKey)
-  }
-  
+const isSupabaseAvailable = () => {
   try {
-    // Generar PDF optimizado para < 50KB
-    const pdfBase64 = await generateTicketForEmail(guestData, eventData, logoBase64)
+    return !!(supabase && supabase.from)
+  } catch (error) {
+    console.warn('⚠️ Supabase no disponible:', error.message)
+    return false
+  }
+}
+
+/**
+ * Guardar ticket en Supabase (opción principal)
+ */
+const saveTicketToSupabase = async (downloadCode, guestData, eventData, qrCode) => {
+  if (!isSupabaseAvailable()) {
+    console.log('📦 Supabase no disponible, usando localStorage')
+    return saveTicketToLocalStorage(downloadCode, guestData, eventData, qrCode)
+  }
+
+  try {
+    console.log('💾 Guardando ticket en Supabase:', downloadCode)
     
-    if (!pdfBase64) {
-      return null
+    const ticketData = {
+      code: downloadCode,
+      guest_data: guestData,
+      event_data: eventData,
+      qr_code: qrCode,
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)).toISOString(),
+      downloaded: false,
+      download_count: 0
     }
 
-    // Verificar tamaño
-    const sizeInBytes = (pdfBase64.length * 3) / 4
-    const sizeInKB = Math.round(sizeInBytes / 1024)
-    
-    if (sizeInKB > 50) {
-      console.warn(`⚠️ PDF demasiado grande: ${sizeInKB}KB > 50KB para ${guestData.name}`)
-      return null // No enviar PDF si es muy grande
+    // Intentar crear la tabla si no existe (para desarrollo)
+    const { error: createError } = await supabase.rpc('create_download_tickets_table_if_not_exists')
+    if (createError && !createError.message.includes('already exists')) {
+      console.warn('⚠️ No se pudo crear tabla download_tickets:', createError.message)
+    }
+
+    const { data, error } = await supabase
+      .from('download_tickets')
+      .insert([ticketData])
+      .select()
+      .single()
+
+    if (error) {
+      console.error('❌ Error guardando en Supabase:', error)
+      throw error
+    }
+
+    console.log('✅ Ticket guardado exitosamente en Supabase')
+    return data
+
+  } catch (error) {
+    console.error('❌ Error con Supabase, usando localStorage como fallback:', error.message)
+    return saveTicketToLocalStorage(downloadCode, guestData, eventData, qrCode)
+  }
+}
+
+/**
+ * Guardar ticket en localStorage (fallback)
+ */
+const saveTicketToLocalStorage = (downloadCode, guestData, eventData, qrCode) => {
+  try {
+    const ticketData = {
+      code: downloadCode,
+      guest: guestData,
+      event: eventData,
+      qrCode: qrCode,
+      created: Date.now(),
+      expires: Date.now() + (7 * 24 * 60 * 60 * 1000), // 7 días
+      downloaded: false,
+      downloadCount: 0,
+      storage: 'localStorage'
     }
     
-    console.log(`✅ PDF generado: ${sizeInKB}KB para ${guestData.name}`)
+    // Guardar ticket individual
+    localStorage.setItem(`ticket_${downloadCode}`, JSON.stringify(ticketData))
     
-    // Guardar en caché
-    pdfCache.set(cacheKey, pdfBase64)
-    return pdfBase64
+    // Mantener lista de códigos para limpieza
+    const existingCodes = JSON.parse(localStorage.getItem('ticket_codes') || '[]')
+    if (!existingCodes.includes(downloadCode)) {
+      existingCodes.push(downloadCode)
+      localStorage.setItem('ticket_codes', JSON.stringify(existingCodes))
+    }
     
+    console.log('💾 Ticket guardado en localStorage:', downloadCode)
+    return ticketData
+
   } catch (error) {
-    console.warn(`⚠️ Error generando PDF para ${guestData.name}:`, error.message)
+    console.error('❌ Error guardando en localStorage:', error)
     return null
   }
 }
 
 /**
- * Enviar email individual con reintentos
+ * Guardar datos de ticket para descarga posterior (función principal)
+ */
+const saveTicketForDownload = async (downloadCode, guestData, eventData, qrCode) => {
+  // Intentar Supabase primero, localStorage como fallback
+  const result = await saveTicketToSupabase(downloadCode, guestData, eventData, qrCode)
+  
+  if (result) {
+    console.log(`💾 Ticket guardado exitosamente: ${downloadCode}`)
+    return result
+  } else {
+    throw new Error('No se pudo guardar el ticket en ningún storage')
+  }
+}
+
+/**
+ * Obtener ticket por código desde Supabase
+ */
+const getTicketFromSupabase = async (code) => {
+  if (!isSupabaseAvailable()) {
+    return null
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('download_tickets')
+      .select('*')
+      .eq('code', code)
+      .single()
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // No encontrado
+        return null
+      }
+      throw error
+    }
+
+    // Verificar expiración
+    if (new Date(data.expires_at) < new Date()) {
+      // Eliminar ticket expirado
+      await supabase
+        .from('download_tickets')
+        .delete()
+        .eq('code', code)
+      
+      console.log('🗑️ Ticket expirado eliminado:', code)
+      return null
+    }
+
+    // Incrementar contador de consultas
+    await supabase
+      .from('download_tickets')
+      .update({ 
+        download_count: (data.download_count || 0) + 1,
+        last_accessed: new Date().toISOString()
+      })
+      .eq('code', code)
+
+    return {
+      code: data.code,
+      guest: data.guest_data,
+      event: data.event_data,
+      qrCode: data.qr_code,
+      created: new Date(data.created_at).getTime(),
+      expires: new Date(data.expires_at).getTime(),
+      downloaded: data.downloaded,
+      downloadCount: data.download_count + 1,
+      storage: 'supabase'
+    }
+
+  } catch (error) {
+    console.error('❌ Error obteniendo ticket de Supabase:', error)
+    return null
+  }
+}
+
+/**
+ * Obtener ticket por código desde localStorage
+ */
+const getTicketFromLocalStorage = (code) => {
+  try {
+    const ticketData = localStorage.getItem(`ticket_${code}`)
+    if (!ticketData) return null
+    
+    const data = JSON.parse(ticketData)
+    
+    // Verificar expiración
+    if (Date.now() > data.expires) {
+      localStorage.removeItem(`ticket_${code}`)
+      
+      // Remover de la lista de códigos
+      const codes = JSON.parse(localStorage.getItem('ticket_codes') || '[]')
+      const updatedCodes = codes.filter(c => c !== code)
+      localStorage.setItem('ticket_codes', JSON.stringify(updatedCodes))
+      
+      return null
+    }
+    
+    // Incrementar contador
+    data.downloadCount = (data.downloadCount || 0) + 1
+    localStorage.setItem(`ticket_${code}`, JSON.stringify(data))
+    
+    return data
+  } catch (error) {
+    console.error('❌ Error obteniendo ticket de localStorage:', error)
+    return null
+  }
+}
+
+/**
+ * Obtener datos de ticket por código (función principal)
+ */
+export const getTicketByCode = async (code) => {
+  console.log('🔍 Buscando ticket:', code)
+  
+  // Intentar Supabase primero
+  let ticketData = await getTicketFromSupabase(code)
+  
+  // Si no se encuentra en Supabase, intentar localStorage
+  if (!ticketData) {
+    ticketData = getTicketFromLocalStorage(code)
+  }
+  
+  if (ticketData) {
+    console.log('✅ Ticket encontrado:', ticketData.guest?.name || ticketData.guest_data?.name, 'storage:', ticketData.storage || 'localStorage')
+  } else {
+    console.log('❌ Ticket no encontrado o expirado:', code)
+  }
+  
+  return ticketData
+}
+
+/**
+ * Marcar ticket como descargado
+ */
+export const markTicketAsDownloaded = async (code) => {
+  // Actualizar en Supabase si está disponible
+  if (isSupabaseAvailable()) {
+    try {
+      const { error } = await supabase
+        .from('download_tickets')
+        .update({ 
+          downloaded: true,
+          downloaded_at: new Date().toISOString()
+        })
+        .eq('code', code)
+      
+      if (!error) {
+        console.log('✅ Ticket marcado como descargado en Supabase')
+        return
+      }
+    } catch (error) {
+      console.error('Error actualizando en Supabase:', error)
+    }
+  }
+  
+  // Actualizar en localStorage como fallback
+  try {
+    const ticketData = localStorage.getItem(`ticket_${code}`)
+    if (ticketData) {
+      const data = JSON.parse(ticketData)
+      data.downloaded = true
+      data.downloadedAt = Date.now()
+      localStorage.setItem(`ticket_${code}`, JSON.stringify(data))
+      console.log('✅ Ticket marcado como descargado en localStorage')
+    }
+  } catch (error) {
+    console.error('Error actualizando en localStorage:', error)
+  }
+}
+
+/**
+ * Limpiar tickets expirados de Supabase
+ */
+const cleanupExpiredTicketsFromSupabase = async () => {
+  if (!isSupabaseAvailable()) return
+
+  try {
+    const { data, error } = await supabase
+      .from('download_tickets')
+      .delete()
+      .lt('expires_at', new Date().toISOString())
+      .select('code')
+
+    if (error) {
+      console.error('Error limpiando tickets expirados de Supabase:', error)
+      return
+    }
+
+    if (data && data.length > 0) {
+      console.log(`🧹 ${data.length} tickets expirados eliminados de Supabase`)
+    }
+  } catch (error) {
+    console.error('Error en limpieza de Supabase:', error)
+  }
+}
+
+/**
+ * Limpiar tickets expirados de localStorage
+ */
+const cleanupExpiredTicketsFromLocalStorage = () => {
+  try {
+    const codes = JSON.parse(localStorage.getItem('ticket_codes') || '[]')
+    const validCodes = []
+    let expiredCount = 0
+    
+    codes.forEach(code => {
+      const ticketData = localStorage.getItem(`ticket_${code}`)
+      if (ticketData) {
+        const data = JSON.parse(ticketData)
+        if (Date.now() <= data.expires) {
+          validCodes.push(code)
+        } else {
+          localStorage.removeItem(`ticket_${code}`)
+          expiredCount++
+        }
+      }
+    })
+    
+    localStorage.setItem('ticket_codes', JSON.stringify(validCodes))
+    
+    if (expiredCount > 0) {
+      console.log(`🧹 ${expiredCount} tickets expirados eliminados de localStorage`)
+    }
+  } catch (error) {
+    console.error('Error limpiando localStorage:', error)
+  }
+}
+
+/**
+ * Limpiar tickets expirados (función principal)
+ */
+export const cleanupExpiredTickets = async () => {
+  console.log('🧹 Iniciando limpieza de tickets expirados...')
+  
+  // Limpiar de ambos storages
+  await cleanupExpiredTicketsFromSupabase()
+  cleanupExpiredTicketsFromLocalStorage()
+  
+  console.log('🧹 Limpieza completada')
+}
+
+/**
+ * Obtener estadísticas de tickets
+ */
+export const getTicketStats = async () => {
+  const stats = {
+    total: 0,
+    active: 0,
+    expired: 0,
+    downloaded: 0,
+    supabase: 0,
+    localStorage: 0
+  }
+
+  // Estadísticas de Supabase
+  if (isSupabaseAvailable()) {
+    try {
+      const { data, error } = await supabase
+        .from('download_tickets')
+        .select('expires_at, downloaded')
+
+      if (!error && data) {
+        const now = new Date()
+        data.forEach(ticket => {
+          stats.total++
+          stats.supabase++
+          
+          if (new Date(ticket.expires_at) > now) {
+            stats.active++
+          } else {
+            stats.expired++
+          }
+          
+          if (ticket.downloaded) {
+            stats.downloaded++
+          }
+        })
+      }
+    } catch (error) {
+      console.error('Error obteniendo stats de Supabase:', error)
+    }
+  }
+
+  // Estadísticas de localStorage
+  try {
+    const codes = JSON.parse(localStorage.getItem('ticket_codes') || '[]')
+    const now = Date.now()
+    
+    codes.forEach(code => {
+      const ticketData = localStorage.getItem(`ticket_${code}`)
+      if (ticketData) {
+        const data = JSON.parse(ticketData)
+        stats.total++
+        stats.localStorage++
+        
+        if (now <= data.expires) {
+          stats.active++
+        } else {
+          stats.expired++
+        }
+        
+        if (data.downloaded) {
+          stats.downloaded++
+        }
+      }
+    })
+  } catch (error) {
+    console.error('Error obteniendo stats de localStorage:', error)
+  }
+
+  return stats
+}
+
+/**
+ * Enviar email individual con reintentos y código de descarga
  */
 const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1) => {
   try {
-    // Verificar configuración
     if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
       return {
         success: true,
@@ -89,7 +467,6 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       }
     }
 
-    // Inicializar EmailJS (solo una vez)
     if (!window.emailjsInstance) {
       window.emailjsInstance = await initializeEmailJS()
     }
@@ -117,12 +494,16 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       phone: guest.phone || ''
     }
 
-    // Generar PDF optimizado
-    const pdfBase64 = await generatePDFWithCache(guestData, eventData, options.logoBase64)
-    const pdfFilename = pdfBase64 ? `Entrada_${eventData.name.replace(/\s+/g, '_')}_${guestData.name.replace(/\s+/g, '_')}.pdf` : null
+    // Generar código de descarga único
+    const downloadCode = generateDownloadCode(guestData.id, eventData.id)
+    const baseUrl = window.location.origin
+    const downloadUrl = `${baseUrl}/#/download-ticket/${downloadCode}`
+    
+    // Guardar datos para descarga posterior
+    await saveTicketForDownload(downloadCode, guestData, eventData, qrCode)
     
     // Preparar contenido del email
-    const emailContent = generateEmailContent(guest, options, !!pdfBase64)
+    const emailContent = generateEmailContent(guest, options, downloadUrl, downloadCode)
     
     // Parámetros para EmailJS
     const templateParams = {
@@ -138,22 +519,16 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       qr_image: qrImageDataUrl,
       reply_to: options.replyTo || 'noreply@evento.com',
       
-      // Attachment PDF si está disponible y es < 50KB
-      pdf_attachment: pdfBase64,
-      pdf_filename: pdfFilename,
-      has_pdf: !!pdfBase64,
+      // Datos para descarga de PDF
+      download_link: downloadUrl,
+      download_code: downloadCode,
+      has_pdf: true,
       
-      // Crear data URL para descarga directa como fallback
-      download_link: pdfBase64 ? `data:application/pdf;base64,${pdfBase64}` : '#',
-      
-      // Variables adicionales para el template
-      support_email: options.supportEmail || options.replyTo || 'soporte@evento.com',
       timestamp: Date.now()
     }
 
-    console.log(`📧 Enviando email a ${guest.email} ${pdfBase64 ? 'con PDF attachment' : 'solo con QR'}`)
+    console.log(`📧 Enviando email a ${guest.email} con código: ${downloadCode}`)
 
-    // Enviar con timeout reducido para paralelismo
     const result = await Promise.race([
       emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams),
       new Promise((_, reject) => 
@@ -166,21 +541,20 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       messageId: result.text || `emailjs_${Date.now()}`,
       simulated: false,
       service: 'emailjs',
-      hasPDF: !!pdfBase64,
+      downloadCode: downloadCode,
+      downloadUrl: downloadUrl,
       attempt
     }
 
   } catch (error) {
     console.error(`❌ Error enviando email a ${guest.name} (intento ${attempt}):`, error.message)
     
-    // Reintentar si no hemos alcanzado el máximo
     if (attempt < MAX_RETRIES) {
       console.log(`🔄 Reintentando envío a ${guest.name} (intento ${attempt + 1}/${MAX_RETRIES})`)
       await new Promise(resolve => setTimeout(resolve, 1000))
       return sendSingleEmailWithRetry(guest, qrCode, options, attempt + 1)
     }
     
-    // Si llegamos aquí, falló definitivamente
     return {
       success: false,
       error: error.message,
@@ -192,13 +566,12 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
 }
 
 /**
- * Enviar email con código QR y PDF ticket usando EmailJS
+ * Enviar email con código QR y enlace de descarga
  */
 export const sendQREmail = async (guest, qrCode, options = {}) => {
   const result = await sendSingleEmailWithRetry(guest, qrCode, options)
   
   if (!result.success) {
-    // Fallback: simular envío para no bloquear la aplicación
     console.log(`📧 [FALLBACK SIMULADO] Email para: ${guest.email}`)
     return {
       success: true,
@@ -213,7 +586,7 @@ export const sendQREmail = async (guest, qrCode, options = {}) => {
 }
 
 /**
- * Enviar emails masivos en paralelo OPTIMIZADO
+ * Enviar emails masivos en paralelo
  */
 export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCallback = null) => {
   const results = {
@@ -221,35 +594,24 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
     sent: 0,
     failed: 0,
     simulated: 0,
-    withPDF: 0,
+    withDownloadCode: 0,
     errors: [],
     duration: 0
   }
 
   const startTime = Date.now()
-  console.log(`🚀 Iniciando envío masivo PARALELO de ${guestsWithQRs.length} emails (lotes de ${BATCH_SIZE})`)
+  console.log(`🚀 Iniciando envío masivo con códigos de descarga de ${guestsWithQRs.length} emails`)
 
-  // Limpiar caché de PDFs al inicio
-  pdfCache.clear()
-
-  // Dividir en lotes para procesamiento paralelo
   const batches = []
   for (let i = 0; i < guestsWithQRs.length; i += BATCH_SIZE) {
     batches.push(guestsWithQRs.slice(i, i + BATCH_SIZE))
   }
 
-  console.log(`📦 Dividido en ${batches.length} lotes de máximo ${BATCH_SIZE} emails`)
-
   let processedCount = 0
 
-  // Procesar cada lote
   for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
     const batch = batches[batchIndex]
-    const batchStartTime = Date.now()
     
-    console.log(`📦 Procesando lote ${batchIndex + 1}/${batches.length} (${batch.length} emails)`)
-
-    // Enviar todos los emails del lote en paralelo
     const batchPromises = batch.map(async ({ guest, qrCode }) => {
       try {
         const emailOptions = {
@@ -261,7 +623,6 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
         
         processedCount++
         
-        // Actualizar progreso
         if (progressCallback) {
           const percentage = Math.round((processedCount / results.total) * 100)
           progressCallback({
@@ -279,7 +640,6 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
         
       } catch (error) {
         processedCount++
-        console.error(`❌ Error crítico procesando ${guest.name}:`, error)
         return {
           guest,
           result: {
@@ -292,10 +652,8 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
       }
     })
 
-    // Esperar a que termine todo el lote
     const batchResults = await Promise.allSettled(batchPromises)
     
-    // Procesar resultados del lote
     batchResults.forEach(promiseResult => {
       if (promiseResult.status === 'fulfilled') {
         const { guest, result } = promiseResult.value
@@ -307,8 +665,8 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
             results.sent++
           }
           
-          if (result.hasPDF) {
-            results.withPDF++
+          if (result.downloadCode) {
+            results.withDownloadCode++
           }
         } else {
           results.failed++
@@ -328,30 +686,19 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
         })
       }
     })
-
-    const batchDuration = Date.now() - batchStartTime
-    console.log(`✅ Lote ${batchIndex + 1} completado en ${batchDuration}ms`)
     
-    // Pausa entre lotes (NO entre emails individuales)
     if (batchIndex < batches.length - 1) {
-      console.log(`⏸️ Pausa de ${BATCH_DELAY}ms antes del siguiente lote...`)
       await new Promise(resolve => setTimeout(resolve, BATCH_DELAY))
     }
   }
 
   results.duration = Date.now() - startTime
   
-  // Limpiar caché al final
-  setTimeout(() => {
-    console.log('🧹 Limpiando caché de PDFs...')
-    pdfCache.clear()
-  }, 30 * 60 * 1000) // Limpiar después de 30 minutos
-  
-  console.log(`📊 Envío masivo completado en ${results.duration}ms (${(results.duration/1000).toFixed(1)}s):`, {
+  console.log(`📊 Envío masivo completado en ${results.duration}ms:`, {
     enviados: results.sent,
     simulados: results.simulated, 
     fallados: results.failed,
-    conPDF: results.withPDF,
+    conCodigoDescarga: results.withDownloadCode,
     errores: results.errors.length
   })
   
@@ -359,46 +706,9 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
 }
 
 /**
- * Enviar email simple sin QR (para notificaciones)
+ * Generar contenido del email con enlace de descarga
  */
-export const sendSimpleEmail = async (emailData) => {
-  try {
-    if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_ID || !EMAILJS_PUBLIC_KEY) {
-      console.log('📧 [SIMULADO] Email simple para:', emailData.to_email)
-      return { success: true, simulated: true }
-    }
-
-    const emailjs = await initializeEmailJS()
-    if (!emailjs) {
-      throw new Error('No se pudo inicializar EmailJS')
-    }
-
-    const result = await emailjs.send(
-      EMAILJS_SERVICE_ID,
-      EMAILJS_TEMPLATE_ID,
-      emailData
-    )
-
-    return {
-      success: true,
-      messageId: result.text,
-      simulated: false
-    }
-
-  } catch (error) {
-    console.error('❌ Error sending simple email:', error)
-    return {
-      success: true,
-      simulated: true,
-      error: error.message
-    }
-  }
-}
-
-/**
- * Generar contenido del email simplificado
- */
-const generateEmailContent = (guest, options = {}, hasPDF = false) => {
+const generateEmailContent = (guest, options = {}, downloadUrl = '#', downloadCode = '') => {
   const {
     eventName = guest.event_name || 'Nuestro Evento',
     eventDate = new Date().toLocaleDateString('es-ES'),
@@ -408,8 +718,8 @@ const generateEmailContent = (guest, options = {}, hasPDF = false) => {
 
   const subject = `🎉 Tu entrada para ${eventName}`
 
-  // Contenido simplificado que funciona con EmailJS
-  const html = `Email HTML simple - usar template EmailJS`
+  const html = `Email HTML - usar template EmailJS`
+  
   const text = `
 🎉 ${eventName} - Tu Entrada
 
@@ -422,11 +732,12 @@ Tu entrada para ${eventName} está confirmada.
 📅 Fecha: ${eventDate}
 📍 Ubicación: ${eventLocation}
 👤 Nombre: ${guest.name}
-📧 Email: ${guest.email}
 
-${hasPDF ? '📎 Tu entrada PDF está adjunta a este email.' : ''}
+🎫 DESCARGA TU ENTRADA:
+Enlace: ${downloadUrl}
+Código: ${downloadCode}
 
-¡Nos vemos en ${eventName}! 🎉
+¡Nos vemos en ${eventName}!
 
 ---
 Email enviado automáticamente por ${organizerName}
@@ -436,7 +747,7 @@ Email enviado automáticamente por ${organizerName}
 }
 
 /**
- * Verificar configuración de EmailJS
+ * Verificar configuración
  */
 export const checkEmailConfig = () => {
   const config = {
@@ -444,47 +755,53 @@ export const checkEmailConfig = () => {
     hasTemplateId: !!EMAILJS_TEMPLATE_ID,
     hasPublicKey: !!EMAILJS_PUBLIC_KEY,
     ready: !!(EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID && EMAILJS_PUBLIC_KEY),
-    service: 'EmailJS',
-    batchSize: BATCH_SIZE,
-    batchDelay: BATCH_DELAY,
-    emailTimeout: EMAIL_TIMEOUT,
-    maxRetries: MAX_RETRIES
+    service: 'EmailJS con Supabase + localStorage',
+    downloadSystem: true,
+    supabaseAvailable: isSupabaseAvailable()
   }
 
-  console.log('🔧 Configuración EmailJS simplificada:', config)
+  console.log('🔧 Configuración completa:', config)
   return config
 }
 
 /**
- * Función de diagnóstico para debugging
+ * Función de diagnóstico completa
  */
-export const diagnoseEmailJS = () => {
-  console.log('🔍 Diagnóstico EmailJS Simplificado:')
+export const diagnoseEmailJS = async () => {
+  console.log('🔍 Diagnóstico EmailJS con Sistema Híbrido:')
   console.log('- Service ID:', EMAILJS_SERVICE_ID ? '✅ Configurado' : '❌ Faltante')
   console.log('- Template ID:', EMAILJS_TEMPLATE_ID ? '✅ Configurado' : '❌ Faltante')
   console.log('- Public Key:', EMAILJS_PUBLIC_KEY ? '✅ Configurado' : '❌ Faltante')
-  console.log('- Configuración paralela:')
-  console.log(`  • Tamaño de lote: ${BATCH_SIZE} emails simultáneos`)
-  console.log(`  • Pausa entre lotes: ${BATCH_DELAY}ms`) 
-  console.log(`  • Timeout por email: ${EMAIL_TIMEOUT}ms`)
-  console.log(`  • Máximo reintentos: ${MAX_RETRIES}`)
-  console.log('- Funcionalidad PDF:')
-  console.log('  • Tamaño máximo: 50KB')
-  console.log('  • Attachment directo: ✅ (si < 50KB)')
-  console.log('  • Data URL fallback: ✅')
-  console.log('- Variables de entorno:', Object.keys(import.meta.env).filter(key => key.startsWith('VITE_EMAILJS')))
+  console.log('- Supabase:', isSupabaseAvailable() ? '✅ Disponible' : '⚠️ No disponible')
+  console.log('- localStorage:', typeof Storage !== 'undefined' ? '✅ Disponible' : '❌ No disponible')
   
-  const estimatedBatches = Math.ceil(100 / BATCH_SIZE)
-  const estimatedTime = (estimatedBatches * BATCH_DELAY) / 1000
-  console.log(`- Tiempo estimado para 100 emails: ~${estimatedTime.toFixed(1)}s + tiempo de procesamiento`)
+  const stats = await getTicketStats()
+  console.log('- Estadísticas de tickets:', stats)
   
-  console.log(`- Estado del caché: ${pdfCache.size} PDFs en memoria`)
+  // Limpiar automáticamente
+  await cleanupExpiredTickets()
+}
+
+// Configuración de limpieza automática
+if (typeof window !== 'undefined') {
+  // Limpiar al cargar
+  setTimeout(() => {
+    cleanupExpiredTickets()
+  }, 2000)
+  
+  // Limpiar cada 2 horas
+  setInterval(() => {
+    cleanupExpiredTickets()
+  }, 2 * 60 * 60 * 1000)
 }
 
 export default {
   sendQREmail,
-  sendSimpleEmail,
   sendBulkQREmails,
+  getTicketByCode,
+  markTicketAsDownloaded,
+  cleanupExpiredTickets,
+  getTicketStats,
   checkEmailConfig,
   diagnoseEmailJS
 }
