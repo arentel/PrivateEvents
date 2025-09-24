@@ -6,7 +6,7 @@ import { auth } from '@/stores/auth'
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
-    redirect: '/login'
+    redirect: '/download-ticket/home' // Redirigir a página de descarga genérica
   },
   {
     path: '/login',

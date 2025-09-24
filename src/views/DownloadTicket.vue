@@ -1,10 +1,60 @@
 <template>
   <ion-page>
-    <AppHeader />
+    <!-- Header con botón de admin -->
+    <ion-header>
+      <ion-toolbar>
+        <ion-title>Descarga de Entrada</ion-title>
+        <ion-buttons slot="end">
+          <ion-button @click="goToAdminLogin" fill="clear" size="small">
+            <ion-icon :icon="settingsOutline" slot="icon-only"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
     
     <ion-content>
-      <div class="download-container">
-        
+      <!-- Si no hay código, mostrar página de inicio -->
+      <div v-if="!hasDownloadCode" class="welcome-container">
+        <div class="welcome-card">
+          <div class="welcome-header">
+            <h1>Sistema QR Eventos</h1>
+            <p>Gestión de invitados profesional</p>
+          </div>
+          
+          <div class="welcome-content">
+            <ion-card>
+              <ion-card-content>
+                <h2>¿Tienes un código de descarga?</h2>
+                <p>Si recibiste un email con tu entrada, haz clic en el enlace del email para descargar tu PDF.</p>
+                
+                <div class="manual-code-section">
+                  <ion-item>
+                    <ion-label position="stacked">Código de descarga manual:</ion-label>
+                    <ion-input v-model="manualCode" placeholder="Ingresa tu código aquí"></ion-input>
+                  </ion-item>
+                  
+                  <ion-button @click="checkManualCode" expand="block" :disabled="!manualCode.trim()">
+                    Verificar Código
+                  </ion-button>
+                </div>
+              </ion-card-content>
+            </ion-card>
+            
+            <ion-card>
+              <ion-card-content>
+                <h3>¿Eres organizador de eventos?</h3>
+                <p>Accede al panel de administración para gestionar tus eventos e invitados.</p>
+                <ion-button @click="goToAdminLogin" expand="block" fill="outline">
+                  Acceso Administrador
+                </ion-button>
+              </ion-card-content>
+            </ion-card>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contenido principal cuando hay código -->
+      <div v-else class="download-container">
         <!-- Estado de carga -->
         <ion-card v-if="loading" class="loading-card">
           <ion-card-content>
@@ -83,13 +133,13 @@
           <ion-card-content>
             <div class="error-state">
               <ion-icon :icon="alertCircleOutline" color="danger" size="large"></ion-icon>
-              <h2>Enlace no válido</h2>
+              <h2>Código no válido</h2>
               <p>{{ error }}</p>
               
               <div class="error-actions">
-                <ion-button @click="goHome" fill="outline">
+                <ion-button @click="goToHome" fill="outline">
                   <ion-icon :icon="homeOutline" slot="start"></ion-icon>
-                  Ir al inicio
+                  Volver al inicio
                 </ion-button>
                 
                 <ion-button @click="retryLoad" color="primary">
@@ -119,18 +169,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   IonPage,
   IonContent,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonButtons,
+  IonButton,
   IonCard,
   IonCardHeader,
   IonCardTitle,
   IonCardContent,
-  IonButton,
   IonIcon,
   IonSpinner,
+  IonItem,
+  IonLabel,
+  IonInput,
   toastController
 } from '@ionic/vue'
 import {
@@ -143,9 +200,9 @@ import {
   alertCircleOutline,
   homeOutline,
   reloadOutline,
-  helpCircleOutline
+  helpCircleOutline,
+  settingsOutline
 } from 'ionicons/icons'
-import AppHeader from '@/components/AppHeader.vue'
 // @ts-ignore
 import { generateTicketPDF } from '@/services/ticketPDF'
 // @ts-ignore
@@ -162,6 +219,12 @@ const downloading = ref(false)
 const ticketData = ref<any>(null)
 const error = ref('')
 const qrImageUrl = ref('')
+const manualCode = ref('')
+
+// Computed
+const hasDownloadCode = computed(() => {
+  return !!route.params.code
+})
 
 // Formatear fecha
 const formatDate = (dateString: string | number) => {
@@ -173,6 +236,19 @@ const formatDate = (dateString: string | number) => {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+// Ir a login de admin
+const goToAdminLogin = () => {
+  router.push('/admin/login')
+}
+
+// Verificar código manual
+const checkManualCode = async () => {
+  if (!manualCode.value.trim()) return
+  
+  // Redirigir a la URL de descarga con el código manual
+  router.push(`/download/${manualCode.value.trim()}`)
 }
 
 // Descargar PDF
@@ -271,7 +347,7 @@ const retryLoad = () => {
 }
 
 // Ir al inicio
-const goHome = () => {
+const goToHome = () => {
   router.push('/')
 }
 
@@ -279,14 +355,87 @@ const goHome = () => {
 onMounted(() => {
   console.log('🏁 Inicializando DownloadTicket...')
   
-  // Pequeño delay para mejor UX
-  setTimeout(() => {
-    loadTicketData()
-  }, 800)
+  // Solo cargar datos si hay código en la URL
+  if (hasDownloadCode.value) {
+    // Pequeño delay para mejor UX
+    setTimeout(() => {
+      loadTicketData()
+    }, 800)
+  } else {
+    loading.value = false
+  }
 })
 </script>
 
 <style scoped>
+/* Estilos para la página de bienvenida */
+.welcome-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.welcome-card {
+  width: 100%;
+  max-width: 500px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.welcome-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.welcome-header h1 {
+  margin: 0 0 8px 0;
+  font-size: 2rem;
+  font-weight: bold;
+}
+
+.welcome-header p {
+  margin: 0;
+  font-size: 1rem;
+  opacity: 0.9;
+}
+
+.welcome-content {
+  padding: 20px;
+}
+
+.welcome-content ion-card {
+  margin: 16px 0;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.welcome-content h2 {
+  color: var(--ion-color-primary);
+  font-size: 1.3rem;
+  margin-bottom: 12px;
+}
+
+.welcome-content h3 {
+  color: var(--ion-color-primary);
+  font-size: 1.2rem;
+  margin-bottom: 8px;
+}
+
+.manual-code-section {
+  margin-top: 20px;
+}
+
+.manual-code-section ion-button {
+  margin-top: 16px;
+}
+
+/* Estilos para el contenedor de descarga */
 .download-container {
   padding: 16px;
   max-width: 800px;
@@ -475,6 +624,22 @@ onMounted(() => {
 
 /* Responsive */
 @media (max-width: 768px) {
+  .welcome-container {
+    padding: 16px;
+  }
+  
+  .welcome-header {
+    padding: 30px 16px;
+  }
+  
+  .welcome-header h1 {
+    font-size: 1.6rem;
+  }
+  
+  .welcome-content {
+    padding: 16px;
+  }
+  
   .download-container {
     padding: 12px;
   }
