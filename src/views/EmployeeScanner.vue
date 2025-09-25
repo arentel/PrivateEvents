@@ -488,11 +488,30 @@ const validateScannedCode = async (qrCode: string): Promise<void> => {
   totalValidations.value++
   
   try {
-    console.log('Validating QR code:', qrCode.substring(0, 50) + '...')
+    console.log('Validating QR code:', qrCode.substring(0, 100) + '...')
     
-    // validateQRCode no es async según los archivos encontrados
-    const guestData = validateQRCode(qrCode)
+    // NUEVA LÓGICA: Intentar parsear como JSON directo primero
+    let guestData: any = null
     
+    try {
+      // Intentar decodificar como JSON directo (nuevo formato)
+      guestData = JSON.parse(qrCode)
+      console.log('QR decoded as direct JSON:', guestData)
+    } catch (jsonError) {
+      console.log('QR is not direct JSON, trying encrypted format...')
+      
+      // Si no es JSON directo, intentar el formato encriptado (formato antiguo)
+      try {
+        // @ts-ignore - Importación dinámica para evitar errores de TypeScript
+        const qrModule = await import('@/services/qr')
+        guestData = qrModule.validateQRCode(qrCode)
+        console.log('QR decoded as encrypted:', guestData)
+      } catch (encryptError) {
+        console.error('Failed to decode QR in both formats:', { jsonError, encryptError })
+      }
+    }
+    
+    // Validar que se pudo decodificar
     if (!guestData) {
       showValidationResult('error', '❌ CÓDIGO NO VÁLIDO', 'El código QR no es válido o está corrupto')
       rejectedEntries.value++
@@ -500,6 +519,18 @@ const validateScannedCode = async (qrCode: string): Promise<void> => {
       return
     }
     
+    // Validar que tiene los campos requeridos
+    if (!guestData.id || !guestData.name || !guestData.email) {
+      console.error('QR missing required fields:', guestData)
+      showValidationResult('error', '❌ CÓDIGO INCOMPLETO', 'El código QR no contiene la información necesaria')
+      rejectedEntries.value++
+      saveStats()
+      return
+    }
+    
+    console.log('Guest data decoded successfully:', guestData)
+    
+    // Buscar invitado en la base de datos
     const { data: guest, error } = await supabase
       .from('guests')
       .select('*')
@@ -513,6 +544,8 @@ const validateScannedCode = async (qrCode: string): Promise<void> => {
       saveStats()
       return
     }
+    
+    console.log('Guest found:', guest)
     
     if (guest.has_entered) {
       showValidationResult(
@@ -549,10 +582,12 @@ const validateScannedCode = async (qrCode: string): Promise<void> => {
     
     recentEntries.value.unshift(updatedGuest)
     
+    // Mostrar información más detallada como en ScanTab
+    const eventInfo = guest.event_name ? ` - ${guest.event_name}` : ''
     showValidationResult(
       'success',
       '✅ BIENVENIDO/A',
-      `¡Acceso permitido para ${guest.name}!`,
+      `¡Acceso permitido para ${guest.name}!${eventInfo}`,
       updatedGuest
     )
     
