@@ -17,6 +17,27 @@ const routes: Array<RouteRecordRaw> = [
       title: 'Iniciar Sesión'
     }
   },
+  // NUEVAS RUTAS DE EMPLEADOS
+  {
+    path: '/employee/login',
+    name: 'EmployeeLogin',
+    component: () => import('../views/EmployeeLogin.vue'),
+    meta: {
+      requiresAuth: false,
+      requiresEmployeeAuth: false,
+      title: 'Acceso Empleados'
+    }
+  },
+  {
+    path: '/employee/scanner',
+    name: 'EmployeeScanner',
+    component: () => import('../views/EmployeeScanner.vue'),
+    meta: {
+      requiresAuth: false,
+      requiresEmployeeAuth: true,
+      title: 'Escáner QR - Empleados'
+    }
+  },
   {
     path: '/download-ticket/:code',
     name: 'DownloadTicket',
@@ -104,6 +125,24 @@ const router = createRouter({
   routes
 })
 
+// Función auxiliar para verificar autenticación de empleado
+const checkEmployeeAuth = (): boolean => {
+  try {
+    const employeeSession = localStorage.getItem('employeeSession')
+    if (!employeeSession) return false
+    
+    const session = JSON.parse(employeeSession)
+    const loginTime = new Date(session.loginTime)
+    const now = new Date()
+    const hoursDiff = (now.getTime() - loginTime.getTime()) / (1000 * 60 * 60)
+    
+    // Sesión válida por 12 horas
+    return hoursDiff <= 12 && session.role === 'employee'
+  } catch {
+    return false
+  }
+}
+
 // Guard de navegación para autenticación
 router.beforeEach((to, from, next) => {
   console.log(`🧭 Navegando a: ${to.path}`)
@@ -115,12 +154,54 @@ router.beforeEach((to, from, next) => {
     return
   }
   
+  // ===== LÓGICA ESPECÍFICA PARA EMPLEADOS =====
+  
+  // Si está intentando acceder al área de empleados
+  if (to.path.startsWith('/employee/')) {
+    // Si va al login de empleados
+    if (to.path === '/employee/login') {
+      // Si ya está autenticado como empleado, redirigir al scanner
+      if (checkEmployeeAuth()) {
+        console.log('👷 Empleado ya autenticado, redirigiendo al scanner')
+        next('/employee/scanner')
+        return
+      }
+      // Si no está autenticado, permitir acceso al login
+      console.log('👷 Acceso al login de empleados')
+      next()
+      return
+    }
+    
+    // Si intenta acceder al scanner sin autenticación de empleado
+    if (to.meta.requiresEmployeeAuth && !checkEmployeeAuth()) {
+      console.log('🔒 Acceso denegado al scanner, redirigiendo a login de empleados')
+      next('/employee/login')
+      return
+    }
+    
+    // Si está autenticado como empleado, permitir acceso
+    if (checkEmployeeAuth()) {
+      console.log('✅ Empleado autenticado, acceso permitido')
+      next()
+      return
+    }
+  }
+  
+  // Si empleado autenticado intenta acceder a rutas de admin
+  if (checkEmployeeAuth() && (to.path.startsWith('/tabs/') || to.path === '/login')) {
+    console.log('🚫 Empleado no puede acceder a área de administración')
+    next('/employee/scanner')
+    return
+  }
+  
+  // ===== LÓGICA NORMAL DE ADMINISTRADOR =====
+  
   // Otras rutas públicas
   const publicRoutes = ['/login', '/404']
   const isPublicRoute = publicRoutes.includes(to.path) || 
                        to.matched.some(record => record.meta.requiresAuth === false)
   
-  if (isPublicRoute) {
+  if (isPublicRoute && !to.path.startsWith('/employee/')) {
     console.log(`🌐 Ruta pública: ${to.path}`)
     next()
     return
@@ -134,7 +215,7 @@ router.beforeEach((to, from, next) => {
   const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
   
   if (requiresAuth) {
-    // Verificar autenticación
+    // Verificar autenticación de administrador
     if (!auth.isAuthenticated) {
       console.log('🔒 Ruta protegida, redirigiendo a login')
       next('/login')
@@ -150,9 +231,9 @@ router.beforeEach((to, from, next) => {
     }
   }
   
-  // Si está autenticado y trata de ir al login, redirigir a la app
+  // Si está autenticado como admin y trata de ir al login, redirigir a la app
   if (to.path === '/login' && auth.isAuthenticated) {
-    console.log('✅ Ya autenticado, redirigiendo a app')
+    console.log('✅ Admin ya autenticado, redirigiendo a app')
     next('/tabs/guests')
     return
   }
