@@ -56,6 +56,17 @@ const saveTicketToDatabase = async (downloadCode, guestData, eventData, qrCode) 
   try {
     const expiresAt = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)) // 7 días
     
+    // Asegurar que event_date esté en formato correcto
+    let eventDateForDB = null
+    if (eventData.date) {
+      try {
+        eventDateForDB = new Date(eventData.date).toISOString()
+      } catch (error) {
+        console.warn('Error formateando fecha para BD:', error)
+        eventDateForDB = new Date().toISOString()
+      }
+    }
+    
     const ticketData = {
       download_code: downloadCode,
       guest_id: guestData.id,
@@ -63,12 +74,19 @@ const saveTicketToDatabase = async (downloadCode, guestData, eventData, qrCode) 
       guest_email: guestData.email,
       event_id: eventData.id,
       event_name: eventData.name,
-      event_date: eventData.date,
+      event_date: eventDateForDB,
       event_location: eventData.location,
       qr_code: qrCode,
       expires_at: expiresAt.toISOString(),
       is_used: false
     }
+
+    console.log('💾 Guardando en BD:', {
+      code: downloadCode,
+      guest: guestData.name,
+      event: eventData.name,
+      date: eventDateForDB
+    })
 
     const { data, error } = await supabase
       .from('download_tickets')
@@ -268,10 +286,25 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
 
     const qrImageDataUrl = generateQRImage(qrCode, { size: 400 })
     
+    // Formatear fecha correctamente para la base de datos
+    let eventDateISO = new Date().toISOString()
+    
+    if (options.eventDate) {
+      try {
+        // Si viene como string, intentar parsearlo
+        const parsedDate = new Date(options.eventDate)
+        if (!isNaN(parsedDate.getTime())) {
+          eventDateISO = parsedDate.toISOString()
+        }
+      } catch (error) {
+        console.warn('Error parseando fecha del evento:', error)
+      }
+    }
+
     const eventData = {
       id: options.eventId || 'event_' + Date.now(),
       name: guest.event_name || options.eventName || 'Nuestro Evento',
-      date: options.eventDate || new Date().toISOString(),
+      date: eventDateISO,
       location: options.eventLocation || 'Ubicación del evento'
     }
 
