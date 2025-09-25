@@ -6,7 +6,16 @@ import { auth } from '@/stores/auth'
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
-    redirect: '/download-ticket/home' // Redirigir a página de descarga genérica
+    redirect: '/role-selection' // Cambiar a selección de roles como página principal
+  },
+  {
+    path: '/role-selection',
+    name: 'RoleSelection',
+    component: () => import('../views/RoleSelection.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Seleccionar Tipo de Acceso'
+    }
   },
   {
     path: '/login',
@@ -196,8 +205,8 @@ router.beforeEach((to, from, next) => {
   
   // ===== LÓGICA NORMAL DE ADMINISTRADOR =====
   
-  // Otras rutas públicas
-  const publicRoutes = ['/login', '/404']
+  // Otras rutas públicas (incluyendo role-selection)
+  const publicRoutes = ['/login', '/404', '/role-selection']
   const isPublicRoute = publicRoutes.includes(to.path) || 
                        to.matched.some(record => record.meta.requiresAuth === false)
   
@@ -235,6 +244,20 @@ router.beforeEach((to, from, next) => {
   if (to.path === '/login' && auth.isAuthenticated) {
     console.log('✅ Admin ya autenticado, redirigiendo a app')
     next('/tabs/guests')
+    return
+  }
+  
+  // Si está autenticado como admin y trata de ir a role-selection, redirigir a la app
+  if (to.path === '/role-selection' && auth.isAuthenticated) {
+    console.log('✅ Admin ya autenticado, redirigiendo a app desde role-selection')
+    next('/tabs/guests')
+    return
+  }
+  
+  // Si está autenticado como empleado y trata de ir a role-selection, redirigir al scanner
+  if (to.path === '/role-selection' && checkEmployeeAuth()) {
+    console.log('✅ Empleado ya autenticado, redirigiendo al scanner desde role-selection')
+    next('/employee/scanner')
     return
   }
   
