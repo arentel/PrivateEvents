@@ -1,14 +1,9 @@
 <template>
   <ion-page>
-    <!-- Header con botón de admin -->
+    <!-- Header limpio -->
     <ion-header>
       <ion-toolbar>
         <ion-title>Descarga de Entrada</ion-title>
-        <ion-buttons slot="end">
-          <ion-button @click="goToAdminLogin" fill="clear" size="small">
-            <ion-icon :icon="settingsOutline" slot="icon-only"></ion-icon>
-          </ion-button>
-        </ion-buttons>
       </ion-toolbar>
     </ion-header>
     
@@ -45,6 +40,7 @@
                 <h3>¿Eres organizador de eventos?</h3>
                 <p>Accede al panel de administración para gestionar tus eventos e invitados.</p>
                 <ion-button @click="goToAdminLogin" expand="block" fill="outline">
+                  <ion-icon :icon="settingsOutline" slot="start"></ion-icon>
                   Acceso Administrador
                 </ion-button>
               </ion-card-content>
@@ -102,21 +98,6 @@
               </p>
             </div>
 
-            <!-- Información adicional -->
-            <div class="info-section">
-              <ion-card class="info-card">
-                <ion-card-content>
-                  <h3><ion-icon :icon="informationCircleOutline"></ion-icon> Información Importante</h3>
-                  <ul>
-                    <li>Presenta tu entrada (PDF o QR) en el evento</li>
-                    <li>Válida solo para: <strong>{{ ticketData.guest.name }}</strong></li>
-                    <li>Código único: <code>{{ ticketData.code.substring(0, 12) }}...</code></li>
-                    <li>Expira el: <strong>{{ formatDate(ticketData.expires) }}</strong></li>
-                  </ul>
-                </ion-card-content>
-              </ion-card>
-            </div>
-
             <!-- Vista previa del QR -->
             <div class="qr-preview" v-if="qrImageUrl">
               <h3>Vista previa del código QR:</h3>
@@ -151,16 +132,11 @@
           </ion-card-content>
         </ion-card>
 
-        <!-- Información de ayuda -->
-        <ion-card v-if="!loading && !error" class="help-card">
+        <!-- Información de ayuda simplificada -->
+        <ion-card v-if="!loading && !error && ticketData" class="help-card">
           <ion-card-content>
-            <h3><ion-icon :icon="helpCircleOutline"></ion-icon> ¿Problemas con la descarga?</h3>
-            <ul>
-              <li>Asegúrate de tener espacio suficiente en tu dispositivo</li>
-              <li>Verifica que tu navegador permite descargas</li>
-              <li>Si persisten los problemas, usa el código QR directamente</li>
-              <li>Contacta al organizador si necesitas ayuda adicional</li>
-            </ul>
+            <h3><ion-icon :icon="helpCircleOutline"></ion-icon> ¿Necesitas Ayuda?</h3>
+            <p>Si tienes problemas con la descarga o dudas sobre el evento, contacta directamente con el organizador.</p>
           </ion-card-content>
         </ion-card>
       </div>
@@ -196,7 +172,6 @@ import {
   calendarOutline,
   locationOutline,
   mailOutline,
-  informationCircleOutline,
   alertCircleOutline,
   homeOutline,
   reloadOutline,
@@ -233,14 +208,26 @@ const showWelcomePage = computed(() => {
 
 // Formatear fecha
 const formatDate = (dateString: string | number) => {
-  const date = typeof dateString === 'number' ? new Date(dateString) : new Date(dateString)
-  return date.toLocaleDateString('es-ES', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  if (!dateString) return 'Fecha por confirmar'
+  
+  try {
+    const date = typeof dateString === 'number' ? new Date(dateString) : new Date(dateString)
+    
+    if (isNaN(date.getTime())) {
+      return 'Fecha por confirmar'
+    }
+    
+    return date.toLocaleDateString('es-ES', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch (error) {
+    console.warn('Error formateando fecha:', error)
+    return 'Fecha por confirmar'
+  }
 }
 
 // Ir a login de admin
@@ -308,39 +295,47 @@ const generateQRPreview = async () => {
   }
 }
 
-// Cargar datos del ticket
+// Cargar datos del ticket desde la base de datos
 const loadTicketData = async () => {
   if (!downloadCode.value) return
   
   loading.value = true
   error.value = ''
+  ticketData.value = null
+  qrImageUrl.value = ''
   
-  console.log('🔍 Buscando ticket con código:', downloadCode.value)
+  console.log('🔍 [DB] Buscando ticket en base de datos:', downloadCode.value)
   
-  // Pequeño delay para mejor UX visual
-  await new Promise(resolve => setTimeout(resolve, 500))
-  
-  const data = getTicketByCode(downloadCode.value)
-  
-  if (!data) {
-    error.value = 'Código no encontrado, inválido o expirado. Es posible que el enlace haya caducado (7 días de validez).'
+  try {
+    // Pequeño delay para mejor UX visual
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // Llamada asíncrona a la base de datos
+    const data = await getTicketByCode(downloadCode.value)
+    
+    if (!data) {
+      error.value = 'Código no encontrado, inválido o expirado. Verifica que el enlace del email sea correcto.'
+      console.log('❌ Ticket no encontrado en BD')
+      return
+    }
+    
+    console.log('✅ Ticket encontrado en BD:', data.guest.name, '-', data.event.name)
+    
+    ticketData.value = data
+    
+    // Generar vista previa del QR
+    await generateQRPreview()
+    
+  } catch (err: any) {
+    console.error('❌ Error cargando ticket desde BD:', err)
+    error.value = 'Error de conexión con el servidor. Por favor, intenta de nuevo.'
+  } finally {
     loading.value = false
-    return
   }
-  
-  console.log('✅ Ticket encontrado:', data.guest.name, '-', data.event.name)
-  
-  ticketData.value = data
-  loading.value = false
-  
-  // Generar vista previa del QR
-  generateQRPreview()
 }
 
 // Reintentar carga
 const retryLoad = async () => {
-  ticketData.value = null
-  qrImageUrl.value = ''
   await loadTicketData()
 }
 
@@ -351,7 +346,7 @@ const goToHome = () => {
 
 // Inicializar
 onMounted(async () => {
-  console.log('🏁 Inicializando DownloadTicket...')
+  console.log('🏁 Inicializando DownloadTicket con base de datos...')
   console.log('📄 Parámetro código:', route.params.code)
   console.log('🏠 Mostrar bienvenida:', showWelcomePage.value)
   
@@ -361,7 +356,7 @@ onMounted(async () => {
   }
 })
 
-// Watcher para detectar cambios en la ruta (cuando se navega con código manual)
+// Watcher para detectar cambios en la ruta
 import { watch } from 'vue'
 watch(() => route.params.code, async (newCode) => {
   console.log('🔄 Código cambió:', newCode)
@@ -537,41 +532,6 @@ watch(() => route.params.code, async (newCode) => {
   font-style: italic;
 }
 
-.info-section {
-  margin: 24px 0;
-}
-
-.info-card {
-  background: var(--ion-color-warning-tint);
-  border: 1px solid var(--ion-color-warning);
-}
-
-.info-card h3 {
-  color: var(--ion-color-warning-shade);
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.info-card ul {
-  margin: 0;
-  padding-left: 16px;
-}
-
-.info-card li {
-  margin-bottom: 6px;
-  color: var(--ion-color-warning-shade);
-}
-
-.info-card code {
-  background: var(--ion-color-warning-tint);
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-family: 'Courier New', monospace;
-  font-size: 0.9em;
-}
-
 .qr-preview {
   margin-top: 24px;
   text-align: center;
@@ -615,13 +575,8 @@ watch(() => route.params.code, async (newCode) => {
   gap: 8px;
 }
 
-.help-card ul {
+.help-card p {
   margin: 0;
-  padding-left: 16px;
-}
-
-.help-card li {
-  margin-bottom: 8px;
   color: var(--ion-color-dark);
   line-height: 1.4;
 }
