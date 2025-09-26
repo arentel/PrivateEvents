@@ -61,49 +61,36 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
     doc.setFontSize(12)
     doc.text('Tu entrada ha sido confirmada y está lista para usar.', margin, yPos)
 
-    // === DETALLES DEL EVENTO - MÁS COMPACTO ===
-    yPos += 15  // Reducido de 20 a 15
+    // === INFORMACIÓN ESENCIAL SIN RECUADRO - ESTILO HEADER ===
+    yPos += 12  // Reducido para subir más la información
     
-    // Caja de detalles más compacta
-    doc.setFillColor(...colors.lightGray)
-    doc.setDrawColor(...colors.borderGray)
-    doc.setLineWidth(0.5)
-    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 40, 3, 3, 'FD')  // Reducido de 45 a 40
+    // Sin recuadro, solo texto con el color del header
+    doc.setTextColor(...colors.primaryDark)  // Mismo color que el header
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(16)
+    doc.text(eventData.name || 'Evento', pageWidth / 2, yPos, { align: 'center' })
     
-    // Título de la sección
-    yPos += 10  // Reducido de 12 a 10
-    doc.setTextColor(...colors.primaryDark)
+    yPos += 8
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(13)
-    doc.text('Detalles del Evento', margin + 10, yPos)
+    doc.setFontSize(14)
+    doc.text(formatEventDateFixed(eventData.date), pageWidth / 2, yPos, { align: 'center' })
     
-    // Información básica más compacta
-    yPos += 6  // Reducido de 8 a 6
-    doc.setFontSize(11)
+    // Ubicación si existe
+    if (eventData.location) {
+      yPos += 6
+      doc.setFontSize(12)
+      doc.text(eventData.location, pageWidth / 2, yPos, { 
+        align: 'center',
+        maxWidth: pageWidth - 40
+      })
+    }
     
-    const details = [
-      ['Evento:', eventData.name || 'Evento'],
-      ['Fecha:', formatEventDateFixed(eventData.date)],
-      ['Invitado:', guestData.name || 'Invitado'],
-      ['Email:', guestData.email || '']
-    ]
-    
-    details.forEach((detail, index) => {
-      const rowY = yPos + (index * 5.5)  // Reducido de 6 a 5.5
-      
-      // Label (negrita, color medio)
-      doc.setTextColor(...colors.mediumGray)
-      doc.setFont('helvetica', 'bold')
-      doc.text(detail[0], margin + 10, rowY)
-      
-      // Valor (normal, color oscuro)
-      doc.setTextColor(...colors.darkText)
-      doc.setFont('helvetica', 'normal')
-      doc.text(detail[1], margin + 45, rowY, { maxWidth: pageWidth - 75 })
-    })
+    yPos += 8
+    doc.setFontSize(14)
+    doc.text(guestData.name || 'Invitado', pageWidth / 2, yPos, { align: 'center' })
 
-    // === CÓDIGO QR - OPTIMIZADO Y MÁS ARRIBA ===
-    yPos += 25  // Reducido de 30 a 25
+    // === CÓDIGO QR - MÁS ARRIBA SIN EL RECUADRO ===
+    yPos += 20  // Más cerca de la info anterior
 
     // Generar datos del QR
     const qrData = JSON.stringify({
@@ -185,51 +172,53 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
     doc.setLineWidth(0.3)
     doc.roundedRect(margin, footerY - 3, pageWidth - (margin * 2), 16, 3, 3, 'FD')  // Más pequeño
 
+    // === LOGO GAUDÍ - FONDO MÁS OSCURO PARA CONTRASTE ===
+    const footerY = pageHeight - 20
+
+    // Fondo del mismo color que el header para contraste con logo blanco
+    doc.setFillColor(...colors.primaryDark)  // Mismo color que header
+    doc.roundedRect(margin, footerY - 3, pageWidth - (margin * 2), 16, 3, 3, 'F')
+
     // Cargar el logo Gaudí
     try {
       // Intentar cargar desde diferentes rutas posibles
       let logoSrc = null
       
       if (logoBase64) {
-        // Si se pasa como parámetro
         logoSrc = logoBase64
       } else {
-        // Intentar cargar desde assets o public
         try {
-          // Opción 1: src/assets/images/gaudi.png
-          logoSrc = await import('@/assets/images/gaudi.png')
+          const logoModule = await import('@/assets/images/gaudi.png')
+          logoSrc = logoModule.default
         } catch {
           try {
-            // Opción 2: public/images/gaudi.png  
             logoSrc = '/images/gaudi.png'
           } catch {
-            // Opción 3: directamente en public
             logoSrc = '/gaudi.png'
           }
         }
       }
 
       if (logoSrc) {
-        // Convertir logo blanco a gris oscuro para mejor contraste
-        const logoSize = 15
+        // Logo blanco sobre fondo azul oscuro (mejor contraste)
+        const logoSize = 12
         const logoX = pageWidth / 2 - logoSize / 2
         
-        // Añadir el logo
-        doc.addImage(logoSrc, 'PNG', logoX, footerY - 2, logoSize, logoSize)
+        doc.addImage(logoSrc, 'PNG', logoX, footerY - 1, logoSize, logoSize)
         
-        // Texto debajo del logo
-        doc.setTextColor(...colors.darkText)
+        // Texto blanco debajo del logo
+        doc.setTextColor(...colors.white)
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(8)
-        doc.text('Sistema de Entradas Digitales', pageWidth / 2, footerY + 15, { align: 'center' })
+        doc.text('Sistema de Entradas Digitales', pageWidth / 2, footerY + 11, { align: 'center' })
       } else {
         throw new Error('Logo no encontrado')
       }
       
     } catch (error) {
       console.log('Logo no encontrado, usando texto:', error)
-      // Fallback si no se encuentra el logo
-      doc.setTextColor(...colors.darkText)
+      // Fallback con texto blanco sobre fondo azul oscuro
+      doc.setTextColor(...colors.white)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(12)
       doc.text('GAUDÍ', pageWidth / 2, footerY + 2, { align: 'center' })
