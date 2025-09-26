@@ -77,9 +77,13 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
     yPos += 8
     doc.setFontSize(11)
     
+    // DEPURACIÓN: Log de la fecha recibida
+    console.log('DEBUG - Fecha del evento recibida:', eventData.date)
+    console.log('DEBUG - Tipo de fecha:', typeof eventData.date)
+    
     const details = [
       ['Evento:', eventData.name || 'Evento'],
-      ['Fecha:', formatEventDate(eventData.date)], // *** CORREGIDO: usar fecha del evento ***
+      ['Fecha:', formatEventDateFixed(eventData.date)], // *** FUNCIÓN ESPECÍFICA ***
       ['Ubicación:', eventData.location || 'Ubicación por confirmar'],
       ['Nombre:', guestData.name || 'Invitado'],
       ['Email:', guestData.email || '']
@@ -99,55 +103,22 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       doc.text(detail[1], margin + 50, rowY, { maxWidth: pageWidth - 90 })
     })
 
-    // === SECCIÓN DE DESCARGA (Gradiente como en email) ===
+    // === SECCIÓN SIMPLIFICADA PARA PRIORIZAR EL QR ===
     yPos += 50
     
-    // Fondo con gradiente simulado (igual al email)
-    const gradientHeight = 50
-    for (let i = 0; i < gradientHeight; i += 1) {
-      const ratio = i / gradientHeight
-      const r = Math.round(colors.primaryDark[0] + (colors.primaryBlue[0] - colors.primaryDark[0]) * ratio)
-      const g = Math.round(colors.primaryDark[1] + (colors.primaryBlue[1] - colors.primaryDark[1]) * ratio)
-      const b = Math.round(colors.primaryDark[2] + (colors.primaryBlue[2] - colors.primaryDark[2]) * ratio)
-      
-      doc.setFillColor(r, g, b)
-      doc.roundedRect(margin, yPos + i, pageWidth - (margin * 2), 1, 0, 0, 'F')
-    }
+    // Título simplificado
+    doc.setTextColor(...colors.primaryDark)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(18)
+    doc.text('Tu Código de Entrada', pageWidth / 2, yPos, { align: 'center' })
     
-    // Hacer los bordes redondeados del contenedor completo
-    doc.setFillColor(...colors.primaryDark)
-    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), gradientHeight, 4, 4, 'F')
-    
-    // Aplicar el gradiente encima
-    for (let i = 0; i < gradientHeight; i += 1) {
-      const ratio = i / gradientHeight
-      const r = Math.round(colors.primaryDark[0] + (colors.primaryBlue[0] - colors.primaryDark[0]) * ratio)
-      const g = Math.round(colors.primaryDark[1] + (colors.primaryBlue[1] - colors.primaryDark[1]) * ratio)
-      const b = Math.round(colors.primaryDark[2] + (colors.primaryBlue[2] - colors.primaryDark[2]) * ratio)
-      
-      doc.setFillColor(r, g, b)
-      doc.rect(margin, yPos + i, pageWidth - (margin * 2), 1, 'F')
-    }
-    
-    // Título de la sección
-    doc.setTextColor(...colors.white)
+    yPos += 10
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(16)
-    doc.text('Tu Entrada PDF', pageWidth / 2, yPos + 15, { align: 'center' })
-    
     doc.setFontSize(12)
-    doc.text('Presenta este código QR en la entrada del evento', pageWidth / 2, yPos + 25, { align: 'center' })
-    
-    // Código de descarga (como en el email)
-    doc.setFontSize(10)
-    const downloadCode = options.downloadCode || 'N/A'
-    doc.text(`Código: ${downloadCode}`, pageWidth / 2, yPos + 35, { align: 'center' })
-    
-    doc.setFontSize(9)
-    doc.text('Válido por 7 días desde la recepción', pageWidth / 2, yPos + 42, { align: 'center' })
+    doc.text('Presenta este código QR en la entrada del evento', pageWidth / 2, yPos, { align: 'center' })
 
-    // === CÓDIGO QR CENTRADO - MEJORADO PARA VERSE COMPLETO ===
-    yPos += gradientHeight + 20
+    // === CÓDIGO QR PRIORITARIO - MÁS GRANDE ===
+    yPos += 25
     
     // Generar QR con los mismos datos que en el email
     const qrData = JSON.stringify({
@@ -167,139 +138,71 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       }
     })
     
-    // *** QR DE ALTA CALIDAD Y TAMAÑO ADECUADO ***
+    // *** QR MÁS GRANDE PARA SER EL ELEMENTO PRINCIPAL ***
     const qrCodeBase64 = await QRCode.toDataURL(qrData, {
-      width: 600, // Más resolución para mejor calidad
-      margin: 2,
-      quality: 1.0, // Máxima calidad
+      width: 800, // Más resolución
+      margin: 1, // Menos margen
+      quality: 1.0,
       color: {
         dark: '#000000',
         light: '#FFFFFF'
       },
-      errorCorrectionLevel: 'H' // Alto nivel de corrección de errores
+      errorCorrectionLevel: 'H'
     })
     
-    // *** CONTENEDOR DEL QR MEJORADO - MÁS GRANDE Y VISIBLE ***
-    const qrSize = 90 // Tamaño aumentado para que se vea completo
+    // *** QR MUCHO MÁS GRANDE - ELEMENTO PRINCIPAL ***
+    const qrSize = 120 // Aumentado significativamente
     const qrX = (pageWidth - qrSize) / 2
     
-    // Fondo blanco con borde más grueso como en el email
+    // Fondo blanco con borde destacado
     doc.setFillColor(...colors.white)
-    doc.setDrawColor(...colors.primaryDark) // Borde más oscuro y visible
-    doc.setLineWidth(1.5) // Borde más grueso
-    doc.roundedRect(qrX - 8, yPos - 8, qrSize + 16, qrSize + 16, 4, 4, 'FD')
+    doc.setDrawColor(...colors.primaryDark)
+    doc.setLineWidth(2)
+    doc.roundedRect(qrX - 10, yPos - 10, qrSize + 20, qrSize + 20, 5, 5, 'FD')
     
-    // QR centrado con mejor tamaño
+    // QR centrado y grande
     doc.addImage(qrCodeBase64, 'PNG', qrX, yPos, qrSize, qrSize)
     
-    // Texto debajo del QR
-    yPos += qrSize + 20
-    doc.setTextColor(...colors.darkText)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(12)
-    doc.text('CÓDIGO QR VÁLIDO PARA LA ENTRADA', pageWidth / 2, yPos, { align: 'center' })
-    
-    yPos += 8
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.text('Si no puedes descargar el PDF, este QR también es válido para el acceso', 
-             pageWidth / 2, yPos, { align: 'center', maxWidth: pageWidth - 40 })
-
-    // === TÉRMINOS IMPORTANTES (Estilo del email) ===
-    yPos += 20
-    
-    // Caja amarilla de términos (igual que en email)
-    doc.setFillColor(255, 243, 205) // #fff3cd
-    doc.setDrawColor(255, 238, 186) // #ffeeba
-    doc.setLineWidth(0.5)
-    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 35, 3, 3, 'FD')
-    
-    // Título de términos
-    yPos += 10
-    doc.setTextColor(133, 100, 4) // #856404
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(12)
-    doc.text('Términos Importantes', margin + 10, yPos)
-    
-    // Lista de términos en dos columnas (como en email)
-    yPos += 8
-    doc.setFontSize(10)
-    
-    const leftTerms = [
-      'Entrada personal para ' + (guestData.name || 'titular'),
-      'Una sola entrada por código QR',
-      'No transferible a terceros'
-    ]
-    
-    const rightTerms = [
-      'Derecho de admisión reservado',
-      'Aforo limitado según disponibilidad',
-      'Sin bebidas externas permitidas'
-    ]
-    
-    leftTerms.forEach((term, index) => {
-      doc.text('• ' + term, margin + 10, yPos + (index * 6))
-    })
-    
-    rightTerms.forEach((term, index) => {
-      doc.text('• ' + term, pageWidth / 2 + 10, yPos + (index * 6))
-    })
-
-    // === CALL TO ACTION FINAL (Como en email) ===
-    yPos += 25
-    
-    // Fondo con gradiente (igual que la sección de descarga)
-    const ctaHeight = 25
-    for (let i = 0; i < ctaHeight; i += 1) {
-      const ratio = i / ctaHeight
-      const r = Math.round(colors.primaryDark[0] + (colors.primaryBlue[0] - colors.primaryDark[0]) * ratio)
-      const g = Math.round(colors.primaryDark[1] + (colors.primaryBlue[1] - colors.primaryDark[1]) * ratio)
-      const b = Math.round(colors.primaryDark[2] + (colors.primaryBlue[2] - colors.primaryDark[2]) * ratio)
-      
-      doc.setFillColor(r, g, b)
-      doc.rect(margin, yPos + i, pageWidth - (margin * 2), 1, 'F')
-    }
-    
-    // Hacer bordes redondeados
-    doc.setFillColor(...colors.primaryDark)
-    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), ctaHeight, 4, 4, 'F')
-    
-    // Aplicar gradiente
-    for (let i = 0; i < ctaHeight; i += 1) {
-      const ratio = i / ctaHeight
-      const r = Math.round(colors.primaryDark[0] + (colors.primaryBlue[0] - colors.primaryDark[0]) * ratio)
-      const g = Math.round(colors.primaryDark[1] + (colors.primaryBlue[1] - colors.primaryDark[1]) * ratio)
-      const b = Math.round(colors.primaryDark[2] + (colors.primaryBlue[2] - colors.primaryDark[2]) * ratio)
-      
-      doc.setFillColor(r, g, b)
-      doc.rect(margin, yPos + i, pageWidth - (margin * 2), 1, 'F')
-    }
-    
-    // Texto del CTA
-    doc.setTextColor(...colors.white)
+    // Texto importante debajo del QR
+    yPos += qrSize + 25
+    doc.setTextColor(...colors.primaryDark)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(14)
-    doc.text('¡Nos Vemos Pronto!', pageWidth / 2, yPos + 10, { align: 'center' })
+    doc.text('CÓDIGO VÁLIDO PARA LA ENTRADA', pageWidth / 2, yPos, { align: 'center' })
     
+    yPos += 10
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(11)
-    doc.text(`${eventData.name || 'Evento'} • ${formatEventDate(eventData.date)}`, 
-             pageWidth / 2, yPos + 18, { align: 'center' })
+    doc.text('Entrada personal e intransferible', pageWidth / 2, yPos, { align: 'center' })
 
-    // === FOOTER (Como en email) ===
-    const footerY = pageHeight - 20
+    // === INFORMACIÓN BÁSICA RESUMIDA ===
+    yPos += 20
+    
+    doc.setFillColor(...colors.lightGray)
+    doc.setDrawColor(...colors.borderGray)
+    doc.setLineWidth(0.5)
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 25, 3, 3, 'FD')
+    
+    yPos += 8
+    doc.setTextColor(...colors.darkText)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.text('Términos:', margin + 10, yPos)
+    doc.text('• Entrada única y personal  • Llegar 15 min antes  • Derecho de admisión reservado', margin + 10, yPos + 6)
+    doc.text(`• Válido para: ${guestData.name || 'Invitado'}  • Evento: ${eventData.name || 'Evento'}`, margin + 10, yPos + 12)
+
+    // === FOOTER SIMPLIFICADO ===
+    const footerY = pageHeight - 15
     
     // Línea separadora
     doc.setDrawColor(...colors.borderGray)
-    doc.setLineWidth(0.5)
-    doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
+    doc.setLineWidth(0.3)
+    doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3)
     
-    // Texto del footer
-    doc.setTextColor(102, 102, 102) // #666
+    // Texto del footer minimalista
+    doc.setTextColor(102, 102, 102)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    
-    doc.text('Sistema de Entradas Digitales', pageWidth / 2, footerY - 10, { align: 'center' })
+    doc.setFontSize(8)
     
     const currentDate = new Date().toLocaleDateString('es-ES', {
       day: '2-digit',
@@ -307,8 +210,8 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       year: 'numeric'
     })
     
-    doc.text(`Generado el ${currentDate}`, pageWidth / 2, footerY - 5, { align: 'center' })
-    doc.text('Para cambios, contacta directamente con el organizador', pageWidth / 2, footerY, { align: 'center' })
+    doc.text(`Entrada generada el ${currentDate} • Para consultas, contacta al organizador`, 
+             pageWidth / 2, footerY, { align: 'center' })
 
     // Generar PDF
     const pdfOutput = doc.output('datauristring')
@@ -326,41 +229,66 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
 }
 
 /**
- * *** FUNCIÓN CORREGIDA PARA FORMATEAR FECHA DEL EVENTO ***
- * Formatear fecha del evento (no fecha actual)
+ * *** FUNCIÓN ESPECÍFICA Y CORREGIDA PARA FORMATEAR FECHA DEL EVENTO ***
  */
-const formatEventDate = (eventDateInput) => {
-  if (!eventDateInput) return 'Fecha por confirmar'
+const formatEventDateFixed = (eventDateInput) => {
+  console.log('DEBUG formatEventDateFixed - Input recibido:', eventDateInput)
+  console.log('DEBUG formatEventDateFixed - Tipo:', typeof eventDateInput)
+  
+  if (!eventDateInput) {
+    console.log('DEBUG - No hay fecha, retornando por defecto')
+    return 'Fecha por confirmar'
+  }
   
   try {
     let eventDate
     
-    // Convertir diferentes formatos a Date
+    // Manejar diferentes formatos
     if (typeof eventDateInput === 'string') {
+      console.log('DEBUG - Procesando string:', eventDateInput)
       eventDate = new Date(eventDateInput)
     } else if (typeof eventDateInput === 'number') {
+      console.log('DEBUG - Procesando number (timestamp):', eventDateInput)
       eventDate = new Date(eventDateInput)
     } else if (eventDateInput instanceof Date) {
+      console.log('DEBUG - Ya es objeto Date')
       eventDate = eventDateInput
     } else {
+      console.log('DEBUG - Formato no reconocido')
       return 'Fecha por confirmar'
     }
     
-    // Verificar que la fecha sea válida
+    // Verificar validez
     if (isNaN(eventDate.getTime())) {
+      console.log('DEBUG - Fecha inválida después de conversión')
       return 'Fecha por confirmar'
     }
     
-    // Formatear la fecha del evento correctamente
-    return eventDate.toLocaleDateString('es-ES', {
+    // Formatear
+    const formatted = eventDate.toLocaleDateString('es-ES', {
       day: 'numeric',
-      month: 'long',
-      year: 'numeric'
+      month: 'long', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     })
+    
+    console.log('DEBUG - Fecha formateada:', formatted)
+    return formatted
+    
   } catch (error) {
-    console.warn('Error formateando fecha del evento:', error)
+    console.error('DEBUG - Error formateando fecha:', error)
     return 'Fecha por confirmar'
   }
+}
+
+/**
+ * *** FUNCIÓN CORREGIDA PARA FORMATEAR FECHA DEL EVENTO ***
+ * Formatear fecha del evento (no fecha actual) - AHORA USA LA FUNCIÓN ESPECÍFICA
+ */
+const formatEventDate = (eventDateInput) => {
+  // Redirigir a la función específica con debug
+  return formatEventDateFixed(eventDateInput)
 }
 
 /**
