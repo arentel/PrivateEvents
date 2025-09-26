@@ -173,11 +173,11 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
     doc.roundedRect(margin, footerY - 3, pageWidth - (margin * 2), 16, 3, 3, 'FD')  // Más pequeño
 
     // === LOGO GAUDÍ - FONDO MÁS OSCURO PARA CONTRASTE ===
-    const footerY = pageHeight - 20
+    yPos = pageHeight - 20  // Reutilizar yPos en lugar de declarar footerY de nuevo
 
     // Fondo del mismo color que el header para contraste con logo blanco
     doc.setFillColor(...colors.primaryDark)  // Mismo color que header
-    doc.roundedRect(margin, footerY - 3, pageWidth - (margin * 2), 16, 3, 3, 'F')
+    doc.roundedRect(margin, yPos - 3, pageWidth - (margin * 2), 16, 3, 3, 'F')
 
     // Cargar el logo Gaudí
     try {
@@ -204,13 +204,13 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
         const logoSize = 12
         const logoX = pageWidth / 2 - logoSize / 2
         
-        doc.addImage(logoSrc, 'PNG', logoX, footerY - 1, logoSize, logoSize)
+        doc.addImage(logoSrc, 'PNG', logoX, yPos - 1, logoSize, logoSize)
         
         // Texto blanco debajo del logo
         doc.setTextColor(...colors.white)
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(8)
-        doc.text('Sistema de Entradas Digitales', pageWidth / 2, footerY + 11, { align: 'center' })
+        doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 11, { align: 'center' })
       } else {
         throw new Error('Logo no encontrado')
       }
@@ -221,11 +221,11 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       doc.setTextColor(...colors.white)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(12)
-      doc.text('GAUDÍ', pageWidth / 2, footerY + 2, { align: 'center' })
+      doc.text('GAUDÍ', pageWidth / 2, yPos + 2, { align: 'center' })
       
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(8)
-      doc.text('Sistema de Entradas Digitales', pageWidth / 2, footerY + 8, { align: 'center' })
+      doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 8, { align: 'center' })
     }
 
     // Generar PDF
