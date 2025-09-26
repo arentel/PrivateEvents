@@ -73,7 +73,7 @@
               <h1>{{ ticketData.event.name }}</h1>
               <div class="event-details">
                 <p><ion-icon :icon="personOutline"></ion-icon> <strong>Invitado:</strong> {{ ticketData.guest.name }}</p>
-                <p><ion-icon :icon="calendarOutline"></ion-icon> <strong>Fecha:</strong> {{ formatDate(ticketData.event.date) }}</p>
+                <p><ion-icon :icon="calendarOutline"></ion-icon> <strong>Fecha:</strong> {{ formatEventDate(ticketData.event.date) }}</p>
                 <p><ion-icon :icon="locationOutline"></ion-icon> <strong>Lugar:</strong> {{ ticketData.event.location || 'Por confirmar' }}</p>
                 <p><ion-icon :icon="mailOutline"></ion-icon> <strong>Email:</strong> {{ ticketData.guest.email }}</p>
               </div>
@@ -98,12 +98,14 @@
               </p>
             </div>
 
-            <!-- Vista previa del QR -->
+            <!-- Vista previa del QR - MEJORADA PARA VERSE COMPLETO -->
             <div class="qr-preview" v-if="qrImageUrl">
               <h3>Vista previa del código QR:</h3>
-              <div class="qr-container">
-                <img :src="qrImageUrl" alt="Código QR" />
-                <p>También disponible en el PDF descargable</p>
+              <div class="qr-container-enhanced">
+                <div class="qr-image-wrapper">
+                  <img :src="qrImageUrl" alt="Código QR" />
+                </div>
+                <p class="qr-description">También disponible en el PDF descargable</p>
               </div>
             </div>
           </ion-card-content>
@@ -206,17 +208,30 @@ const showWelcomePage = computed(() => {
   return !downloadCode.value
 })
 
-// Formatear fecha
-const formatDate = (dateString: string | number) => {
-  if (!dateString) return 'Fecha por confirmar'
+// *** FUNCIÓN CORREGIDA PARA FORMATEAR FECHA DEL EVENTO ***
+const formatEventDate = (eventDate: string | number | Date) => {
+  if (!eventDate) return 'Fecha por confirmar'
   
   try {
-    const date = typeof dateString === 'number' ? new Date(dateString) : new Date(dateString)
+    let date: Date
     
+    // Convertir a Date objeto según el tipo de entrada
+    if (typeof eventDate === 'string') {
+      date = new Date(eventDate)
+    } else if (typeof eventDate === 'number') {
+      date = new Date(eventDate)
+    } else if (eventDate instanceof Date) {
+      date = eventDate
+    } else {
+      return 'Fecha por confirmar'
+    }
+    
+    // Verificar que la fecha sea válida
     if (isNaN(date.getTime())) {
       return 'Fecha por confirmar'
     }
     
+    // Formatear la fecha del evento (no la actual)
     return date.toLocaleDateString('es-ES', {
       year: 'numeric',
       month: 'long',
@@ -225,7 +240,7 @@ const formatDate = (dateString: string | number) => {
       minute: '2-digit'
     })
   } catch (error) {
-    console.warn('Error formateando fecha:', error)
+    console.warn('Error formateando fecha del evento:', error)
     return 'Fecha por confirmar'
   }
 }
@@ -283,12 +298,17 @@ const downloadPDF = async () => {
   }
 }
 
-// Generar vista previa del QR
+// *** FUNCIÓN MEJORADA PARA GENERAR VISTA PREVIA DEL QR - MÁS GRANDE ***
 const generateQRPreview = async () => {
   if (!ticketData.value || !ticketData.value.qrCode) return
   
   try {
-    const qrImage = generateQRImage(ticketData.value.qrCode, { size: 300 })
+    // Generar QR más grande para vista previa completa
+    const qrImage = generateQRImage(ticketData.value.qrCode, { 
+      size: 400, // Tamaño más grande
+      margin: 2,
+      errorCorrectionLevel: 'H'
+    })
     qrImageUrl.value = qrImage
   } catch (error) {
     console.error('Error generando vista previa del QR:', error)
@@ -320,6 +340,7 @@ const loadTicketData = async () => {
     }
     
     console.log('✅ Ticket encontrado en BD:', data.guest.name, '-', data.event.name)
+    console.log('📅 Fecha del evento:', data.event.date)
     
     ticketData.value = data
     
@@ -532,6 +553,7 @@ watch(() => route.params.code, async (newCode) => {
   font-style: italic;
 }
 
+/* *** ESTILOS MEJORADOS PARA QR COMPLETO Y VISIBLE *** */
 .qr-preview {
   margin-top: 24px;
   text-align: center;
@@ -539,27 +561,47 @@ watch(() => route.params.code, async (newCode) => {
 
 .qr-preview h3 {
   color: var(--ion-color-dark);
-  margin-bottom: 16px;
+  margin-bottom: 20px;
+  font-size: 1.2rem;
 }
 
-.qr-container {
-  background: white;
-  padding: 20px;
-  border-radius: 12px;
-  border: 2px dashed var(--ion-color-medium);
+.qr-container-enhanced {
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 16px;
+  border: 2px solid var(--ion-color-primary);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   display: inline-block;
+  max-width: 100%;
 }
 
-.qr-container img {
-  max-width: 300px;
+.qr-image-wrapper {
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.qr-image-wrapper img {
+  width: 100%;
   height: auto;
+  max-width: 280px;
+  min-width: 200px;
   border-radius: 8px;
+  /* Asegurar que la imagen se vea completa */
+  object-fit: contain;
+  display: block;
 }
 
-.qr-container p {
-  margin-top: 12px;
+.qr-description {
+  margin: 0;
   color: var(--ion-color-medium);
   font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .help-card {
@@ -616,8 +658,27 @@ watch(() => route.params.code, async (newCode) => {
     align-items: center;
   }
   
-  .qr-container img {
-    max-width: 250px;
+  /* QR responsive mejorado */
+  .qr-container-enhanced {
+    padding: 16px;
+    margin: 0 auto;
+  }
+  
+  .qr-image-wrapper img {
+    max-width: 240px;
+    min-width: 180px;
+  }
+  
+  .qr-preview h3 {
+    font-size: 1.1rem;
+  }
+}
+
+/* Asegurar alta calidad del QR en pantallas retina */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .qr-image-wrapper img {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
   }
 }
 </style>

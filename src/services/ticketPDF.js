@@ -79,7 +79,7 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
     
     const details = [
       ['Evento:', eventData.name || 'Evento'],
-      ['Fecha:', formatEventDate(eventData.date)],
+      ['Fecha:', formatEventDate(eventData.date)], // *** CORREGIDO: usar fecha del evento ***
       ['Ubicación:', eventData.location || 'Ubicación por confirmar'],
       ['Nombre:', guestData.name || 'Invitado'],
       ['Email:', guestData.email || '']
@@ -146,7 +146,7 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
     doc.setFontSize(9)
     doc.text('Válido por 7 días desde la recepción', pageWidth / 2, yPos + 42, { align: 'center' })
 
-    // === CÓDIGO QR CENTRADO ===
+    // === CÓDIGO QR CENTRADO - MEJORADO PARA VERSE COMPLETO ===
     yPos += gradientHeight + 20
     
     // Generar QR con los mismos datos que en el email
@@ -167,36 +167,41 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       }
     })
     
-    // QR de alta calidad
+    // *** QR DE ALTA CALIDAD Y TAMAÑO ADECUADO ***
     const qrCodeBase64 = await QRCode.toDataURL(qrData, {
-      width: 400,
+      width: 600, // Más resolución para mejor calidad
       margin: 2,
-      quality: 0.9,
+      quality: 1.0, // Máxima calidad
       color: {
         dark: '#000000',
         light: '#FFFFFF'
       },
-      errorCorrectionLevel: 'H'
+      errorCorrectionLevel: 'H' // Alto nivel de corrección de errores
     })
     
-    // Contenedor del QR (igual que en email - fondo blanco con borde)
-    const qrSize = 80
+    // *** CONTENEDOR DEL QR MEJORADO - MÁS GRANDE Y VISIBLE ***
+    const qrSize = 90 // Tamaño aumentado para que se vea completo
     const qrX = (pageWidth - qrSize) / 2
     
-    // Fondo blanco con borde como en el email
+    // Fondo blanco con borde más grueso como en el email
     doc.setFillColor(...colors.white)
-    doc.setDrawColor(...colors.borderGray)
-    doc.setLineWidth(1)
-    doc.roundedRect(qrX - 5, yPos - 5, qrSize + 10, qrSize + 10, 3, 3, 'FD')
+    doc.setDrawColor(...colors.primaryDark) // Borde más oscuro y visible
+    doc.setLineWidth(1.5) // Borde más grueso
+    doc.roundedRect(qrX - 8, yPos - 8, qrSize + 16, qrSize + 16, 4, 4, 'FD')
     
-    // QR centrado
+    // QR centrado con mejor tamaño
     doc.addImage(qrCodeBase64, 'PNG', qrX, yPos, qrSize, qrSize)
     
     // Texto debajo del QR
-    yPos += qrSize + 15
+    yPos += qrSize + 20
     doc.setTextColor(...colors.darkText)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(12)
+    doc.text('CÓDIGO QR VÁLIDO PARA LA ENTRADA', pageWidth / 2, yPos, { align: 'center' })
+    
+    yPos += 8
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(11)
+    doc.setFontSize(10)
     doc.text('Si no puedes descargar el PDF, este QR también es válido para el acceso', 
              pageWidth / 2, yPos, { align: 'center', maxWidth: pageWidth - 40 })
 
@@ -321,21 +326,39 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
 }
 
 /**
- * Formatear fecha como en el email
+ * *** FUNCIÓN CORREGIDA PARA FORMATEAR FECHA DEL EVENTO ***
+ * Formatear fecha del evento (no fecha actual)
  */
-const formatEventDate = (dateString) => {
-  if (!dateString) return 'Fecha por confirmar'
+const formatEventDate = (eventDateInput) => {
+  if (!eventDateInput) return 'Fecha por confirmar'
   
   try {
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return 'Fecha por confirmar'
+    let eventDate
     
-    return date.toLocaleDateString('es-ES', {
+    // Convertir diferentes formatos a Date
+    if (typeof eventDateInput === 'string') {
+      eventDate = new Date(eventDateInput)
+    } else if (typeof eventDateInput === 'number') {
+      eventDate = new Date(eventDateInput)
+    } else if (eventDateInput instanceof Date) {
+      eventDate = eventDateInput
+    } else {
+      return 'Fecha por confirmar'
+    }
+    
+    // Verificar que la fecha sea válida
+    if (isNaN(eventDate.getTime())) {
+      return 'Fecha por confirmar'
+    }
+    
+    // Formatear la fecha del evento correctamente
+    return eventDate.toLocaleDateString('es-ES', {
       day: 'numeric',
       month: 'long',
       year: 'numeric'
     })
   } catch (error) {
+    console.warn('Error formateando fecha del evento:', error)
     return 'Fecha por confirmar'
   }
 }
@@ -346,6 +369,7 @@ const formatEventDate = (dateString) => {
 export const generateTicketPDF = async (guestData, eventData, logoBase64 = null) => {
   try {
     console.log('Generando PDF de entrada:', guestData.name)
+    console.log('Fecha del evento recibida:', eventData.date)
     
     const base64PDF = await generateTicketForEmail(guestData, eventData, logoBase64)
     
