@@ -171,19 +171,19 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       }
 
       if (logoSrc) {
-        // Logo más ancho y mejor proporcionado
-        const logoWidth = 25   // Más ancho para mejor proporción
-        const logoHeight = 15  // Altura menor para mejor ratio
-        const logoX = (pageWidth - logoWidth) / 2  // Centrado perfecto
+        // Logo con proporciones naturales (cuadrado o rectangulo según el original)
+        const logoSize = 20     // Tamaño base
+        const logoX = (pageWidth - logoSize) / 2  // Centrado perfecto
         const logoY = yPos + 2  // Posición vertical
         
-        doc.addImage(logoSrc, 'PNG', logoX, logoY, logoWidth, logoHeight)
+        // Usar el mismo valor para ancho y alto para mantener proporción
+        doc.addImage(logoSrc, 'PNG', logoX, logoY, logoSize, logoSize)
         
         // Texto blanco más arriba y centrado
         doc.setTextColor(...colors.white)
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(9)
-        doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 20, { align: 'center' })  // Subido de 24 a 20
+        doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 26, { align: 'center' })  // Ajustado para el logo más grande
       } else {
         throw new Error('Logo no encontrado')
       }
