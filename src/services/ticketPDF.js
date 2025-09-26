@@ -13,15 +13,16 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       compress: true
     })
 
-    // Colores del diseño de referencia
+    // Colores originales del diseño
     const colors = {
-      primary: [102, 126, 234],      // Azul principal
-      primaryDark: [60, 80, 180],    // Azul más oscuro
-      white: [255, 255, 255],        
-      black: [0, 0, 0],              
-      gray: [128, 128, 128],         
-      lightGray: [245, 245, 245],    
-      text: [33, 33, 33]             
+      primaryDark: [13, 27, 42],      // #0d1b2a - Azul oscuro original
+      primaryBlue: [30, 58, 138],     // #1e3a8a - Azul del gradiente original
+      darkText: [51, 51, 51],         // #333333 - Texto principal
+      mediumGray: [85, 85, 85],       // #555555 - Labels
+      lightGray: [249, 249, 249],     // #f9f9f9 - Fondos claros
+      borderGray: [220, 220, 220],    // #dcdcdc - Bordes
+      white: [255, 255, 255],         // #ffffff
+      success: [40, 167, 69]          // #28a745 - Verde para válido
     }
 
     const pageWidth = 210
@@ -32,63 +33,77 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
     console.log('DEBUG - Fecha del evento recibida:', eventData.date)
     console.log('DEBUG - Tipo de fecha:', typeof eventData.date)
 
-    // === HEADER CON GRADIENTE AZUL ===
-    // Fondo azul degradado
-    for (let i = 0; i < 60; i++) {
-      const ratio = i / 60
-      const r = Math.round(colors.primary[0] + (colors.primaryDark[0] - colors.primary[0]) * ratio)
-      const g = Math.round(colors.primary[1] + (colors.primaryDark[1] - colors.primary[1]) * ratio)
-      const b = Math.round(colors.primary[2] + (colors.primaryDark[2] - colors.primary[2]) * ratio)
-      
-      doc.setFillColor(r, g, b)
-      doc.rect(0, i, pageWidth, 1, 'F')
-    }
-
-    // Título del evento
+    // === HEADER ORIGINAL ESTILO EMAIL ===
+    // Fondo del header
+    doc.setFillColor(...colors.primaryDark)
+    doc.rect(0, 0, pageWidth, 50, 'F')
+    
+    // Título principal
     doc.setTextColor(...colors.white)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(24)
+    doc.setFontSize(28)
     doc.text(eventData.name || 'EVENTO', pageWidth / 2, 25, { align: 'center' })
-
-    // Fecha del evento (CORREGIDA)
+    
+    // Subtítulo
     doc.setFontSize(14)
     doc.setFont('helvetica', 'normal')
-    const eventDateFormatted = formatEventDateFixed(eventData.date)
-    doc.text(eventDateFormatted, pageWidth / 2, 40, { align: 'center' })
+    doc.text('Tu entrada está confirmada', pageWidth / 2, 38, { align: 'center' })
 
-    // Ubicación si existe
-    if (eventData.location) {
-      doc.setFontSize(11)
-      doc.text(eventData.location, pageWidth / 2, 50, { 
-        align: 'center',
-        maxWidth: pageWidth - 30
-      })
-    }
-
-    // === INFORMACIÓN DEL INVITADO ===
-    let yPos = 80
-
-    // Nombre del invitado
-    doc.setTextColor(...colors.text)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(20)
-    doc.text(guestData.name || 'Invitado', pageWidth / 2, yPos, { align: 'center' })
-
-    yPos += 10
-    // Email
+    // === SALUDO PERSONAL ===
+    let yPos = 70
+    doc.setTextColor(...colors.primaryDark)
     doc.setFont('helvetica', 'normal')
+    doc.setFontSize(16)
+    doc.text(`Hola ${guestData.name || 'Invitado'},`, margin, yPos)
+    
+    yPos += 10
+    doc.setTextColor(...colors.darkText)
     doc.setFontSize(12)
-    doc.setTextColor(...colors.gray)
-    doc.text(guestData.email || '', pageWidth / 2, yPos, { align: 'center' })
+    doc.text('Tu entrada ha sido confirmada y está lista para usar.', margin, yPos)
 
-    yPos += 15
-    // Válido para 1 persona
-    doc.setTextColor(...colors.text)
+    // === DETALLES DEL EVENTO (Estilo original) ===
+    yPos += 20
+    
+    // Caja de detalles con el mismo estilo original
+    doc.setFillColor(...colors.lightGray)
+    doc.setDrawColor(...colors.borderGray)
+    doc.setLineWidth(0.5)
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 45, 3, 3, 'FD')
+    
+    // Título de la sección
+    yPos += 12
+    doc.setTextColor(...colors.primaryDark)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(13)
+    doc.text('Detalles del Evento', margin + 10, yPos)
+    
+    // Información básica y necesaria solamente
+    yPos += 8
     doc.setFontSize(11)
-    doc.text('Válido para 1 persona', pageWidth / 2, yPos, { align: 'center' })
+    
+    const details = [
+      ['Evento:', eventData.name || 'Evento'],
+      ['Fecha:', formatEventDateFixed(eventData.date)], // *** FECHA CORREGIDA ***
+      ['Invitado:', guestData.name || 'Invitado'],
+      ['Email:', guestData.email || '']
+    ]
+    
+    details.forEach((detail, index) => {
+      const rowY = yPos + (index * 6)
+      
+      // Label (negrita, color medio)
+      doc.setTextColor(...colors.mediumGray)
+      doc.setFont('helvetica', 'bold')
+      doc.text(detail[0], margin + 10, rowY)
+      
+      // Valor (normal, color oscuro)
+      doc.setTextColor(...colors.darkText)
+      doc.setFont('helvetica', 'normal')
+      doc.text(detail[1], margin + 45, rowY, { maxWidth: pageWidth - 75 })
+    })
 
-    // === CÓDIGO QR GRANDE CENTRADO ===
-    yPos += 25
+    // === CÓDIGO QR GRANDE PERO SIN CÓDIGO INNECESARIO ===
+    yPos += 30
 
     // Generar datos del QR
     const qrData = JSON.stringify({
@@ -120,94 +135,112 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       errorCorrectionLevel: 'H'
     })
 
-    // QR muy grande como en la referencia
-    const qrSize = 100
+    // QR grande y centrado
+    const qrSize = 110
     const qrX = (pageWidth - qrSize) / 2
 
     // Fondo blanco para el QR
     doc.setFillColor(...colors.white)
-    doc.setDrawColor(...colors.gray)
-    doc.setLineWidth(1)
-    doc.roundedRect(qrX - 5, yPos - 5, qrSize + 10, qrSize + 10, 2, 2, 'FD')
+    doc.setDrawColor(...colors.primaryDark)
+    doc.setLineWidth(2)
+    doc.roundedRect(qrX - 8, yPos - 8, qrSize + 16, qrSize + 16, 4, 4, 'FD')
 
     // Insertar QR
     doc.addImage(qrCodeBase64, 'PNG', qrX, yPos, qrSize, qrSize)
 
-    // Código de referencia debajo del QR
-    yPos += qrSize + 15
-    doc.setTextColor(...colors.text)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(16)
-    const referenceCode = options.downloadCode || generateRandomCode()
-    doc.text(referenceCode, pageWidth / 2, yPos, { align: 'center' })
-
-    // === INFORMACIÓN ADICIONAL ===
-    yPos += 25
-
-    // Caja con información adicional
-    doc.setFillColor(...colors.lightGray)
-    doc.setDrawColor(...colors.gray)
-    doc.setLineWidth(0.5)
-    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 40, 3, 3, 'FD')
-
-    yPos += 12
-    doc.setTextColor(...colors.primary)
+    // Texto importante debajo del QR
+    yPos += qrSize + 20
+    doc.setTextColor(...colors.primaryDark)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(14)
-    doc.text('DETALLES DE LA ENTRADA', margin + 10, yPos)
+    doc.text('PRESENTA ESTE CÓDIGO EN LA ENTRADA', pageWidth / 2, yPos, { align: 'center' })
 
     yPos += 8
-    doc.setTextColor(...colors.text)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(11)
+    doc.setTextColor(...colors.darkText)
+    doc.text('Entrada personal e intransferible', pageWidth / 2, yPos, { align: 'center' })
+
+    // === TÉRMINOS MÍNIMOS ===
+    yPos += 20
+    
+    doc.setFillColor(255, 243, 205) // #fff3cd - Amarillo claro como original
+    doc.setDrawColor(...colors.borderGray)
+    doc.setLineWidth(0.5)
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 18, 3, 3, 'FD')
+
+    yPos += 8
+    doc.setTextColor(133, 100, 4) // #856404 - Color amarillo oscuro original
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
+    doc.text('• Llegar 15 minutos antes del evento  • Derecho de admisión reservado  • Una entrada por código QR', 
+             margin + 10, yPos)
 
-    const details = [
-      `Evento: ${eventData.name || 'Evento'}`,
-      `Fecha: ${eventDateFormatted}`,
-      `Titular: ${guestData.name || 'Invitado'}`,
-      `Email: ${guestData.email || ''}`
-    ]
+    yPos += 6
+    doc.text('• Entrada válida solo para el titular registrado', margin + 10, yPos)
 
-    details.forEach((detail, index) => {
-      doc.text(detail, margin + 10, yPos + (index * 5))
-    })
+    // === LOGO GAUDÍ EN EL FOOTER ===
+    const footerY = pageHeight - 25
 
-    // === TÉRMINOS SIMPLES ===
-    yPos += 35
-    
-    doc.setFillColor(255, 248, 220) // Fondo amarillo claro
-    doc.setDrawColor(...colors.gray)
-    doc.setLineWidth(0.5)
-    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 20, 3, 3, 'FD')
-
-    yPos += 8
-    doc.setTextColor(...colors.text)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
-    doc.text('• Entrada personal e intransferible', margin + 10, yPos)
-    doc.text('• Presenta este código QR en la entrada', margin + 10, yPos + 5)
-    doc.text('• Llegar 15 minutos antes del evento', margin + 10, yPos + 10)
-
-    // === FOOTER MINIMALISTA ===
-    const footerY = pageHeight - 15
-
-    // Línea separadora
-    doc.setDrawColor(...colors.gray)
+    // Fondo gris claro para el logo (contraste con logo blanco)
+    doc.setFillColor(240, 240, 240) // Gris muy claro
+    doc.setDrawColor(...colors.borderGray)
     doc.setLineWidth(0.3)
-    doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
+    doc.roundedRect(margin, footerY - 5, pageWidth - (margin * 2), 20, 3, 3, 'FD')
 
-    // Texto del footer
-    doc.setTextColor(...colors.gray)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
+    // Cargar el logo Gaudí
+    try {
+      // Intentar cargar desde diferentes rutas posibles
+      let logoSrc = null
+      
+      if (logoBase64) {
+        // Si se pasa como parámetro
+        logoSrc = logoBase64
+      } else {
+        // Intentar cargar desde assets o public
+        try {
+          // Opción 1: src/assets/images/gaudi.png
+          logoSrc = await import('@/assets/images/gaudi.png')
+        } catch {
+          try {
+            // Opción 2: public/images/gaudi.png  
+            logoSrc = '/images/gaudi.png'
+          } catch {
+            // Opción 3: directamente en public
+            logoSrc = '/gaudi.png'
+          }
+        }
+      }
 
-    const currentDate = new Date().toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit', 
-      year: 'numeric'
-    })
-
-    doc.text(`Entrada generada el ${currentDate}`, pageWidth / 2, footerY, { align: 'center' })
+      if (logoSrc) {
+        // Convertir logo blanco a gris oscuro para mejor contraste
+        const logoSize = 15
+        const logoX = pageWidth / 2 - logoSize / 2
+        
+        // Añadir el logo
+        doc.addImage(logoSrc, 'PNG', logoX, footerY - 2, logoSize, logoSize)
+        
+        // Texto debajo del logo
+        doc.setTextColor(...colors.darkText)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(8)
+        doc.text('Sistema de Entradas Digitales', pageWidth / 2, footerY + 15, { align: 'center' })
+      } else {
+        throw new Error('Logo no encontrado')
+      }
+      
+    } catch (error) {
+      console.log('Logo no encontrado, usando texto:', error)
+      // Fallback si no se encuentra el logo
+      doc.setTextColor(...colors.darkText)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(12)
+      doc.text('GAUDÍ', pageWidth / 2, footerY + 2, { align: 'center' })
+      
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.text('Sistema de Entradas Digitales', pageWidth / 2, footerY + 8, { align: 'center' })
+    }
 
     // Generar PDF
     const pdfOutput = doc.output('datauristring')
@@ -260,15 +293,14 @@ const formatEventDateFixed = (eventDateInput) => {
       return 'Fecha por confirmar'
     }
 
-    // Formatear como en el ejemplo
+    // Formatear en español estilo original
     const formatted = eventDate.toLocaleDateString('es-ES', {
-      weekday: 'long',
       day: 'numeric',
-      month: 'short',
+      month: 'long',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
-    }).toUpperCase()
+    })
 
     console.log('DEBUG - Fecha formateada:', formatted)
     return formatted
@@ -280,18 +312,6 @@ const formatEventDateFixed = (eventDateInput) => {
 }
 
 /**
- * Generar código aleatorio de referencia
- */
-const generateRandomCode = () => {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  let result = ''
-  for (let i = 0; i < 8; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return result
-}
-
-/**
  * Generar PDF para descarga directa
  */
 export const generateTicketPDF = async (guestData, eventData, logoBase64 = null) => {
@@ -299,7 +319,21 @@ export const generateTicketPDF = async (guestData, eventData, logoBase64 = null)
     console.log('Generando PDF de entrada:', guestData.name)
     console.log('Fecha del evento recibida:', eventData.date)
     
-    const base64PDF = await generateTicketForEmail(guestData, eventData, logoBase64)
+    // Si no se pasa logo, intentar cargarlo
+    let logoToUse = logoBase64
+    if (!logoToUse) {
+      try {
+        // Intentar cargar el logo desde diferentes ubicaciones
+        const logoModule = await import('@/assets/images/gaudi.png')
+        logoToUse = logoModule.default
+      } catch (error) {
+        console.log('Logo no encontrado en assets, intentando public folder:', error)
+        // Si no se encuentra en assets, usar ruta pública
+        logoToUse = '/images/gaudi.png'
+      }
+    }
+    
+    const base64PDF = await generateTicketForEmail(guestData, eventData, logoToUse)
     
     // Crear blob y descargar
     const byteCharacters = atob(base64PDF)
