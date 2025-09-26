@@ -132,48 +132,24 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
     doc.addImage(qrCodeBase64, 'PNG', qrX, yPos, qrSize, qrSize)
 
     // Texto debajo del QR - más compacto
-    yPos += qrSize + 15  // Reducido de 20 a 15
+    yPos += qrSize + 15
     doc.setTextColor(...colors.primaryDark)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(14)
     doc.text('PRESENTA ESTE CÓDIGO EN LA ENTRADA', pageWidth / 2, yPos, { align: 'center' })
 
-    yPos += 6  // Reducido de 8 a 6
+    yPos += 6
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(11)
     doc.setTextColor(...colors.darkText)
     doc.text('Entrada personal e intransferible', pageWidth / 2, yPos, { align: 'center' })
 
-    // === TÉRMINOS MÁS COMPACTOS ===
-    yPos += 15  // Reducido de 20 a 15
-    
-    doc.setFillColor(255, 243, 205) // #fff3cd - Amarillo claro como original
-    doc.setDrawColor(...colors.borderGray)
-    doc.setLineWidth(0.5)
-    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 15, 3, 3, 'FD')  // Reducido de 18 a 15
-
-    yPos += 6  // Reducido de 8 a 6
-    doc.setTextColor(133, 100, 4) // #856404 - Color amarillo oscuro original
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)  // Reducido de 10 a 9
-    doc.text('• Llegar 15 min antes  • Derecho de admisión reservado  • Una entrada por QR  • Solo para titular registrado', 
-             margin + 8, yPos)  // Todo en una línea
-
-    // === LOGO GAUDÍ - MEJOR POSICIONADO ===
-    const footerY = pageHeight - 20  // Subido de 25 a 20
-
-    // Fondo gris claro más pequeño y limpio
-    doc.setFillColor(240, 240, 240)
-    doc.setDrawColor(...colors.borderGray)
-    doc.setLineWidth(0.3)
-    doc.roundedRect(margin, footerY - 3, pageWidth - (margin * 2), 16, 3, 3, 'FD')  // Más pequeño
-
-    // === LOGO GAUDÍ - FONDO MÁS OSCURO PARA CONTRASTE ===
-    yPos = pageHeight - 20  // Reutilizar yPos en lugar de declarar footerY de nuevo
+    // === FOOTER EXTENDIDO CON LOGO GAUDÍ CENTRADO ===
+    yPos = pageHeight - 35  // Footer más alto para logo más grande
 
     // Fondo del mismo color que el header para contraste con logo blanco
-    doc.setFillColor(...colors.primaryDark)  // Mismo color que header
-    doc.roundedRect(margin, yPos - 3, pageWidth - (margin * 2), 16, 3, 3, 'F')
+    doc.setFillColor(...colors.primaryDark)
+    doc.roundedRect(margin, yPos - 5, pageWidth - (margin * 2), 30, 4, 4, 'F')
 
     // Cargar el logo Gaudí
     try {
@@ -195,32 +171,33 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       }
 
       if (logoSrc) {
-        // Logo más grande y visible
-        const logoSize = 20  // Aumentado de 12 a 20
-        const logoX = pageWidth / 2 - logoSize / 2
+        // Logo perfectamente centrado y más grande
+        const logoSize = 18  // Tamaño optimizado
+        const logoX = (pageWidth - logoSize) / 2  // Centrado perfecto
+        const logoY = yPos + 3  // Centrado verticalmente en el footer
         
-        doc.addImage(logoSrc, 'PNG', logoX, yPos + 2, logoSize, logoSize)
+        doc.addImage(logoSrc, 'PNG', logoX, logoY, logoSize, logoSize)
         
-        // Texto blanco debajo del logo
+        // Texto blanco debajo del logo, también centrado
         doc.setTextColor(...colors.white)
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(9)
-        doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 26, { align: 'center' })
+        doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 24, { align: 'center' })
       } else {
         throw new Error('Logo no encontrado')
       }
       
     } catch (error) {
       console.log('Logo no encontrado, usando texto:', error)
-      // Fallback con texto blanco sobre fondo azul oscuro
+      // Fallback con texto blanco centrado
       doc.setTextColor(...colors.white)
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(16)  // Texto más grande también
-      doc.text('GAUDÍ', pageWidth / 2, yPos + 8, { align: 'center' })
+      doc.setFontSize(16)
+      doc.text('GAUDÍ', pageWidth / 2, yPos + 12, { align: 'center' })
       
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
-      doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 16, { align: 'center' })
+      doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 20, { align: 'center' })
     }
 
     // Generar PDF
