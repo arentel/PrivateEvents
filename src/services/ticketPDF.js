@@ -145,11 +145,11 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
     doc.text('Entrada personal e intransferible', pageWidth / 2, yPos, { align: 'center' })
 
     // === FOOTER EXTENDIDO CON LOGO GAUDÍ CENTRADO ===
-    yPos = pageHeight - 40  // Footer más alto para acomodar logo grande y texto
+    yPos = pageHeight - 32  // Footer un poco más abajo (era 40, ahora 32)
 
     // Fondo del mismo color que el header para contraste con logo blanco
     doc.setFillColor(...colors.primaryDark)
-    doc.roundedRect(margin, yPos - 5, pageWidth - (margin * 2), 35, 4, 4, 'F')  // Footer más alto: 35mm
+    doc.roundedRect(margin, yPos - 5, pageWidth - (margin * 2), 35, 4, 4, 'F')
 
     // Cargar el logo Gaudí
     try {
@@ -171,19 +171,20 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       }
 
       if (logoSrc) {
-        // Logo con proporciones naturales
-        const logoSize = 20     // Tamaño base
-        const logoX = (pageWidth - logoSize) / 2  // Centrado perfecto
+        // Logo ligeramente más ancho para mejor proporción
+        const logoWidth = 24   // Un poco más ancho
+        const logoHeight = 18  // Proporción natural
+        const logoX = (pageWidth - logoWidth) / 2  // Centrado perfecto
         const logoY = yPos + 2  // Posición vertical
         
-        // Usar el mismo valor para ancho y alto para mantener proporción
-        doc.addImage(logoSrc, 'PNG', logoX, logoY, logoSize, logoSize)
+        // Dimensiones sutilmente más anchas
+        doc.addImage(logoSrc, 'PNG', logoX, logoY, logoWidth, logoHeight)
         
         // Texto blanco dentro del footer
         doc.setTextColor(...colors.white)
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(9)
-        doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 25, { align: 'center' })  // Dentro del footer
+        doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 25, { align: 'center' })
       } else {
         throw new Error('Logo no encontrado')
       }
