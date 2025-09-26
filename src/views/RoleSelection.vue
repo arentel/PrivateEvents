@@ -2,97 +2,138 @@
   <ion-page>
     <ion-content class="role-selection-content">
       <div class="role-selection-container">
-        <!-- Logo/Header -->
+        <!-- Header con estilo del template -->
         <div class="role-header">
           <div class="logo">
-            <ion-icon :icon="businessOutline" size="large" color="primary"></ion-icon>
+            <ion-icon :icon="businessOutline" size="large"></ion-icon>
           </div>
           <h1>Sistema QR Eventos</h1>
           <p>Selecciona tu tipo de acceso</p>
         </div>
 
-        <!-- Opciones de rol -->
+        <!-- Opciones de rol con estilo actualizado -->
         <div class="role-options">
           <!-- Administrador -->
-          <ion-card 
-            button 
-            @click="goToAdminLogin" 
-            class="role-card admin-card"
-          >
-            <ion-card-content>
+          <div class="role-card admin-card" @click="goToAdminLogin">
+            <div class="role-card-content">
               <div class="role-icon">
                 <ion-icon :icon="settingsOutline" size="large"></ion-icon>
               </div>
               <h2>Administrador</h2>
               <p>Acceso completo al sistema</p>
-              <ul class="role-features">
-                <li>Gestión de invitados</li>
-                <li>Envío de invitaciones</li>
-                <li>Reportes y estadísticas</li>
-                <li>Configuración de eventos</li>
-              </ul>
+              
+              <div class="role-features-container">
+                <h3>Funcionalidades:</h3>
+                <div class="role-features-grid">
+                  <div class="feature-item">
+                    <span class="feature-icon">👥</span>
+                    <span>Gestión de invitados</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">📧</span>
+                    <span>Envío de invitaciones</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">📊</span>
+                    <span>Reportes y estadísticas</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">⚙️</span>
+                    <span>Configuración de eventos</span>
+                  </div>
+                </div>
+              </div>
+              
               <div class="role-action">
                 <ion-icon :icon="arrowForwardOutline"></ion-icon>
                 <span>Iniciar como Admin</span>
               </div>
-            </ion-card-content>
-          </ion-card>
+            </div>
+          </div>
 
           <!-- Empleado -->
-          <ion-card 
-            button 
-            @click="goToEmployeeLogin" 
-            class="role-card employee-card"
-          >
-            <ion-card-content>
+          <div class="role-card employee-card" @click="goToEmployeeLogin">
+            <div class="role-card-content">
               <div class="role-icon">
                 <ion-icon :icon="scanOutline" size="large"></ion-icon>
               </div>
               <h2>Empleado</h2>
               <p>Acceso al escáner QR</p>
-              <ul class="role-features">
-                <li>Escáner de códigos QR</li>
-                <li>Validación de entradas</li>
-                <li>Control de acceso</li>
-                <li>Estadísticas básicas</li>
-              </ul>
+              
+              <div class="role-features-container">
+                <h3>Funcionalidades:</h3>
+                <div class="role-features-grid">
+                  <div class="feature-item">
+                    <span class="feature-icon">📱</span>
+                    <span>Escáner de códigos QR</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">✅</span>
+                    <span>Validación de entradas</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">🔒</span>
+                    <span>Control de acceso</span>
+                  </div>
+                  <div class="feature-item">
+                    <span class="feature-icon">📈</span>
+                    <span>Estadísticas básicas</span>
+                  </div>
+                </div>
+              </div>
+              
               <div class="role-action">
                 <ion-icon :icon="arrowForwardOutline"></ion-icon>
                 <span>Iniciar como Empleado</span>
               </div>
-            </ion-card-content>
-          </ion-card>
+            </div>
+          </div>
         </div>
 
-        <!-- Información adicional -->
+        <!-- Información adicional con estilo del template -->
         <div class="info-section">
-          <ion-card class="info-card">
-            <ion-card-content>
+          <div class="info-card">
+            <div class="info-card-content">
               <h3>
                 <ion-icon :icon="informationCircleOutline"></ion-icon>
                 ¿Necesitas ayuda?
               </h3>
               <div class="help-content">
-                <div class="help-item">
-                  <strong>Administrador:</strong> Para gestión completa del evento, configuración y reportes
+                <div class="help-item admin-help">
+                  <div class="help-header">
+                    <strong>👨‍💼 Administrador:</strong>
+                  </div>
+                  <div class="help-description">
+                    Para gestión completa del evento, configuración y reportes
+                  </div>
                 </div>
-                <div class="help-item">
-                  <strong>Empleado:</strong> Para personal de puerta que solo necesita validar entradas
+                <div class="help-item employee-help">
+                  <div class="help-header">
+                    <strong>👨‍💻 Empleado:</strong>
+                  </div>
+                  <div class="help-description">
+                    Para personal de puerta que solo necesita validar entradas
+                  </div>
                 </div>
-                <div class="help-item">
-                  <strong>¿No tienes credenciales?</strong> Contacta con el organizador del evento
+                <div class="help-item contact-help">
+                  <div class="help-header">
+                    <strong>🔑 ¿No tienes credenciales?</strong>
+                  </div>
+                  <div class="help-description">
+                    Contacta con el organizador del evento
+                  </div>
                 </div>
               </div>
-            </ion-card-content>
-          </ion-card>
+            </div>
+          </div>
         </div>
 
-        <!-- Footer -->
+        <!-- Footer actualizado -->
         <div class="role-footer">
-          <p>
+          <div class="security-badge">
             <ion-icon :icon="shieldCheckmarkOutline"></ion-icon>
-            Sistema seguro de gestión de eventos
-          </p>
+            <span>Sistema seguro de gestión de eventos</span>
+          </div>
           <div class="version-info">
             Sistema QR v1.0 - Desarrollado por Adri
           </div>
@@ -107,8 +148,6 @@ import { useRouter } from 'vue-router'
 import {
   IonPage,
   IonContent,
-  IonCard,
-  IonCardContent,
   IonIcon
 } from '@ionic/vue'
 import {
@@ -132,26 +171,50 @@ const goToEmployeeLogin = () => {
 </script>
 
 <style scoped>
+/* Variables de estilo basadas en el template de email */
+:root {
+  --template-primary: #0d1b2a;
+  --template-secondary: #1e3a8a;
+  --template-bg-light: #f4f4f4;
+  --template-bg-card: #f9f9f9;
+  --template-bg-section: #f8f9fa;
+  --template-border: #e0e0e0;
+  --template-border-light: #dcdcdc;
+  --template-text-muted: #666;
+  --template-text-dark: #333;
+  --template-warning-bg: #fff3cd;
+  --template-warning-border: #ffeeba;
+  --template-warning-text: #856404;
+  --template-info-bg: #f0f8ff;
+  --template-info-border: #b3d9ff;
+  --template-info-text: #0066cc;
+}
+
 .role-selection-content {
-  --background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --background: var(--template-bg-light);
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  padding: 20px 0;
+  padding: 35px 0;
 }
 
 .role-selection-container {
   width: 100%;
   max-width: 800px;
-  padding: 20px;
+  padding: 30px;
   margin: 0 auto;
 }
 
+/* Header con gradiente del template */
 .role-header {
-  text-align: center;
-  margin-bottom: 40px;
+  background: linear-gradient(135deg, var(--template-primary) 0%, var(--template-secondary) 100%);
   color: white;
+  padding: 35px 30px;
+  text-align: center;
+  border-radius: 8px;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 20px rgba(13, 27, 42, 0.15);
 }
 
 .logo {
@@ -160,56 +223,50 @@ const goToEmployeeLogin = () => {
 
 .role-header h1 {
   font-size: 2.5rem;
-  font-weight: 800;
+  font-weight: 700;
   margin: 0 0 12px 0;
-  text-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 .role-header p {
   font-size: 1.2rem;
-  opacity: 0.95;
+  opacity: 0.9;
   margin: 0;
   font-weight: 500;
 }
 
+/* Cards de rol con estilo del template */
 .role-options {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 25px;
   margin-bottom: 30px;
 }
 
 .role-card {
-  margin: 0;
-  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid var(--template-border);
+  border-radius: 8px;
   overflow: hidden;
   transition: all 0.3s ease;
   cursor: pointer;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 .role-card:hover {
-  transform: translateY(-8px);
-  box-shadow: 0 16px 48px rgba(0,0,0,0.25);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  border-color: var(--template-primary);
 }
 
-.admin-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-}
-
-.employee-card {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-  color: white;
-}
-
-.role-card ion-card-content {
-  padding: 32px 24px;
-  text-align: center;
+.role-card-content {
+  padding: 35px 30px;
 }
 
 .role-icon {
+  text-align: center;
   margin-bottom: 20px;
+  color: var(--template-primary);
 }
 
 .role-icon ion-icon {
@@ -220,111 +277,170 @@ const goToEmployeeLogin = () => {
   font-size: 1.8rem;
   font-weight: 700;
   margin: 0 0 12px 0;
+  color: var(--template-primary);
+  text-align: center;
 }
 
 .role-card p {
   font-size: 1.1rem;
-  opacity: 0.9;
-  margin: 0 0 20px 0;
+  color: var(--template-text-dark);
+  margin: 0 0 25px 0;
+  text-align: center;
+  opacity: 0.8;
 }
 
-.role-features {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 24px 0;
+/* Features con estilo de tabla del template */
+.role-features-container {
+  background: var(--template-bg-card);
+  border: 1px solid var(--template-border-light);
+  padding: 20px;
+  border-radius: 6px;
+  margin: 20px 0;
 }
 
-.role-features li {
-  padding: 6px 0;
+.role-features-container h3 {
+  margin: 0 0 15px 0;
+  font-size: 1.1rem;
+  color: var(--template-primary);
+  font-weight: 600;
+}
+
+.role-features-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
   font-size: 0.95rem;
-  opacity: 0.9;
-  position: relative;
+  color: var(--template-text-dark);
 }
 
-.role-features li:before {
-  content: "✓";
-  margin-right: 8px;
-  font-weight: bold;
+.feature-icon {
+  font-size: 1.1rem;
+  width: 24px;
+  text-align: center;
 }
 
+/* Botón de acción con gradiente del template */
 .role-action {
+  background: linear-gradient(135deg, var(--template-primary) 0%, var(--template-secondary) 100%);
+  color: white;
+  padding: 18px 35px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 1.1rem;
+  margin-top: 25px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  font-weight: 600;
-  font-size: 1.1rem;
-  margin-top: 16px;
-  padding: 12px 20px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 12px;
-  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(13, 27, 42, 0.2);
 }
 
+.role-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(13, 27, 42, 0.3);
+}
+
+/* Sección de información con estilo del template */
 .info-section {
   margin-bottom: 30px;
 }
 
 .info-card {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  margin: 0;
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  background: #ffffff;
+  border: 1px solid var(--template-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.info-card-content {
+  padding: 25px 30px;
 }
 
 .info-card h3 {
-  color: var(--ion-color-primary);
+  color: var(--template-primary);
   font-weight: 600;
-  margin-bottom: 16px;
+  font-size: 1.2rem;
+  margin: 0 0 20px 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .help-content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 15px;
 }
 
 .help-item {
-  padding: 12px 16px;
-  background: #f8f9fa;
-  border-radius: 8px;
+  background: var(--template-bg-section);
+  border: 1px solid #e9ecef;
+  padding: 20px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.help-item:hover {
+  background: #ffffff;
+  border-color: var(--template-border);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.help-header {
+  margin-bottom: 8px;
+  color: var(--template-primary);
+  font-size: 1rem;
+}
+
+.help-description {
+  color: var(--template-text-muted);
   font-size: 0.95rem;
   line-height: 1.5;
 }
 
-.help-item strong {
-  color: var(--ion-color-primary);
-}
-
+/* Footer con estilo del template */
 .role-footer {
+  background: var(--template-bg-section);
+  padding: 25px;
   text-align: center;
-  color: white;
-  opacity: 0.9;
+  border: 1px solid var(--template-border);
+  border-radius: 6px;
 }
 
-.role-footer p {
+.security-badge {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin: 0 0 8px 0;
+  margin: 0 0 10px 0;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 600;
+  color: var(--template-text-muted);
 }
 
 .version-info {
   font-size: 0.85rem;
-  opacity: 0.7;
+  color: #999;
+  line-height: 1.4;
 }
 
-/* Responsive */
+/* Responsive mejorado */
 @media (max-width: 768px) {
   .role-selection-container {
-    padding: 16px;
+    padding: 20px;
+  }
+  
+  .role-header {
+    padding: 25px 20px;
+    margin-bottom: 20px;
   }
   
   .role-header h1 {
@@ -333,32 +449,44 @@ const goToEmployeeLogin = () => {
   
   .role-options {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 20px;
   }
   
-  .role-card ion-card-content {
-    padding: 24px 20px;
+  .role-card-content {
+    padding: 25px 20px;
   }
   
   .role-card h2 {
     font-size: 1.5rem;
   }
   
-  .help-content {
+  .role-features-grid {
+    grid-template-columns: 1fr;
     gap: 8px;
   }
   
+  .help-content {
+    gap: 12px;
+  }
+  
   .help-item {
-    padding: 10px 12px;
-    font-size: 0.9rem;
+    padding: 15px;
+  }
+  
+  .info-card-content {
+    padding: 20px;
+  }
+  
+  .role-footer {
+    padding: 20px;
   }
 }
 
-/* Animaciones */
+/* Animaciones mejoradas */
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(30px);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
@@ -366,15 +494,28 @@ const goToEmployeeLogin = () => {
   }
 }
 
-.role-options {
+.role-header {
   animation: fadeInUp 0.6s ease-out;
 }
 
-.info-section {
+.role-options {
   animation: fadeInUp 0.8s ease-out;
 }
 
-.role-footer {
+.info-section {
   animation: fadeInUp 1s ease-out;
+}
+
+.role-footer {
+  animation: fadeInUp 1.2s ease-out;
+}
+
+/* Hover effects para cards */
+.admin-card .role-action:hover {
+  background: linear-gradient(135deg, #1a2332 0%, #2547a8 100%);
+}
+
+.employee-card .role-action:hover {
+  background: linear-gradient(135deg, #1a2332 0%, #2547a8 100%);
 }
 </style>
