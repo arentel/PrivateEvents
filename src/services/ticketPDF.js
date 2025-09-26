@@ -49,47 +49,47 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
     doc.setFont('helvetica', 'normal')
     doc.text('Tu entrada está confirmada', pageWidth / 2, 38, { align: 'center' })
 
-    // === SALUDO PERSONAL ===
-    let yPos = 70
+    // === SALUDO PERSONAL - MÁS ARRIBA ===
+    let yPos = 60  // Subido de 70 a 60
     doc.setTextColor(...colors.primaryDark)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(16)
     doc.text(`Hola ${guestData.name || 'Invitado'},`, margin, yPos)
     
-    yPos += 10
+    yPos += 8  // Reducido de 10 a 8
     doc.setTextColor(...colors.darkText)
     doc.setFontSize(12)
     doc.text('Tu entrada ha sido confirmada y está lista para usar.', margin, yPos)
 
-    // === DETALLES DEL EVENTO (Estilo original) ===
-    yPos += 20
+    // === DETALLES DEL EVENTO - MÁS COMPACTO ===
+    yPos += 15  // Reducido de 20 a 15
     
-    // Caja de detalles con el mismo estilo original
+    // Caja de detalles más compacta
     doc.setFillColor(...colors.lightGray)
     doc.setDrawColor(...colors.borderGray)
     doc.setLineWidth(0.5)
-    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 45, 3, 3, 'FD')
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 40, 3, 3, 'FD')  // Reducido de 45 a 40
     
     // Título de la sección
-    yPos += 12
+    yPos += 10  // Reducido de 12 a 10
     doc.setTextColor(...colors.primaryDark)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(13)
     doc.text('Detalles del Evento', margin + 10, yPos)
     
-    // Información básica y necesaria solamente
-    yPos += 8
+    // Información básica más compacta
+    yPos += 6  // Reducido de 8 a 6
     doc.setFontSize(11)
     
     const details = [
       ['Evento:', eventData.name || 'Evento'],
-      ['Fecha:', formatEventDateFixed(eventData.date)], // *** FECHA CORREGIDA ***
+      ['Fecha:', formatEventDateFixed(eventData.date)],
       ['Invitado:', guestData.name || 'Invitado'],
       ['Email:', guestData.email || '']
     ]
     
     details.forEach((detail, index) => {
-      const rowY = yPos + (index * 6)
+      const rowY = yPos + (index * 5.5)  // Reducido de 6 a 5.5
       
       // Label (negrita, color medio)
       doc.setTextColor(...colors.mediumGray)
@@ -102,8 +102,8 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       doc.text(detail[1], margin + 45, rowY, { maxWidth: pageWidth - 75 })
     })
 
-    // === CÓDIGO QR GRANDE PERO SIN CÓDIGO INNECESARIO ===
-    yPos += 30
+    // === CÓDIGO QR - OPTIMIZADO Y MÁS ARRIBA ===
+    yPos += 25  // Reducido de 30 a 25
 
     // Generar datos del QR
     const qrData = JSON.stringify({
@@ -148,45 +148,42 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
     // Insertar QR
     doc.addImage(qrCodeBase64, 'PNG', qrX, yPos, qrSize, qrSize)
 
-    // Texto importante debajo del QR
-    yPos += qrSize + 20
+    // Texto debajo del QR - más compacto
+    yPos += qrSize + 15  // Reducido de 20 a 15
     doc.setTextColor(...colors.primaryDark)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(14)
     doc.text('PRESENTA ESTE CÓDIGO EN LA ENTRADA', pageWidth / 2, yPos, { align: 'center' })
 
-    yPos += 8
+    yPos += 6  // Reducido de 8 a 6
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(11)
     doc.setTextColor(...colors.darkText)
     doc.text('Entrada personal e intransferible', pageWidth / 2, yPos, { align: 'center' })
 
-    // === TÉRMINOS MÍNIMOS ===
-    yPos += 20
+    // === TÉRMINOS MÁS COMPACTOS ===
+    yPos += 15  // Reducido de 20 a 15
     
     doc.setFillColor(255, 243, 205) // #fff3cd - Amarillo claro como original
     doc.setDrawColor(...colors.borderGray)
     doc.setLineWidth(0.5)
-    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 18, 3, 3, 'FD')
+    doc.roundedRect(margin, yPos, pageWidth - (margin * 2), 15, 3, 3, 'FD')  // Reducido de 18 a 15
 
-    yPos += 8
+    yPos += 6  // Reducido de 8 a 6
     doc.setTextColor(133, 100, 4) // #856404 - Color amarillo oscuro original
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.text('• Llegar 15 minutos antes del evento  • Derecho de admisión reservado  • Una entrada por código QR', 
-             margin + 10, yPos)
+    doc.setFontSize(9)  // Reducido de 10 a 9
+    doc.text('• Llegar 15 min antes  • Derecho de admisión reservado  • Una entrada por QR  • Solo para titular registrado', 
+             margin + 8, yPos)  // Todo en una línea
 
-    yPos += 6
-    doc.text('• Entrada válida solo para el titular registrado', margin + 10, yPos)
+    // === LOGO GAUDÍ - MEJOR POSICIONADO ===
+    const footerY = pageHeight - 20  // Subido de 25 a 20
 
-    // === LOGO GAUDÍ EN EL FOOTER ===
-    const footerY = pageHeight - 25
-
-    // Fondo gris claro para el logo (contraste con logo blanco)
-    doc.setFillColor(240, 240, 240) // Gris muy claro
+    // Fondo gris claro más pequeño y limpio
+    doc.setFillColor(240, 240, 240)
     doc.setDrawColor(...colors.borderGray)
     doc.setLineWidth(0.3)
-    doc.roundedRect(margin, footerY - 5, pageWidth - (margin * 2), 20, 3, 3, 'FD')
+    doc.roundedRect(margin, footerY - 3, pageWidth - (margin * 2), 16, 3, 3, 'FD')  // Más pequeño
 
     // Cargar el logo Gaudí
     try {
