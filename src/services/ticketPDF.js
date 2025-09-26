@@ -171,18 +171,19 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       }
 
       if (logoSrc) {
-        // Logo perfectamente centrado y más grande
-        const logoSize = 18  // Tamaño optimizado
-        const logoX = (pageWidth - logoSize) / 2  // Centrado perfecto
-        const logoY = yPos + 3  // Centrado verticalmente en el footer
+        // Logo más ancho y mejor proporcionado
+        const logoWidth = 25   // Más ancho para mejor proporción
+        const logoHeight = 15  // Altura menor para mejor ratio
+        const logoX = (pageWidth - logoWidth) / 2  // Centrado perfecto
+        const logoY = yPos + 2  // Posición vertical
         
-        doc.addImage(logoSrc, 'PNG', logoX, logoY, logoSize, logoSize)
+        doc.addImage(logoSrc, 'PNG', logoX, logoY, logoWidth, logoHeight)
         
-        // Texto blanco debajo del logo, también centrado
+        // Texto blanco más arriba y centrado
         doc.setTextColor(...colors.white)
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(9)
-        doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 24, { align: 'center' })
+        doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 20, { align: 'center' })  // Subido de 24 a 20
       } else {
         throw new Error('Logo no encontrado')
       }
@@ -193,11 +194,11 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       doc.setTextColor(...colors.white)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(16)
-      doc.text('GAUDÍ', pageWidth / 2, yPos + 12, { align: 'center' })
+      doc.text('GAUDÍ', pageWidth / 2, yPos + 10, { align: 'center' })  // Ajustado también
       
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
-      doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 20, { align: 'center' })
+      doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 18, { align: 'center' })  // Subido de 20 a 18
     }
 
     // Generar PDF
