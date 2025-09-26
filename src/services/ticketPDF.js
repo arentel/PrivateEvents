@@ -85,12 +85,8 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       })
     }
     
-    yPos += 8
-    doc.setFontSize(14)
-    doc.text(guestData.name || 'Invitado', pageWidth / 2, yPos, { align: 'center' })
-
-    // === CÓDIGO QR - MÁS ARRIBA SIN EL RECUADRO ===
-    yPos += 20  // Más cerca de la info anterior
+    // === CÓDIGO QR - MÁS ARRIBA Y MÁS ESPACIO ===
+    yPos += 25  // Más espacio antes del QR
 
     // Generar datos del QR
     const qrData = JSON.stringify({
@@ -181,7 +177,6 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
 
     // Cargar el logo Gaudí
     try {
-      // Intentar cargar desde diferentes rutas posibles
       let logoSrc = null
       
       if (logoBase64) {
@@ -200,17 +195,17 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       }
 
       if (logoSrc) {
-        // Logo blanco sobre fondo azul oscuro (mejor contraste)
-        const logoSize = 12
+        // Logo más grande y visible
+        const logoSize = 20  // Aumentado de 12 a 20
         const logoX = pageWidth / 2 - logoSize / 2
         
-        doc.addImage(logoSrc, 'PNG', logoX, yPos - 1, logoSize, logoSize)
+        doc.addImage(logoSrc, 'PNG', logoX, yPos + 2, logoSize, logoSize)
         
         // Texto blanco debajo del logo
         doc.setTextColor(...colors.white)
         doc.setFont('helvetica', 'normal')
-        doc.setFontSize(8)
-        doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 11, { align: 'center' })
+        doc.setFontSize(9)
+        doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 26, { align: 'center' })
       } else {
         throw new Error('Logo no encontrado')
       }
@@ -220,12 +215,12 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
       // Fallback con texto blanco sobre fondo azul oscuro
       doc.setTextColor(...colors.white)
       doc.setFont('helvetica', 'bold')
-      doc.setFontSize(12)
-      doc.text('GAUDÍ', pageWidth / 2, yPos + 2, { align: 'center' })
+      doc.setFontSize(16)  // Texto más grande también
+      doc.text('GAUDÍ', pageWidth / 2, yPos + 8, { align: 'center' })
       
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8)
-      doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 8, { align: 'center' })
+      doc.setFontSize(9)
+      doc.text('Sistema de Entradas Digitales', pageWidth / 2, yPos + 16, { align: 'center' })
     }
 
     // Generar PDF
