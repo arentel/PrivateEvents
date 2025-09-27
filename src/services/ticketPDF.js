@@ -88,25 +88,35 @@ export const generateTicketForEmail = async (guestData, eventData, logoBase64 = 
     // === CÓDIGO QR - MÁS ARRIBA Y MÁS ESPACIO ===
     yPos += 25  // Más espacio antes del QR
 
-    // Generar datos del QR
-    const qrData = JSON.stringify({
-      guest: {
-        id: guestData.id || 'guest_' + Date.now(),
-        name: guestData.name || 'Invitado',
-        email: guestData.email || ''
-      },
-      event: {
-        id: eventData.id || 'event_' + Date.now(),
-        name: eventData.name || 'Evento',
-        date: eventData.date || new Date().toISOString()
-      },
-      validation: {
-        issued: new Date().toISOString(),
-        version: '2.0'
-      }
-    })
+    // *** CÓDIGO QR CORREGIDO - USAR EL QR ALMACENADO EN LA BASE DE DATOS ***
+    let qrData
+    
+    // 1. Prioridad: QR del guest de la BD (campo qr_code)
+    if (guestData.qr_code) {
+      console.log('🔄 Usando QR almacenado en guest.qr_code')
+      qrData = guestData.qr_code
+    }
+    // 2. Alternativa: QR del ticket de la BD (campo qrCode)  
+    else if (guestData.qrCode) {
+      console.log('🔄 Usando QR almacenado en ticketData.qrCode')
+      qrData = guestData.qrCode
+    }
+    // 3. Fallback: Generar nuevo QR (solo si no existe)
+    else {
+      console.log('⚠️ Generando nuevo QR (no debería pasar normalmente)')
+      qrData = JSON.stringify({
+        id: guestData.id,
+        name: guestData.name,
+        email: guestData.email,
+        event_name: eventData.name,
+        event_id: eventData.id,
+        timestamp: new Date().toISOString(),
+        date: new Date().toISOString().split('T')[0],
+        version: '1.0'
+      })
+    }
 
-    // Generar QR de alta calidad
+    // Generar QR de alta calidad usando el código correcto
     const qrCodeBase64 = await QRCode.toDataURL(qrData, {
       width: 800,
       margin: 1,
@@ -278,6 +288,7 @@ export const generateTicketPDF = async (guestData, eventData, logoBase64 = null)
   try {
     console.log('Generando PDF de entrada:', guestData.name)
     console.log('Fecha del evento recibida:', eventData.date)
+    console.log('QR Code del invitado:', guestData.qr_code ? 'Presente' : 'Ausente')
     
     // Si no se pasa logo, intentar cargarlo
     let logoToUse = logoBase64
