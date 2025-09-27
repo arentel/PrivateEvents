@@ -966,6 +966,35 @@ onUnmounted(async () => {
 </script>
 
 <style scoped>
+/* Contenedor principal */
+ion-content {
+  --background: #f8f9fa;
+}
+
+/* Cards generales */
+ion-card {
+  background: white;
+  border-radius: 12px;
+  margin: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  border: none;
+}
+
+ion-card-header {
+  padding: 20px 20px 0 20px;
+}
+
+ion-card-title {
+  color: #1f2937;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+ion-card-content {
+  padding: 20px;
+}
+
+/* Scanner */
 .scanner-container {
   text-align: center;
   padding: 1rem;
@@ -977,11 +1006,11 @@ onUnmounted(async () => {
 }
 
 .scanner-placeholder {
-  color: #666;
+  color: #6b7280;
 }
 
 .loading-container {
-  color: #666;
+  color: #6b7280;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -989,7 +1018,7 @@ onUnmounted(async () => {
 }
 
 .error-container {
-  color: #d32f2f;
+  color: #dc3545;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1017,6 +1046,36 @@ onUnmounted(async () => {
 :deep(#qr-reader canvas) {
   width: 100% !important;
   height: auto !important;
+}
+
+/* Botones principales */
+ion-button {
+  --border-radius: 8px;
+  font-weight: 600;
+  height: 48px;
+}
+
+ion-button[expand="block"] {
+  margin: 16px 0 8px 0;
+}
+
+ion-button:not([fill]) {
+  --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  --color: white;
+}
+
+ion-button[fill="outline"] {
+  --border-color: #0d1b2a;
+  --color: #0d1b2a;
+  --background: transparent;
+}
+
+ion-button[color="danger"] {
+  --background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+}
+
+.manual-qr-btn {
+  margin-top: 8px;
 }
 
 /* Validación inline */
@@ -1050,10 +1109,6 @@ onUnmounted(async () => {
   display: flex;
   align-items: center;
   gap: 1rem;
-}
-
-.validation-content ion-icon {
-  flex-shrink: 0;
 }
 
 .validation-content h3 {
@@ -1090,11 +1145,11 @@ onUnmounted(async () => {
   }
 }
 
-/* ESTILOS PARA EL POPUP DETALLADO */
+/* POPUP DETALLADO */
 .validation-detail-card {
   background: white;
   border-radius: 12px;
-  margin-bottom: 24px;
+  margin: 16px;
   box-shadow: 0 4px 20px rgba(13, 27, 42, 0.15);
   overflow: hidden;
   border: 2px solid #28a745;
@@ -1150,7 +1205,6 @@ onUnmounted(async () => {
   top: 12px;
   right: 12px;
   --color: white;
-  --color-hover: #f1f3f4;
 }
 
 .detail-content {
@@ -1197,7 +1251,7 @@ onUnmounted(async () => {
   font-weight: 500;
 }
 
-/* Secciones */
+/* Secciones del popup */
 .event-details-section,
 .access-info-section {
   margin-bottom: 28px;
@@ -1260,7 +1314,7 @@ onUnmounted(async () => {
   font-weight: 600;
 }
 
-/* Timeline de acceso */
+/* Timeline */
 .access-timeline {
   display: flex;
   flex-direction: column;
@@ -1330,7 +1384,7 @@ onUnmounted(async () => {
   font-size: 0.9rem;
 }
 
-/* Botones de acción */
+/* Acciones del popup */
 .detail-actions {
   margin-top: 32px;
   padding-top: 24px;
@@ -1344,15 +1398,7 @@ onUnmounted(async () => {
   height: 48px;
 }
 
-.continue-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(13, 27, 42, 0.3);
-}
-
-.manual-qr-btn {
-  margin-top: 1rem;
-}
-
+/* Estadísticas */
 .stat-card {
   text-align: center;
   padding: 1rem;
@@ -1382,6 +1428,24 @@ onUnmounted(async () => {
   margin-top: 0.2rem;
 }
 
+.clear-stats-btn {
+  margin: 1rem 0;
+}
+
+/* Items y inputs */
+ion-item {
+  --background: #f8f9fa;
+  --border-radius: 8px;
+  --border-color: #e5e7eb;
+  margin-bottom: 16px;
+}
+
+ion-input, ion-textarea {
+  --color: #1f2937;
+  --placeholder-color: #9ca3af;
+}
+
+/* Avatares en entradas recientes */
 .avatar-placeholder {
   width: 40px;
   height: 40px;
@@ -1401,32 +1465,48 @@ onUnmounted(async () => {
 
 .timestamp {
   font-size: 0.8rem;
-  color: #666;
+  color: #6b7280;
   font-style: italic;
 }
 
+/* Estado vacío */
 .empty-state {
   text-align: center;
   padding: 2rem;
-  color: #666;
+  color: #6b7280;
 }
 
 .empty-state ion-icon {
   margin-bottom: 1rem;
+  color: #9ca3af;
 }
 
-.clear-stats-btn {
-  margin: 1rem 0;
+.empty-state h3 {
+  margin: 0 0 12px 0;
+  color: #374151;
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
-/* Responsive design */
+.empty-state p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* Chips */
+ion-chip {
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+/* Responsive */
 @media (max-width: 768px) {
-  .scanner-container {
-    min-height: 250px;
+  ion-card {
+    margin: 12px 8px;
   }
   
-  .qr-scanner {
-    max-width: 100%;
+  .scanner-container {
+    min-height: 250px;
   }
   
   .detail-content {
@@ -1461,7 +1541,6 @@ onUnmounted(async () => {
   }
   
   .close-detail-btn {
-    position: absolute;
     top: 8px;
     right: 8px;
   }
