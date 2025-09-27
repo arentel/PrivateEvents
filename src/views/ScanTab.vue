@@ -1,18 +1,18 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar>
-        <ion-title>📱 Validar Entradas</ion-title>
-      </ion-toolbar>
-    </ion-header>
-    
     <ion-content>
-      <!-- Scanner QR -->
-      <ion-card>
-        <ion-card-header>
-          <ion-card-title>Escanear Código QR</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
+      <div class="scan-container">
+        <!-- Header simple -->
+        <div class="page-header">
+          <h1>📱 Validar Entradas</h1>
+        </div>
+
+        <!-- Scanner QR -->
+        <div class="scanner-section">
+          <div class="section-header">
+            <h3>Escanear Código QR</h3>
+          </div>
+          
           <!-- Resultado de validación inline -->
           <div v-if="validationResult.show" :class="['validation-inline', validationResult.type]">
             <div class="validation-content">
@@ -63,8 +63,9 @@
           <ion-button 
             expand="block" 
             @click="toggleScanner"
-            :color="scannerActive ? 'danger' : 'primary'"
+            :color="scannerActive ? 'danger' : undefined"
             :disabled="isLoading"
+            class="scanner-btn"
           >
             <ion-icon 
               :name="scannerActive ? 'stop-circle-outline' : 'scan-outline'" 
@@ -82,164 +83,156 @@
             <ion-icon name="create-outline" slot="start"></ion-icon>
             Introducir Código Manualmente
           </ion-button>
-        </ion-card-content>
-      </ion-card>
-
-      <!-- POPUP DETALLADO - Nueva sección -->
-      <div v-if="lastValidatedGuest" class="validation-detail-card">
-        <div class="detail-header">
-          <div class="success-icon">
-            <ion-icon name="checkmark-circle" color="success"></ion-icon>
-          </div>
-          <div class="detail-title">
-            <h2>✅ Entrada Validada</h2>
-            <p>Acceso confirmado exitosamente</p>
-          </div>
-          <ion-button 
-            fill="clear" 
-            size="small"
-            @click="clearLastValidated"
-            class="close-detail-btn"
-          >
-            <ion-icon name="close-outline"></ion-icon>
-          </ion-button>
         </div>
 
-        <div class="detail-content">
-          <!-- Avatar y nombre principal -->
-          <div class="guest-main-info">
-            <div class="guest-avatar-large">
-              {{ lastValidatedGuest.name.charAt(0).toUpperCase() }}
+        <!-- POPUP DETALLADO -->
+        <div v-if="lastValidatedGuest" class="validation-detail-card">
+          <div class="detail-header">
+            <div class="success-icon">
+              <ion-icon name="checkmark-circle" color="success"></ion-icon>
             </div>
-            <div class="guest-primary">
-              <h3>{{ lastValidatedGuest.name }}</h3>
-              <p class="guest-email">{{ lastValidatedGuest.email }}</p>
+            <div class="detail-title">
+              <h2>✅ Entrada Validada</h2>
+              <p>Acceso confirmado exitosamente</p>
             </div>
-          </div>
-
-          <!-- Información del evento -->
-          <div class="event-details-section">
-            <div class="section-title">
-              <ion-icon name="calendar-outline"></ion-icon>
-              <span>Detalles del Evento</span>
-            </div>
-            
-            <div class="detail-grid">
-              <div class="detail-item">
-                <ion-icon name="star-outline" color="primary"></ion-icon>
-                <div>
-                  <span class="detail-label">Evento</span>
-                  <span class="detail-value">{{ lastValidatedGuest.event_name || 'Evento Principal' }}</span>
-                </div>
-              </div>
-              
-              <div class="detail-item">
-                <ion-icon name="location-outline" color="primary"></ion-icon>
-                <div>
-                  <span class="detail-label">Ubicación</span>
-                  <span class="detail-value">Salón Principal</span>
-                </div>
-              </div>
-
-              <div class="detail-item" v-if="lastValidatedGuest.phone">
-                <ion-icon name="call-outline" color="primary"></ion-icon>
-                <div>
-                  <span class="detail-label">Teléfono</span>
-                  <span class="detail-value">{{ lastValidatedGuest.phone }}</span>
-                </div>
-              </div>
-
-              <div class="detail-item" v-if="lastValidatedGuest.table_number">
-                <ion-icon name="restaurant-outline" color="primary"></ion-icon>
-                <div>
-                  <span class="detail-label">Mesa</span>
-                  <span class="detail-value">Mesa {{ lastValidatedGuest.table_number }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Información de acceso -->
-          <div class="access-info-section">
-            <div class="section-title">
-              <ion-icon name="checkmark-circle-outline"></ion-icon>
-              <span>Información de Acceso</span>
-            </div>
-            
-            <div class="access-timeline">
-              <div class="timeline-item completed">
-                <div class="timeline-icon">
-                  <ion-icon name="qr-code-outline"></ion-icon>
-                </div>
-                <div class="timeline-content">
-                  <h4>QR Generado</h4>
-                  <p>{{ formatDateTime(lastValidatedGuest.created_at || '') }}</p>
-                </div>
-              </div>
-
-              <div class="timeline-item completed" v-if="lastValidatedGuest.sent_at">
-                <div class="timeline-icon">
-                  <ion-icon name="mail-outline"></ion-icon>
-                </div>
-                <div class="timeline-content">
-                  <h4>Email Enviado</h4>
-                  <p>{{ formatDateTime(lastValidatedGuest.sent_at || '') }}</p>
-                </div>
-              </div>
-
-              <div class="timeline-item completed current">
-                <div class="timeline-icon">
-                  <ion-icon name="checkmark-circle"></ion-icon>
-                </div>
-                <div class="timeline-content">
-                  <h4>Entrada Validada</h4>
-                  <p>{{ formatDateTime(lastValidatedGuest.entered_at || '') }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Botones de acción -->
-          <div class="detail-actions">
             <ion-button 
-              expand="block" 
-              fill="solid"
+              fill="clear" 
+              size="small"
               @click="clearLastValidated"
-              class="continue-btn"
+              class="close-detail-btn"
             >
-              <ion-icon name="scan-outline" slot="start"></ion-icon>
-              Continuar Escaneando
+              <ion-icon name="close-outline"></ion-icon>
             </ion-button>
           </div>
-        </div>
-      </div>
 
-      <!-- Estadísticas -->
-      <ion-card>
-        <ion-card-header>
-          <ion-card-title>Estadísticas de Validación</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <ion-row>
-            <ion-col size="4">
-              <div class="stat-card">
-                <span class="stat-number">{{ totalValidations }}</span>
-                <div class="stat-label">Total</div>
+          <div class="detail-content">
+            <!-- Avatar y nombre principal -->
+            <div class="guest-main-info">
+              <div class="guest-avatar-large">
+                {{ lastValidatedGuest.name.charAt(0).toUpperCase() }}
               </div>
-            </ion-col>
-            <ion-col size="4">
-              <div class="stat-card success">
-                <span class="stat-number">{{ successfulEntries }}</span>
-                <div class="stat-label">Exitosas</div>
+              <div class="guest-primary">
+                <h3>{{ lastValidatedGuest.name }}</h3>
+                <p class="guest-email">{{ lastValidatedGuest.email }}</p>
               </div>
-            </ion-col>
-            <ion-col size="4">
-              <div class="stat-card danger">
-                <span class="stat-number">{{ rejectedEntries }}</span>
-                <div class="stat-label">Rechazadas</div>
+            </div>
+
+            <!-- Información del evento -->
+            <div class="event-details-section">
+              <div class="section-title">
+                <ion-icon name="calendar-outline"></ion-icon>
+                <span>Detalles del Evento</span>
               </div>
-            </ion-col>
-          </ion-row>
+              
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <ion-icon name="star-outline" color="primary"></ion-icon>
+                  <div>
+                    <span class="detail-label">Evento</span>
+                    <span class="detail-value">{{ lastValidatedGuest.event_name || 'Evento Principal' }}</span>
+                  </div>
+                </div>
+                
+                <div class="detail-item">
+                  <ion-icon name="location-outline" color="primary"></ion-icon>
+                  <div>
+                    <span class="detail-label">Ubicación</span>
+                    <span class="detail-value">Salón Principal</span>
+                  </div>
+                </div>
+
+                <div class="detail-item" v-if="lastValidatedGuest.phone">
+                  <ion-icon name="call-outline" color="primary"></ion-icon>
+                  <div>
+                    <span class="detail-label">Teléfono</span>
+                    <span class="detail-value">{{ lastValidatedGuest.phone }}</span>
+                  </div>
+                </div>
+
+                <div class="detail-item" v-if="lastValidatedGuest.table_number">
+                  <ion-icon name="restaurant-outline" color="primary"></ion-icon>
+                  <div>
+                    <span class="detail-label">Mesa</span>
+                    <span class="detail-value">Mesa {{ lastValidatedGuest.table_number }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Información de acceso -->
+            <div class="access-info-section">
+              <div class="section-title">
+                <ion-icon name="checkmark-circle-outline"></ion-icon>
+                <span>Información de Acceso</span>
+              </div>
+              
+              <div class="access-timeline">
+                <div class="timeline-item completed">
+                  <div class="timeline-icon">
+                    <ion-icon name="qr-code-outline"></ion-icon>
+                  </div>
+                  <div class="timeline-content">
+                    <h4>QR Generado</h4>
+                    <p>{{ formatDateTime(lastValidatedGuest.created_at || '') }}</p>
+                  </div>
+                </div>
+
+                <div class="timeline-item completed" v-if="lastValidatedGuest.sent_at">
+                  <div class="timeline-icon">
+                    <ion-icon name="mail-outline"></ion-icon>
+                  </div>
+                  <div class="timeline-content">
+                    <h4>Email Enviado</h4>
+                    <p>{{ formatDateTime(lastValidatedGuest.sent_at || '') }}</p>
+                  </div>
+                </div>
+
+                <div class="timeline-item completed current">
+                  <div class="timeline-icon">
+                    <ion-icon name="checkmark-circle"></ion-icon>
+                  </div>
+                  <div class="timeline-content">
+                    <h4>Entrada Validada</h4>
+                    <p>{{ formatDateTime(lastValidatedGuest.entered_at || '') }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Botones de acción -->
+            <div class="detail-actions">
+              <ion-button 
+                expand="block" 
+                @click="clearLastValidated"
+                class="continue-btn"
+              >
+                <ion-icon name="scan-outline" slot="start"></ion-icon>
+                Continuar Escaneando
+              </ion-button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Estadísticas -->
+        <div class="stats-section">
+          <div class="section-header">
+            <h3>Estadísticas de Validación</h3>
+          </div>
+          
+          <div class="event-stats">
+            <div class="stat-item">
+              <span class="stat-value">{{ totalValidations }}</span>
+              <span class="stat-label">Total</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ successfulEntries }}</span>
+              <span class="stat-label">Exitosas</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ rejectedEntries }}</span>
+              <span class="stat-label">Rechazadas</span>
+            </div>
+          </div>
           
           <ion-button 
             expand="block" 
@@ -251,73 +244,70 @@
             <ion-icon name="refresh-outline" slot="start"></ion-icon>
             Limpiar Estadísticas
           </ion-button>
-        </ion-card-content>
-      </ion-card>
+        </div>
 
-      <!-- Búsqueda manual -->
-      <ion-card>
-        <ion-card-header>
-          <ion-card-title>Búsqueda Manual</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <ion-item>
-            <ion-label position="stacked">Buscar por Nombre o Email</ion-label>
-            <ion-input
-              v-model="manualSearch"
-              placeholder="Introduce nombre o email..."
-              @keyup.enter="searchGuest"
-            ></ion-input>
-          </ion-item>
+        <!-- Búsqueda manual -->
+        <div class="search-section">
+          <div class="section-header">
+            <h3>Búsqueda Manual</h3>
+          </div>
           
-          <ion-button 
-            expand="block" 
-            @click="searchGuest"
-            :disabled="!manualSearch.trim()"
-          >
-            <ion-icon name="search-outline" slot="start"></ion-icon>
-            Buscar y Validar
-          </ion-button>
-        </ion-card-content>
-      </ion-card>
+          <div class="form-content">
+            <ion-item>
+              <ion-label position="stacked">Buscar por Nombre o Email</ion-label>
+              <ion-input
+                v-model="manualSearch"
+                placeholder="Introduce nombre o email..."
+                @keyup.enter="searchGuest"
+              ></ion-input>
+            </ion-item>
+            
+            <ion-button 
+              expand="block" 
+              @click="searchGuest"
+              :disabled="!manualSearch.trim()"
+              class="search-btn"
+            >
+              <ion-icon name="search-outline" slot="start"></ion-icon>
+              Buscar y Validar
+            </ion-button>
+          </div>
+        </div>
 
-      <!-- Entradas recientes -->
-      <ion-card v-if="recentEntriesDisplay.length > 0">
-        <ion-card-header>
-          <ion-card-title>Entradas Recientes</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <ion-list>
-            <ion-item v-for="entry in recentEntriesDisplay" :key="entry.id">
-              <ion-avatar slot="start">
-                <div class="avatar-placeholder success">
-                  {{ entry.name.charAt(0).toUpperCase() }}
-                </div>
-              </ion-avatar>
+        <!-- Entradas recientes -->
+        <div class="recent-section" v-if="recentEntriesDisplay.length > 0">
+          <div class="section-header">
+            <h3>Entradas Recientes</h3>
+          </div>
+          
+          <div class="guests-list">
+            <div v-for="entry in recentEntriesDisplay" :key="entry.id" class="guest-item scanned">
+              <div class="guest-avatar">
+                {{ entry.name.charAt(0).toUpperCase() }}
+              </div>
               
-              <ion-label>
-                <h2>{{ entry.name }}</h2>
+              <div class="guest-info">
+                <h4>{{ entry.name }}</h4>
                 <p>{{ entry.email }}</p>
                 <p class="timestamp">{{ formatDateTime(entry.entered_at || '') }}</p>
-              </ion-label>
+              </div>
               
-              <ion-chip color="success" slot="end">
-                VALIDADO
-              </ion-chip>
-            </ion-item>
-          </ion-list>
-        </ion-card-content>
-      </ion-card>
-
-      <!-- Estado vacío -->
-      <ion-card v-if="recentEntriesDisplay.length === 0">
-        <ion-card-content>
-          <div class="empty-state">
-            <ion-icon name="people-outline" size="large"></ion-icon>
-            <h3>No hay entradas registradas</h3>
-            <p>Las validaciones exitosas aparecerán aquí</p>
+              <div class="guest-status">
+                <span class="status-badge success">
+                  VALIDADO
+                </span>
+              </div>
+            </div>
           </div>
-        </ion-card-content>
-      </ion-card>
+        </div>
+
+        <!-- Estado vacío -->
+        <div v-if="recentEntriesDisplay.length === 0" class="empty-state">
+          <ion-icon name="people-outline" size="large"></ion-icon>
+          <h3>No hay entradas registradas</h3>
+          <p>Las validaciones exitosas aparecerán aquí</p>
+        </div>
+      </div>
     </ion-content>
 
     <!-- Modal para input manual de QR -->
@@ -334,20 +324,21 @@
       </ion-header>
       
       <ion-content>
-        <ion-item>
-          <ion-label position="stacked">Código QR</ion-label>
-          <ion-textarea 
-            v-model="manualQRCode"
-            placeholder="Pega aquí el código QR completo..."
-            :rows="6"
-          ></ion-textarea>
-        </ion-item>
-        
-        <div style="padding: 16px;">
+        <div class="modal-content">
+          <ion-item>
+            <ion-label position="stacked">Código QR</ion-label>
+            <ion-textarea 
+              v-model="manualQRCode"
+              placeholder="Pega aquí el código QR completo..."
+              :rows="6"
+            ></ion-textarea>
+          </ion-item>
+          
           <ion-button 
             expand="block" 
             @click="validateManualQR"
             :disabled="!manualQRCode.trim()"
+            class="validate-btn"
           >
             <ion-icon name="checkmark-outline" slot="start"></ion-icon>
             Validar Código
@@ -966,32 +957,51 @@ onUnmounted(async () => {
 </script>
 
 <style scoped>
-/* Contenedor principal */
-ion-content {
-  --background: #f8f9fa;
+.scan-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
-/* Cards generales */
-ion-card {
+/* Header simple */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin: 0;
+  color: #1f2937;
+}
+
+/* Secciones - mismo estilo que GuestsTab */
+.scanner-section,
+.stats-section,
+.search-section,
+.recent-section {
   background: white;
   border-radius: 12px;
-  margin: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-  border: none;
 }
 
-ion-card-header {
-  padding: 20px 20px 0 20px;
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
-ion-card-title {
+.section-header h3 {
+  margin: 0;
   color: #1f2937;
   font-size: 1.2rem;
   font-weight: 600;
-}
-
-ion-card-content {
-  padding: 20px;
 }
 
 /* Scanner */
@@ -1048,30 +1058,23 @@ ion-card-content {
   height: auto !important;
 }
 
-/* Botones principales */
-ion-button {
+/* Botones - mismo estilo que GuestsTab */
+.scanner-btn,
+.search-btn,
+.continue-btn,
+.validate-btn {
+  --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
   --border-radius: 8px;
   font-weight: 600;
-  height: 48px;
+  margin-top: 16px;
 }
 
-ion-button[expand="block"] {
-  margin: 16px 0 8px 0;
-}
-
-ion-button:not([fill]) {
-  --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
-  --color: white;
-}
-
-ion-button[fill="outline"] {
-  --border-color: #0d1b2a;
-  --color: #0d1b2a;
-  --background: transparent;
-}
-
-ion-button[color="danger"] {
-  --background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+.scanner-btn:hover,
+.search-btn:hover,
+.continue-btn:hover,
+.validate-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(13, 27, 42, 0.3);
 }
 
 .manual-qr-btn {
@@ -1149,7 +1152,7 @@ ion-button[color="danger"] {
 .validation-detail-card {
   background: white;
   border-radius: 12px;
-  margin: 16px;
+  margin-bottom: 24px;
   box-shadow: 0 4px 20px rgba(13, 27, 42, 0.15);
   overflow: hidden;
   border: 2px solid #28a745;
@@ -1391,118 +1394,215 @@ ion-button[color="danger"] {
   border-top: 1px solid #e5e7eb;
 }
 
-.continue-btn {
-  --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
-  --border-radius: 8px;
-  font-weight: 600;
-  height: 48px;
-}
-
-/* Estadísticas */
-.stat-card {
-  text-align: center;
-  padding: 1rem;
+/* Estadísticas - mismo estilo que GuestsTab */
+.event-stats {
+  display: flex;
+  justify-content: space-around;
   background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
   color: white;
+  padding: 16px;
   border-radius: 8px;
-  margin: 0.2rem;
+  margin-bottom: 16px;
 }
 
-.stat-card.success {
-  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
-.stat-card.danger {
-  background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
-}
-
-.stat-number {
-  font-size: 1.8rem;
-  font-weight: bold;
-  display: block;
+.stat-value {
+  font-weight: 700;
+  font-size: 1.4rem;
 }
 
 .stat-label {
   font-size: 0.8rem;
   opacity: 0.9;
-  margin-top: 0.2rem;
 }
 
 .clear-stats-btn {
-  margin: 1rem 0;
+  margin-top: 16px;
 }
 
-/* Items y inputs */
+/* Formulario - mismo estilo que GuestsTab */
+.form-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 ion-item {
   --background: #f8f9fa;
-  --border-radius: 8px;
-  --border-color: #e5e7eb;
-  margin-bottom: 16px;
-}
-
-ion-input, ion-textarea {
   --color: #1f2937;
-  --placeholder-color: #9ca3af;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 0;
 }
 
-/* Avatares en entradas recientes */
-.avatar-placeholder {
-  width: 40px;
-  height: 40px;
+/* Lista de invitados - mismo estilo que GuestsTab */
+.guests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guest-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.guest-item:hover {
+  background: #f1f3f4;
+  transform: translateX(4px);
+}
+
+.guest-item.sent {
+  border-left-color: #fbbf24;
+}
+
+.guest-item.scanned {
+  border-left-color: #10b981;
+}
+
+.guest-avatar {
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  background: #0d1b2a;
+  background: #6b7280;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
+  font-weight: 600;
   font-size: 1.2rem;
 }
 
-.avatar-placeholder.success {
-  background: linear-gradient(135deg, #28a745, #20c997);
+.guest-item.sent .guest-avatar {
+  background: #fbbf24;
+}
+
+.guest-item.scanned .guest-avatar {
+  background: #10b981;
+}
+
+.guest-info {
+  flex: 1;
+}
+
+.guest-info h4 {
+  margin: 0 0 4px 0;
+  color: #1f2937;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.guest-info p {
+  margin: 0 0 2px 0;
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 
 .timestamp {
   font-size: 0.8rem;
-  color: #6b7280;
+  color: #9ca3af;
   font-style: italic;
 }
 
-/* Estado vacío */
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge.success {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.status-badge.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge.medium {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+/* Estado vacío - mismo estilo que GuestsTab */
 .empty-state {
   text-align: center;
-  padding: 2rem;
+  padding: 60px 20px;
   color: #6b7280;
 }
 
 .empty-state ion-icon {
-  margin-bottom: 1rem;
+  margin-bottom: 20px;
   color: #9ca3af;
 }
 
 .empty-state h3 {
   margin: 0 0 12px 0;
   color: #374151;
-  font-size: 1.1rem;
-  font-weight: 600;
 }
 
 .empty-state p {
-  margin: 0;
-  font-size: 0.9rem;
+  margin: 0 0 24px 0;
 }
 
-/* Chips */
-ion-chip {
-  font-weight: 600;
-  font-size: 0.75rem;
+/* Modal */
+.modal-content {
+  padding: 20px;
 }
 
-/* Responsive */
+/* Responsive - mismo que GuestsTab */
 @media (max-width: 768px) {
-  ion-card {
-    margin: 12px 8px;
+  .scan-container {
+    padding: 16px;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .event-stats {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .stat-item {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+  
+  .scanner-section,
+  .stats-section,
+  .search-section,
+  .recent-section {
+    padding: 16px;
+  }
+  
+  .guest-item {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  
+  .guest-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
   
   .scanner-container {
