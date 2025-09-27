@@ -1,34 +1,37 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar>
-        <ion-title>📊 Reportes</ion-title>
-        <ion-buttons slot="end">
-          <ion-button @click="refreshData">
-            <ion-icon name="refresh-outline"></ion-icon>
-          </ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
-    
     <ion-content>
-      <!-- Cargando -->
-      <div v-if="isLoading" class="loading-container">
-        <ion-spinner></ion-spinner>
-        <p>Cargando datos...</p>
-      </div>
+      <div class="reports-container">
+        <!-- Header simple -->
+        <div class="page-header">
+          <h1>📊 Reportes</h1>
+          <ion-button
+            fill="outline"
+            @click="refreshData"
+          >
+            <ion-icon :icon="refreshOutline" slot="start"></ion-icon>
+            Actualizar
+          </ion-button>
+        </div>
 
-      <!-- Selector de Evento -->
-      <ion-card v-if="!isLoading && eventsStore.events.length > 1">
-        <ion-card-header>
-          <ion-card-title>Seleccionar Evento</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
+        <!-- Cargando -->
+        <div v-if="isLoading" class="loading-container">
+          <ion-spinner></ion-spinner>
+          <p>Cargando datos...</p>
+        </div>
+
+        <!-- Selector de Evento -->
+        <div v-if="!isLoading && eventsStore.events.length > 1" class="event-selector-section">
+          <div class="section-header">
+            <h3>Seleccionar Evento</h3>
+          </div>
+          
           <ion-select 
             v-model="selectedEventId"
             @ionChange="onEventChange"
             placeholder="Selecciona un evento"
             interface="popover"
+            class="event-select"
           >
             <ion-select-option 
               v-for="event in eventsStore.events" 
@@ -40,59 +43,45 @@
           </ion-select>
           
           <div v-if="selectedEvent" class="event-info">
-            <h3>{{ selectedEvent.name }}</h3>
+            <h4>{{ selectedEvent.name }}</h4>
             <p v-if="selectedEvent.description">{{ selectedEvent.description }}</p>
             <p><strong>Fecha:</strong> {{ formatEventDate(selectedEvent.date) }}</p>
             <p v-if="selectedEvent.location"><strong>Ubicación:</strong> {{ selectedEvent.location }}</p>
           </div>
-        </ion-card-content>
-      </ion-card>
+        </div>
 
-      <!-- Evento actual si solo hay uno -->
-      <ion-card v-else-if="!isLoading && selectedEvent">
-        <ion-card-content>
-          <div class="current-event-header">
-            <h2>{{ selectedEvent.name }}</h2>
-            <p>{{ formatEventDate(selectedEvent.date) }}</p>
+        <!-- Evento actual si solo hay uno -->
+        <div v-else-if="!isLoading && selectedEvent" class="current-event-section">
+          <div class="section-header">
+            <h3>{{ selectedEvent.name }}</h3>
           </div>
-        </ion-card-content>
-      </ion-card>
+          <p>{{ formatEventDate(selectedEvent.date) }}</p>
+        </div>
 
-      <!-- Estadísticas principales -->
-      <ion-card v-if="!isLoading && selectedEvent">
-        <ion-card-header>
-          <ion-card-title>Resumen de {{ selectedEvent.name }}</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <ion-row>
-            <ion-col size="6">
-              <div class="stat-card">
-                <div class="stat-number">{{ eventStats.total }}</div>
-                <div class="stat-label">Total Invitados</div>
-              </div>
-            </ion-col>
-            <ion-col size="6">
-              <div class="stat-card">
-                <div class="stat-number">{{ eventStats.attended }}</div>
-                <div class="stat-label">Asistieron</div>
-              </div>
-            </ion-col>
-          </ion-row>
+        <!-- Estadísticas principales -->
+        <div v-if="!isLoading && selectedEvent" class="stats-section">
+          <div class="section-header">
+            <h3>Resumen de {{ selectedEvent.name }}</h3>
+          </div>
           
-          <ion-row>
-            <ion-col size="6">
-              <div class="stat-card">
-                <div class="stat-number">{{ eventStats.sent }}</div>
-                <div class="stat-label">QRs Enviados</div>
-              </div>
-            </ion-col>
-            <ion-col size="6">
-              <div class="stat-card">
-                <div class="stat-number">{{ attendanceRate }}%</div>
-                <div class="stat-label">Asistencia</div>
-              </div>
-            </ion-col>
-          </ion-row>
+          <div class="event-stats">
+            <div class="stat-item">
+              <span class="stat-value">{{ eventStats.total }}</span>
+              <span class="stat-label">Total</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ eventStats.attended }}</span>
+              <span class="stat-label">Asistieron</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ eventStats.sent }}</span>
+              <span class="stat-label">QRs Enviados</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ attendanceRate }}%</span>
+              <span class="stat-label">Asistencia</span>
+            </div>
+          </div>
           
           <!-- Barra de progreso de asistencia -->
           <div class="progress-section">
@@ -105,58 +94,60 @@
               {{ eventStats.attended }} de {{ eventStats.total }} invitados asistieron
             </p>
           </div>
-        </ion-card-content>
-      </ion-card>
+        </div>
 
-      <!-- Generación de PDFs -->
-      <ion-card v-if="!isLoading && selectedEvent && eventStats.total > 0">
-        <ion-card-header>
-          <ion-card-title>Generar Reportes PDF</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <ion-button 
-            expand="block" 
-            @click="generateAttendeesPDF"
-            :disabled="eventStats.attended === 0 || isGeneratingPDF"
-            color="success"
-          >
-            <ion-icon name="document-text-outline" slot="start"></ion-icon>
-            {{ isGeneratingPDF ? 'Generando...' : `PDF Solo Asistentes (${eventStats.attended})` }}
-          </ion-button>
-          
-          <ion-button 
-            expand="block" 
-            @click="generateFullReportPDF"
-            :disabled="eventStats.total === 0 || isGeneratingPDF"
-            color="primary"
-          >
-            <ion-icon name="analytics-outline" slot="start"></ion-icon>
-            {{ isGeneratingPDF ? 'Generando...' : 'PDF Reporte Completo' }}
-          </ion-button>
-          
-          <ion-button 
-            expand="block" 
-            @click="generateGuestListPDF"
-            :disabled="eventStats.total === 0 || isGeneratingPDF"
-            color="tertiary"
-          >
-            <ion-icon name="people-outline" slot="start"></ion-icon>
-            {{ isGeneratingPDF ? 'Generando...' : 'PDF Lista de Invitados' }}
-          </ion-button>
-          
-          <div v-if="lastPDFGenerated" class="pdf-status">
-            <ion-icon name="checkmark-circle-outline" color="success"></ion-icon>
-            <span>Último PDF generado: {{ formatDate(lastPDFGenerated) }}</span>
+        <!-- Generación de PDFs -->
+        <div v-if="!isLoading && selectedEvent && eventStats.total > 0" class="pdf-section">
+          <div class="section-header">
+            <h3>Generar Reportes PDF</h3>
           </div>
-        </ion-card-content>
-      </ion-card>
+          
+          <div class="form-content">
+            <ion-button 
+              expand="block" 
+              @click="generateAttendeesPDF"
+              :disabled="eventStats.attended === 0 || isGeneratingPDF"
+              color="success"
+              class="pdf-btn"
+            >
+              <ion-icon :icon="documentTextOutline" slot="start"></ion-icon>
+              {{ isGeneratingPDF ? 'Generando...' : `PDF Solo Asistentes (${eventStats.attended})` }}
+            </ion-button>
+            
+            <ion-button 
+              expand="block" 
+              @click="generateFullReportPDF"
+              :disabled="eventStats.total === 0 || isGeneratingPDF"
+              class="pdf-btn"
+            >
+              <ion-icon :icon="analyticsOutline" slot="start"></ion-icon>
+              {{ isGeneratingPDF ? 'Generando...' : 'PDF Reporte Completo' }}
+            </ion-button>
+            
+            <ion-button 
+              expand="block" 
+              @click="generateGuestListPDF"
+              :disabled="eventStats.total === 0 || isGeneratingPDF"
+              color="tertiary"
+              class="pdf-btn"
+            >
+              <ion-icon :icon="peopleOutline" slot="start"></ion-icon>
+              {{ isGeneratingPDF ? 'Generando...' : 'PDF Lista de Invitados' }}
+            </ion-button>
+            
+            <div v-if="lastPDFGenerated" class="pdf-status">
+              <ion-icon :icon="checkmarkCircleOutline" color="success"></ion-icon>
+              <span>Último PDF generado: {{ formatDate(lastPDFGenerated) }}</span>
+            </div>
+          </div>
+        </div>
 
-      <!-- Filtros y vista de datos -->
-      <ion-card v-if="!isLoading && selectedEvent && eventStats.total > 0">
-        <ion-card-header>
-          <ion-card-title>Ver Datos del Evento</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
+        <!-- Filtros y vista de datos -->
+        <div v-if="!isLoading && selectedEvent && eventStats.total > 0" class="filters-section">
+          <div class="section-header">
+            <h3>Ver Datos del Evento</h3>
+          </div>
+          
           <ion-segment v-model="selectedView">
             <ion-segment-button value="attended">
               <ion-label>Asistentes ({{ eventStats.attended }})</ion-label>
@@ -171,78 +162,60 @@
               <ion-label>Con QR ({{ eventStats.sent }})</ion-label>
             </ion-segment-button>
           </ion-segment>
-        </ion-card-content>
-      </ion-card>
+        </div>
 
-      <!-- Lista de invitados según filtro -->
-      <ion-card v-if="!isLoading && selectedEvent && eventStats.total > 0">
-        <ion-card-header>
-          <ion-card-title>{{ getListTitle() }}</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <div v-if="currentList.length > 0" class="list-header">
+        <!-- Lista de invitados según filtro -->
+        <div v-if="!isLoading && selectedEvent && eventStats.total > 0" class="guests-list-section">
+          <div class="section-header">
+            <h3>{{ getListTitle() }}</h3>
             <ion-button 
+              v-if="currentList.length > 0"
               size="small" 
               fill="outline"
               @click="exportCurrentList"
             >
-              <ion-icon name="download-outline" slot="start"></ion-icon>
-              Exportar Lista
+              <ion-icon :icon="downloadOutline" slot="start"></ion-icon>
+              Exportar
             </ion-button>
           </div>
           
-          <ion-list>
-            <ion-item v-for="(guest, index) in currentList" :key="guest.id">
-              <ion-label>
-                <h2>{{ index + 1 }}. {{ guest.name }}</h2>
+          <div class="guests-list" v-if="currentList.length > 0">
+            <div v-for="(guest, index) in currentList" :key="guest.id" class="guest-item" :class="getGuestClass(guest)">
+              <div class="guest-avatar">
+                {{ guest.name.charAt(0).toUpperCase() }}
+              </div>
+              
+              <div class="guest-info">
+                <h4>{{ index + 1 }}. {{ guest.name }}</h4>
                 <p>{{ guest.email }}</p>
-                <p v-if="guest.phone" class="detail">📱 {{ guest.phone }}</p>
-                <p v-if="guest.qr_sent_at || guest.sent_at" class="detail">
+                <p v-if="guest.phone" class="phone">📱 {{ guest.phone }}</p>
+                <p v-if="guest.qr_sent_at || guest.sent_at" class="timestamp">
                   QR enviado: {{ formatDate(guest.qr_sent_at || guest.sent_at) }}
                 </p>
-                <p v-if="guest.entered_at" class="detail">
+                <p v-if="guest.entered_at" class="timestamp">
                   Entrada: {{ formatDate(guest.entered_at) }}
                 </p>
-              </ion-label>
-              
-              <div slot="end" class="status-indicators">
-                <ion-chip 
-                  v-if="guest.has_entered" 
-                  color="success"
-                  size="small"
-                >
-                  ASISTIÓ
-                </ion-chip>
-                <ion-chip 
-                  v-else-if="guest.qr_sent || guest.sent" 
-                  color="warning"
-                  size="small"
-                >
-                  QR ENVIADO
-                </ion-chip>
-                <ion-chip 
-                  v-else 
-                  color="medium"
-                  size="small"
-                >
-                  PENDIENTE
-                </ion-chip>
               </div>
-            </ion-item>
-            
-            <div v-if="currentList.length === 0" class="empty-state">
-              <p>{{ getEmptyMessage() }}</p>
+              
+              <div class="guest-status">
+                <span class="status-badge" :class="getStatusClass(guest)">
+                  {{ getStatusText(guest) }}
+                </span>
+              </div>
             </div>
-          </ion-list>
-        </ion-card-content>
-      </ion-card>
+          </div>
+          
+          <div v-else class="empty-state">
+            <p>{{ getEmptyMessage() }}</p>
+          </div>
+        </div>
 
-      <!-- Estadísticas por hora (si hay asistentes) -->
-      <ion-card v-if="!isLoading && selectedEvent && eventStats.attended > 0">
-        <ion-card-header>
-          <ion-card-title>Entradas por Hora</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
+        <!-- Estadísticas por hora -->
+        <div v-if="!isLoading && selectedEvent && eventStats.attended > 0" class="hourly-section">
+          <div class="section-header">
+            <h3>Entradas por Hora</h3>
+          </div>
+          
           <div class="hourly-stats">
             <div 
               v-for="stat in hourlyStats" 
@@ -259,15 +232,14 @@
               <div class="hour-count">{{ stat.count }}</div>
             </div>
           </div>
-        </ion-card-content>
-      </ion-card>
+        </div>
 
-      <!-- Comparativa de eventos (si hay múltiples) -->
-      <ion-card v-if="!isLoading && eventsStore.events.length > 1">
-        <ion-card-header>
-          <ion-card-title>Comparativa de Eventos</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
+        <!-- Comparativa de eventos -->
+        <div v-if="!isLoading && eventsStore.events.length > 1" class="comparison-section">
+          <div class="section-header">
+            <h3>Comparativa de Eventos</h3>
+          </div>
+          
           <div class="events-comparison">
             <div 
               v-for="event in eventsStore.events" 
@@ -275,7 +247,7 @@
               class="event-comparison-row"
             >
               <div class="event-name">{{ event.name }}</div>
-              <div class="event-stats">
+              <div class="event-stats-text">
                 <span class="stat">{{ getEventGuestCount(event.id) }} invitados</span>
                 <span class="stat">{{ getEventAttendanceCount(event.id) }} asistieron</span>
                 <span class="stat">{{ getEventAttendanceRate(event.id) }}% asistencia</span>
@@ -288,62 +260,42 @@
             fill="outline"
             @click="generateComparativeReport"
             :disabled="isGeneratingPDF"
+            class="comparative-btn"
           >
-            <ion-icon name="bar-chart-outline" slot="start"></ion-icon>
+            <ion-icon :icon="barChartOutline" slot="start"></ion-icon>
             Generar Reporte Comparativo
           </ion-button>
-        </ion-card-content>
-      </ion-card>
+        </div>
 
-      <!-- Botones de utilidad -->
-      <ion-card v-if="!isLoading && selectedEvent">
-        <ion-card-content>
-          <ion-button 
-            expand="block" 
-            color="medium"
-            fill="outline"
-            @click="refreshData"
-          >
-            <ion-icon name="refresh-outline" slot="start"></ion-icon>
-            Actualizar Datos
+        <!-- Estado vacío -->
+        <div v-if="!isLoading && eventsStore.events.length === 0" class="no-events">
+          <ion-icon :icon="calendarOutline" size="large"></ion-icon>
+          <h3>No hay eventos</h3>
+          <p>Crea tu primer evento para generar reportes</p>
+          <ion-button @click="$router.push('/tabs/events')" class="create-event-btn">
+            <ion-icon :icon="calendarOutline" slot="start"></ion-icon>
+            Crear Evento
           </ion-button>
-        </ion-card-content>
-      </ion-card>
-
-      <!-- Estado vacío -->
-      <ion-card v-if="!isLoading && eventsStore.events.length === 0">
-        <ion-card-content>
-          <div class="empty-state">
-            <ion-icon name="calendar-outline" size="large"></ion-icon>
-            <h3>No hay eventos</h3>
-            <p>Crea tu primer evento para generar reportes</p>
-            <ion-button @click="$router.push('/tabs/events')">
-              Crear Evento
-            </ion-button>
-          </div>
-        </ion-card-content>
-      </ion-card>
-
-      <!-- Toast para mensajes -->
-      <ion-toast
-        :is-open="toast.isOpen"
-        :message="toast.message"
-        :duration="3000"
-        :color="toast.color"
-        @didDismiss="toast.isOpen = false"
-      ></ion-toast>
+        </div>
+      </div>
     </ion-content>
+
+    <!-- Toast para mensajes -->
+    <ion-toast
+      :is-open="toast.isOpen"
+      :message="toast.message"
+      :duration="3000"
+      :color="toast.color"
+      @didDismiss="toast.isOpen = false"
+    ></ion-toast>
   </ion-page>
 </template>
 
 <script setup>
 import { ref, onMounted, computed, watch, onActivated } from 'vue'
 import {
-  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons,
-  IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonSpinner,
-  IonButton, IonIcon, IonProgressBar, IonSegment, IonSegmentButton,
-  IonLabel, IonList, IonItem, IonChip, IonToast, IonRow, IonCol,
-  IonSelect, IonSelectOption
+  IonPage, IonContent, IonSpinner, IonButton, IonIcon, IonProgressBar, 
+  IonSegment, IonSegmentButton, IonLabel, IonToast, IonSelect, IonSelectOption
 } from '@ionic/vue'
 import {
   documentTextOutline, analyticsOutline, checkmarkCircleOutline,
@@ -352,7 +304,6 @@ import {
 } from 'ionicons/icons'
 import { eventsStore } from '../stores/events'
 import { generatePDF } from '../services/pdf'
-// Importar supabase directamente para recargar datos
 import { supabase } from '../services/supabase'
 
 // Estado reactivo
@@ -361,8 +312,6 @@ const selectedView = ref('attended')
 const isGeneratingPDF = ref(false)
 const lastPDFGenerated = ref(null)
 const isLoading = ref(true)
-
-// Datos locales para asegurar reactividad
 const localGuests = ref([])
 
 const toast = ref({
@@ -371,7 +320,7 @@ const toast = ref({
   color: 'success'
 })
 
-// Computed properties corregidos
+// Computed properties
 const selectedEvent = computed(() => {
   if (!selectedEventId.value) return null
   return eventsStore.events.find(e => e.id === selectedEventId.value) || null
@@ -379,7 +328,6 @@ const selectedEvent = computed(() => {
 
 const eventGuests = computed(() => {
   if (!selectedEventId.value) return []
-  // Usar datos locales que se actualizan automáticamente
   return localGuests.value.filter(g => g.event_id === selectedEventId.value)
 })
 
@@ -388,7 +336,7 @@ const eventStats = computed(() => {
   return {
     total: guests.length,
     sent: guests.filter(g => g.qr_sent || g.sent).length,
-    attended: guests.filter(g => g.has_entered).length, // Usar has_entered consistentemente
+    attended: guests.filter(g => g.has_entered).length,
     pending: guests.filter(g => !(g.qr_sent || g.sent)).length,
     confirmed: guests.filter(g => g.confirmed).length
   }
@@ -398,14 +346,13 @@ const attendanceRate = computed(() =>
   eventStats.value.total > 0 ? Math.round((eventStats.value.attended / eventStats.value.total) * 100) : 0
 )
 
-// Computed property para lista actual según filtro
 const currentList = computed(() => {
   const guests = eventGuests.value
   
   switch (selectedView.value) {
     case 'attended':
       return guests
-        .filter(g => g.has_entered) // Usar has_entered consistentemente
+        .filter(g => g.has_entered)
         .sort((a, b) => new Date(b.entered_at || b.created_at) - new Date(a.entered_at || a.created_at))
     case 'all':
       return guests
@@ -423,7 +370,6 @@ const currentList = computed(() => {
   }
 })
 
-// Computed property para estadísticas por hora
 const hourlyStats = computed(() => {
   const attendedGuests = eventGuests.value.filter(g => g.has_entered && g.entered_at)
   if (attendedGuests.length === 0) return []
@@ -431,7 +377,6 @@ const hourlyStats = computed(() => {
   const hourCounts = {}
   
   attendedGuests.forEach(guest => {
-    // Parseamos la fecha considerando la zona horaria Madrid
     const date = new Date(guest.entered_at)
     const hour = date.getHours()
     hourCounts[hour] = (hourCounts[hour] || 0) + 1
@@ -453,7 +398,6 @@ const loadGuestsData = async () => {
   try {
     isLoading.value = true
     
-    // Cargar todos los invitados directamente desde Supabase
     const { data: guests, error } = await supabase
       .from('guests')
       .select('*')
@@ -495,7 +439,7 @@ const onEventChange = (event) => {
   const eventId = event.detail.value
   selectedEventId.value = eventId
   eventsStore.setCurrentEvent(eventId)
-  selectedView.value = 'attended' // Reset view cuando cambia evento
+  selectedView.value = 'attended'
 }
 
 // Función para refrescar datos
@@ -538,7 +482,7 @@ const generateAttendeesPDF = async () => {
     })
     
     lastPDFGenerated.value = new Date().toISOString()
-    showToast('✅ PDF de asistentes generado')
+    showToast('PDF de asistentes generado')
     
   } catch (error) {
     console.error('Error generating PDF:', error)
@@ -577,7 +521,7 @@ const generateFullReportPDF = async () => {
     })
     
     lastPDFGenerated.value = new Date().toISOString()
-    showToast('✅ Reporte completo generado')
+    showToast('Reporte completo generado')
     
   } catch (error) {
     console.error('Error generating full report:', error)
@@ -611,7 +555,7 @@ const generateGuestListPDF = async () => {
     })
     
     lastPDFGenerated.value = new Date().toISOString()
-    showToast('✅ Lista de invitados generada')
+    showToast('Lista de invitados generada')
     
   } catch (error) {
     console.error('Error generating guest list:', error)
@@ -651,7 +595,7 @@ const generateComparativeReport = async () => {
     })
     
     lastPDFGenerated.value = new Date().toISOString()
-    showToast('✅ Reporte comparativo generado')
+    showToast('Reporte comparativo generado')
     
   } catch (error) {
     console.error('Error generating comparative report:', error)
@@ -715,6 +659,24 @@ const getEventAttendanceRate = (eventId) => {
 }
 
 // Funciones de utilidad
+const getGuestClass = (guest) => {
+  if (guest.has_entered) return 'scanned'
+  if (guest.qr_sent || guest.sent) return 'sent'
+  return 'pending'
+}
+
+const getStatusClass = (guest) => {
+  if (guest.has_entered) return 'success'
+  if (guest.qr_sent || guest.sent) return 'warning'
+  return 'medium'
+}
+
+const getStatusText = (guest) => {
+  if (guest.has_entered) return 'ASISTIÓ'
+  if (guest.qr_sent || guest.sent) return 'QR ENVIADO'
+  return 'PENDIENTE'
+}
+
 const getListTitle = () => {
   if (!selectedEvent.value) return 'Lista'
   
@@ -772,13 +734,9 @@ const formatEventDate = (dateString) => {
 // Inicializar al montar y cuando se activa la vista
 onMounted(async () => {
   try {
-    // Cargar eventos primero
     await eventsStore.init()
-    
-    // Cargar invitados
     await loadGuestsData()
     
-    // Si hay eventos y no hay uno seleccionado, seleccionar el primero o el actual
     if (eventsStore.events.length > 0) {
       selectedEventId.value = eventsStore.currentEventId || eventsStore.events[0].id
     }
@@ -787,7 +745,6 @@ onMounted(async () => {
   }
 })
 
-// Recargar datos cuando se activa la vista (importante para sincronización)
 onActivated(async () => {
   console.log('ReportsTab activated - refreshing data')
   await loadGuestsData()
@@ -795,55 +752,116 @@ onActivated(async () => {
 </script>
 
 <style scoped>
+.reports-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Header simple */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin: 0;
+  color: #1f2937;
+}
+
+/* Secciones - mismo estilo que GuestsTab */
+.event-selector-section,
+.current-event-section,
+.stats-section,
+.pdf-section,
+.filters-section,
+.guests-list-section,
+.hourly-section,
+.comparison-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.section-header h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+/* Loading */
 .loading-container {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  color: var(--ion-color-medium);
+  color: #6b7280;
 }
 
-.current-event-header h2 {
-  margin: 0 0 4px 0;
-  color: var(--ion-color-primary);
-}
-
-.current-event-header p {
-  margin: 0;
-  color: var(--ion-color-medium);
-  font-size: 0.9rem;
+/* Event selector */
+.event-select {
+  --background: #f8f9fa;
+  --color: #1f2937;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 16px;
 }
 
 .event-info {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid var(--ion-color-light);
+  border-top: 1px solid #e5e7eb;
 }
 
-.event-info h3 {
+.event-info h4 {
   margin: 0 0 8px 0;
-  color: var(--ion-color-primary);
+  color: #1f2937;
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
 .event-info p {
   margin: 4px 0;
-  color: var(--ion-color-medium);
+  color: #6b7280;
   font-size: 0.9rem;
 }
 
-.stat-card {
-  text-align: center;
-  padding: 1rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+/* Estadísticas - mismo estilo que GuestsTab */
+.event-stats {
+  display: flex;
+  justify-content: space-around;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
   color: white;
+  padding: 16px;
   border-radius: 8px;
-  margin-bottom: 0.5rem;
+  margin-bottom: 16px;
 }
 
-.stat-number {
-  font-size: 1.5rem;
-  font-weight: bold;
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-value {
+  font-weight: 700;
+  font-size: 1.4rem;
 }
 
 .stat-label {
@@ -851,25 +869,59 @@ onActivated(async () => {
   opacity: 0.9;
 }
 
+/* Progress bar */
 .progress-section {
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px solid #eee;
+  border-top: 1px solid #e5e7eb;
 }
 
 .progress-label {
-  font-weight: bold;
+  font-weight: 600;
   margin-bottom: 0.5rem;
   text-align: center;
+  color: #1f2937;
 }
 
 .progress-text {
   text-align: center;
   margin-top: 0.5rem;
   font-size: 0.9rem;
-  color: #666;
+  color: #6b7280;
 }
 
+/* Botones - mismo estilo que GuestsTab */
+.pdf-btn,
+.comparative-btn,
+.create-event-btn {
+  --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  --border-radius: 8px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.pdf-btn:hover,
+.comparative-btn:hover,
+.create-event-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(13, 27, 42, 0.3);
+}
+
+.pdf-btn[color="success"] {
+  --background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+}
+
+.pdf-btn[color="tertiary"] {
+  --background: linear-gradient(135deg, #6f42c1 0%, #e83e8c 100%);
+}
+
+.form-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* PDF Status */
 .pdf-status {
   display: flex;
   align-items: center;
@@ -881,42 +933,124 @@ onActivated(async () => {
   font-size: 0.9rem;
 }
 
-.list-header {
-  margin-bottom: 1rem;
-  text-align: right;
+/* Segment */
+ion-segment {
+  --background: #f8f9fa;
+  border-radius: 8px;
+  margin-bottom: 16px;
 }
 
-.status-indicators {
+ion-segment-button {
+  --color: #6b7280;
+  --color-checked: #0d1b2a;
+  --background-checked: white;
+  --border-radius: 6px;
+}
+
+/* Lista de invitados - mismo estilo que GuestsTab */
+.guests-list {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 12px;
 }
 
-.detail {
+.guest-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.guest-item:hover {
+  background: #f1f3f4;
+  transform: translateX(4px);
+}
+
+.guest-item.sent {
+  border-left-color: #fbbf24;
+}
+
+.guest-item.scanned {
+  border-left-color: #10b981;
+}
+
+.guest-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #6b7280;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1.2rem;
+}
+
+.guest-item.sent .guest-avatar {
+  background: #fbbf24;
+}
+
+.guest-item.scanned .guest-avatar {
+  background: #10b981;
+}
+
+.guest-info {
+  flex: 1;
+}
+
+.guest-info h4 {
+  margin: 0 0 4px 0;
+  color: #1f2937;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.guest-info p {
+  margin: 0 0 2px 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.phone {
   font-size: 0.8rem;
-  color: #666;
+  color: #9ca3af;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 2rem;
-  color: #666;
+.timestamp {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  font-style: italic;
 }
 
-.empty-state ion-icon {
-  margin-bottom: 1rem;
-  opacity: 0.5;
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
-.empty-state h3 {
-  margin: 0 0 8px 0;
-  color: var(--ion-color-dark);
+.status-badge.success {
+  background: #d1fae5;
+  color: #065f46;
 }
 
-.empty-state p {
-  margin: 0 0 16px 0;
+.status-badge.warning {
+  background: #fef3c7;
+  color: #92400e;
 }
 
+.status-badge.medium {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+/* Estadísticas por hora */
 .hourly-stats {
   display: flex;
   flex-direction: column;
@@ -933,6 +1067,7 @@ onActivated(async () => {
   min-width: 50px;
   font-weight: bold;
   font-size: 0.9rem;
+  color: #1f2937;
 }
 
 .hour-bar {
@@ -953,9 +1088,10 @@ onActivated(async () => {
   min-width: 30px;
   text-align: center;
   font-weight: bold;
-  color: #666;
+  color: #1f2937;
 }
 
+/* Comparativa de eventos */
 .events-comparison {
   display: flex;
   flex-direction: column;
@@ -968,37 +1104,103 @@ onActivated(async () => {
   justify-content: space-between;
   align-items: center;
   padding: 1rem;
-  background: var(--ion-color-light);
+  background: #f8f9fa;
   border-radius: 8px;
+  border-left: 4px solid #0d1b2a;
 }
 
 .event-name {
-  font-weight: bold;
-  color: var(--ion-color-primary);
+  font-weight: 600;
+  color: #1f2937;
   flex: 1;
   margin-right: 1rem;
+  font-size: 1rem;
 }
 
-.event-stats {
+.event-stats-text {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
   text-align: right;
 }
 
-.event-stats .stat {
+.event-stats-text .stat {
   font-size: 0.8rem;
-  color: var(--ion-color-medium);
+  color: #6b7280;
 }
 
-/* Responsive */
+/* Estados vacíos */
+.empty-state,
+.no-events {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6b7280;
+}
+
+.empty-state ion-icon,
+.no-events ion-icon {
+  margin-bottom: 20px;
+  color: #9ca3af;
+}
+
+.empty-state h3,
+.no-events h3 {
+  margin: 0 0 12px 0;
+  color: #374151;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.empty-state p,
+.no-events p {
+  margin: 0 0 24px 0;
+  font-size: 0.9rem;
+}
+
+/* Toast personalización */
+ion-toast {
+  --background: #1f2937;
+  --color: white;
+  --border-radius: 8px;
+}
+
+/* Responsive - mismo que GuestsTab */
 @media (max-width: 768px) {
-  .stat-card {
-    padding: 12px 4px;
+  .reports-container {
+    padding: 16px;
   }
   
-  .stat-number {
-    font-size: 1.2rem;
+  .page-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .event-stats {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .stat-item {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+  
+  .event-selector-section,
+  .current-event-section,
+  .stats-section,
+  .pdf-section,
+  .filters-section,
+  .guests-list-section,
+  .hourly-section,
+  .comparison-section {
+    padding: 16px;
+  }
+  
+  .guest-item {
+    flex-wrap: wrap;
+    gap: 12px;
   }
   
   .event-comparison-row {
@@ -1011,11 +1213,49 @@ onActivated(async () => {
     margin-right: 0;
   }
   
-  .event-stats {
+  .event-stats-text {
     text-align: center;
     flex-direction: row;
     gap: 1rem;
     justify-content: center;
   }
+  
+  .hour-stat {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .hour-label {
+    min-width: 40px;
+  }
+  
+  .hour-count {
+    min-width: 25px;
+  }
+}
+
+/* Ajustes adicionales para mantener consistencia */
+ion-progress-bar {
+  --progress-background: #28a745;
+  height: 8px;
+  border-radius: 4px;
+}
+
+ion-select {
+  --placeholder-color: #9ca3af;
+  --color: #1f2937;
+}
+
+/* Asegurar que los botones de outline mantengan el estilo */
+ion-button[fill="outline"] {
+  --border-color: #0d1b2a;
+  --color: #0d1b2a;
+  --background: transparent;
+}
+
+ion-button[fill="outline"]:hover {
+  --background: #f8f9fa;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(13, 27, 42, 0.15);
 }
 </style>
