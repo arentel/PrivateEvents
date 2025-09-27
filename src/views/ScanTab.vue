@@ -401,6 +401,8 @@ import {
 import { Html5Qrcode } from 'html5-qrcode'
 // @ts-ignore
 import { supabase } from '@/services/supabase.js'
+// @ts-ignore
+import { audioFeedback } from '@/services/audio.js'
 
 // Interfaces de TypeScript
 interface Guest {
@@ -450,7 +452,7 @@ const successfulEntries = ref(0)
 const rejectedEntries = ref(0)
 const recentEntries = ref<Guest[]>([])
 
-// NUEVO: Estado para el popup detallado
+// Estado para el popup detallado
 const lastValidatedGuest = ref<Guest | null>(null)
 
 // Estado de inputs manuales
@@ -474,7 +476,7 @@ const recentEntriesDisplay = computed(() =>
   )
 )
 
-// NUEVA: Función para limpiar el último validado
+// Función para limpiar el último validado
 const clearLastValidated = () => {
   lastValidatedGuest.value = null
 }
@@ -703,12 +705,15 @@ const validateManualQR = async () => {
   manualQRCode.value = ''
 }
 
-// FUNCIÓN PRINCIPAL CORREGIDA PARA VALIDAR QR
+// FUNCIÓN PRINCIPAL PARA VALIDAR QR CON AUDIO FEEDBACK
 const validateScannedCode = async (qrCode: string) => {
   totalValidations.value++
   
   try {
     console.log('Validating QR code:', qrCode.substring(0, 100) + '...')
+    
+    // Reproducir sonido de escaneo al comenzar la validación
+    audioFeedback.playFeedback('scan')
     
     let guestData: QRData | null = null
     
@@ -729,6 +734,8 @@ const validateScannedCode = async (qrCode: string) => {
     }
     
     if (!guestData) {
+      // SONIDO DE ERROR
+      audioFeedback.playFeedback('error')
       showValidationResult('error', '❌ CÓDIGO NO VÁLIDO', 'El código QR no es válido o está corrupto')
       rejectedEntries.value++
       return
@@ -736,6 +743,8 @@ const validateScannedCode = async (qrCode: string) => {
     
     if (!guestData.id || !guestData.name || !guestData.email) {
       console.error('QR missing required fields:', guestData)
+      // SONIDO DE ERROR
+      audioFeedback.playFeedback('error')
       showValidationResult('error', '❌ CÓDIGO INCOMPLETO', 'El código QR no contiene la información necesaria')
       rejectedEntries.value++
       return
@@ -751,6 +760,8 @@ const validateScannedCode = async (qrCode: string) => {
     
     if (error || !guest) {
       console.error('Guest not found:', error)
+      // SONIDO DE ERROR
+      audioFeedback.playFeedback('error')
       showValidationResult('error', '❌ INVITADO NO ENCONTRADO', 'Este invitado no está en la lista')
       rejectedEntries.value++
       return
@@ -759,6 +770,8 @@ const validateScannedCode = async (qrCode: string) => {
     console.log('Guest found:', guest)
     
     if (guest.has_entered) {
+      // SONIDO DE ADVERTENCIA (ya entró)
+      audioFeedback.playFeedback('warning')
       showValidationResult(
         'warning', 
         '⚠️ YA INGRESÓ ANTERIORMENTE', 
@@ -788,9 +801,10 @@ const validateScannedCode = async (qrCode: string) => {
     }
     
     recentEntries.value.unshift(updatedGuest)
-    
-    // ACTUALIZACIÓN: Establecer el último guest validado para el popup detallado
     lastValidatedGuest.value = updatedGuest
+    
+    // SONIDO DE ÉXITO
+    audioFeedback.playFeedback('success')
     
     showValidationResult(
       'success',
@@ -808,6 +822,8 @@ const validateScannedCode = async (qrCode: string) => {
     
   } catch (error: any) {
     console.error('Error validating QR:', error)
+    // SONIDO DE ERROR
+    audioFeedback.playFeedback('error')
     showValidationResult('error', '❌ ERROR DE VALIDACIÓN', 'Error al procesar el código QR: ' + error.message)
     rejectedEntries.value++
   }
@@ -828,11 +844,15 @@ const searchGuest = async () => {
     if (error) throw error
     
     if (guests.length === 0) {
+      // SONIDO DE ERROR
+      audioFeedback.playFeedback('error')
       showValidationResult('error', '❌ NO ENCONTRADO', 'No se encontró ningún invitado con ese nombre o email')
       return
     }
     
     if (guests.length > 1) {
+      // SONIDO DE ADVERTENCIA
+      audioFeedback.playFeedback('warning')
       showToast(`Se encontraron ${guests.length} invitados. Sé más específico`, 'warning')
       return
     }
@@ -840,6 +860,8 @@ const searchGuest = async () => {
     const guest = guests[0] as Guest
     
     if (guest.has_entered) {
+      // SONIDO DE ADVERTENCIA
+      audioFeedback.playFeedback('warning')
       showValidationResult(
         'warning',
         '⚠️ YA INGRESÓ ANTERIORMENTE',
@@ -870,6 +892,9 @@ const searchGuest = async () => {
     recentEntries.value.unshift(updatedGuest)
     lastValidatedGuest.value = updatedGuest
     
+    // SONIDO DE ÉXITO
+    audioFeedback.playFeedback('success')
+    
     showValidationResult(
       'success',
       '✅ ENTRADA MANUAL',
@@ -883,6 +908,8 @@ const searchGuest = async () => {
     
   } catch (error: any) {
     console.error('Error searching guest:', error)
+    // SONIDO DE ERROR
+    audioFeedback.playFeedback('error')
     showToast('Error al buscar invitado: ' + error.message, 'danger')
   }
   
