@@ -2,8 +2,8 @@
   <ion-page>
     <ion-content class="role-selection-content">
       <div class="role-selection-container">
-        <!-- Header con estilo del template -->
-        <div class="role-header">
+        <!-- Header simple -->
+        <div class="page-header">
           <div class="logo">
             <ion-icon :icon="businessOutline" size="large"></ion-icon>
           </div>
@@ -11,129 +11,97 @@
           <p>Selecciona tu tipo de acceso</p>
         </div>
 
-        <!-- Opciones de rol con estilo actualizado -->
+        <!-- Opciones de rol -->
         <div class="role-options">
           <!-- Administrador -->
           <div class="role-card admin-card" @click="goToAdminLogin">
-            <div class="role-card-content">
-              <div class="role-icon">
-                <ion-icon :icon="settingsOutline" size="large"></ion-icon>
+            <div class="role-icon">
+              <ion-icon :icon="settingsOutline" size="large"></ion-icon>
+            </div>
+            <h2>Administrador</h2>
+            <p>Acceso completo al sistema</p>
+            
+            <div class="role-features">
+              <div class="feature-item">
+                <ion-icon :icon="peopleOutline"></ion-icon>
+                <span>Gestión de invitados</span>
               </div>
-              <h2>Administrador</h2>
-              <p>Acceso completo al sistema</p>
-              
-              <div class="role-features-container">
-                <h3>Funcionalidades:</h3>
-                <div class="role-features-grid">
-                  <div class="feature-item">
-                    <span class="feature-icon">👥</span>
-                    <span>Gestión de invitados</span>
-                  </div>
-                  <div class="feature-item">
-                    <span class="feature-icon">📧</span>
-                    <span>Envío de invitaciones</span>
-                  </div>
-                  <div class="feature-item">
-                    <span class="feature-icon">📊</span>
-                    <span>Reportes y estadísticas</span>
-                  </div>
-                  <div class="feature-item">
-                    <span class="feature-icon">⚙️</span>
-                    <span>Configuración de eventos</span>
-                  </div>
-                </div>
+              <div class="feature-item">
+                <ion-icon :icon="mailOutline"></ion-icon>
+                <span>Envío de invitaciones</span>
               </div>
-              
-              <div class="role-action">
-                <ion-icon :icon="arrowForwardOutline"></ion-icon>
-                <span>Iniciar como Admin</span>
+              <div class="feature-item">
+                <ion-icon :icon="analyticsOutline"></ion-icon>
+                <span>Reportes y estadísticas</span>
               </div>
+              <div class="feature-item">
+                <ion-icon :icon="settingsOutline"></ion-icon>
+                <span>Configuración de eventos</span>
+              </div>
+            </div>
+            
+            <div class="role-action">
+              <ion-icon :icon="arrowForwardOutline"></ion-icon>
+              <span>Iniciar como Admin</span>
             </div>
           </div>
 
           <!-- Empleado -->
           <div class="role-card employee-card" @click="goToEmployeeLogin">
-            <div class="role-card-content">
-              <div class="role-icon">
-                <ion-icon :icon="scanOutline" size="large"></ion-icon>
+            <div class="role-icon">
+              <ion-icon :icon="scanOutline" size="large"></ion-icon>
+            </div>
+            <h2>Empleado</h2>
+            <p>Acceso al escáner QR</p>
+            
+            <div class="role-features">
+              <div class="feature-item">
+                <ion-icon :icon="scanOutline"></ion-icon>
+                <span>Escáner de códigos QR</span>
               </div>
-              <h2>Empleado</h2>
-              <p>Acceso al escáner QR</p>
-              
-              <div class="role-features-container">
-                <h3>Funcionalidades:</h3>
-                <div class="role-features-grid">
-                  <div class="feature-item">
-                    <span class="feature-icon">📱</span>
-                    <span>Escáner de códigos QR</span>
-                  </div>
-                  <div class="feature-item">
-                    <span class="feature-icon">✅</span>
-                    <span>Validación de entradas</span>
-                  </div>
-                  <div class="feature-item">
-                    <span class="feature-icon">🔒</span>
-                    <span>Control de acceso</span>
-                  </div>
-                  <div class="feature-item">
-                    <span class="feature-icon">📈</span>
-                    <span>Estadísticas básicas</span>
-                  </div>
-                </div>
+              <div class="feature-item">
+                <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
+                <span>Validación de entradas</span>
               </div>
-              
-              <div class="role-action">
-                <ion-icon :icon="arrowForwardOutline"></ion-icon>
-                <span>Iniciar como Empleado</span>
+              <div class="feature-item">
+                <ion-icon :icon="shieldCheckmarkOutline"></ion-icon>
+                <span>Control de acceso</span>
               </div>
+              <div class="feature-item">
+                <ion-icon :icon="barChartOutline"></ion-icon>
+                <span>Estadísticas básicas</span>
+              </div>
+            </div>
+            
+            <div class="role-action">
+              <ion-icon :icon="arrowForwardOutline"></ion-icon>
+              <span>Iniciar como Empleado</span>
             </div>
           </div>
         </div>
 
-        <!-- Información adicional con estilo del template -->
+        <!-- Información adicional -->
         <div class="info-section">
-          <div class="info-card">
-            <div class="info-card-content">
-              <h3>
-                <ion-icon :icon="informationCircleOutline"></ion-icon>
-                ¿Necesitas ayuda?
-              </h3>
-              <div class="help-content">
-                <div class="help-item admin-help">
-                  <div class="help-header">
-                    <strong>👨‍💼 Administrador:</strong>
-                  </div>
-                  <div class="help-description">
-                    Para gestión completa del evento, configuración y reportes
-                  </div>
-                </div>
-                <div class="help-item employee-help">
-                  <div class="help-header">
-                    <strong>👨‍💻 Empleado:</strong>
-                  </div>
-                  <div class="help-description">
-                    Para personal de puerta que solo necesita validar entradas
-                  </div>
-                </div>
-                <div class="help-item contact-help">
-                  <div class="help-header">
-                    <strong>🔑 ¿No tienes credenciales?</strong>
-                  </div>
-                  <div class="help-description">
-                    Contacta con el organizador del evento
-                  </div>
-                </div>
-              </div>
+          <h3>¿Necesitas ayuda?</h3>
+          <div class="help-content">
+            <div class="help-item">
+              <strong>Administrador:</strong> Para gestión completa del evento, configuración y reportes
+            </div>
+            <div class="help-item">
+              <strong>Empleado:</strong> Para personal de puerta que solo necesita validar entradas
+            </div>
+            <div class="help-item">
+              <strong>¿No tienes credenciales?</strong> Contacta con el organizador del evento
             </div>
           </div>
         </div>
 
-        <!-- Footer actualizado -->
-        <div class="role-footer">
-          <div class="security-badge">
+        <!-- Footer -->
+        <div class="footer">
+          <p>
             <ion-icon :icon="shieldCheckmarkOutline"></ion-icon>
-            <span>Sistema seguro de gestión de eventos</span>
-          </div>
+            Sistema seguro de gestión de eventos
+          </p>
           <div class="version-info">
             Sistema QR v1.0 - Desarrollado por Adri
           </div>
@@ -155,8 +123,12 @@ import {
   settingsOutline,
   scanOutline,
   arrowForwardOutline,
-  informationCircleOutline,
-  shieldCheckmarkOutline
+  shieldCheckmarkOutline,
+  peopleOutline,
+  mailOutline,
+  analyticsOutline,
+  checkmarkCircleOutline,
+  barChartOutline
 } from 'ionicons/icons'
 
 const router = useRouter()
@@ -171,280 +143,227 @@ const goToEmployeeLogin = () => {
 </script>
 
 <style scoped>
-/* Variables de estilo basadas en el template de email */
-:root {
-  --template-primary: #0d1b2a;
-  --template-secondary: #1e3a8a;
-  --template-bg-light: #f4f4f4;
-  --template-bg-card: #f9f9f9;
-  --template-bg-section: #f8f9fa;
-  --template-border: #e0e0e0;
-  --template-border-light: #dcdcdc;
-  --template-text-muted: #666;
-  --template-text-dark: #333;
-  --template-warning-bg: #fff3cd;
-  --template-warning-border: #ffeeba;
-  --template-warning-text: #856404;
-  --template-info-bg: #f0f8ff;
-  --template-info-border: #b3d9ff;
-  --template-info-text: #0066cc;
-}
-
 .role-selection-content {
-  --background: var(--template-bg-light);
+  --background: #f8f9fa;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  padding: 35px 0;
+  padding: 20px 0;
 }
 
 .role-selection-container {
   width: 100%;
-  max-width: 800px;
-  padding: 30px;
+  max-width: 900px;
+  padding: 20px;
   margin: 0 auto;
 }
 
-/* Header con gradiente del template */
-.role-header {
-  background: linear-gradient(135deg, var(--template-primary) 0%, var(--template-secondary) 100%);
-  color: white;
-  padding: 35px 30px;
+/* Header simple */
+.page-header {
   text-align: center;
-  border-radius: 8px;
-  margin-bottom: 30px;
-  box-shadow: 0 4px 20px rgba(13, 27, 42, 0.15);
+  margin-bottom: 40px;
 }
 
 .logo {
   margin-bottom: 16px;
+  color: #1f2937;
 }
 
-.role-header h1 {
-  font-size: 2.5rem;
+.page-header h1 {
+  font-size: 2.2rem;
   font-weight: 700;
   margin: 0 0 12px 0;
-  text-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  color: #1f2937;
 }
 
-.role-header p {
-  font-size: 1.2rem;
-  opacity: 0.9;
+.page-header p {
+  font-size: 1.1rem;
   margin: 0;
+  color: #6b7280;
   font-weight: 500;
 }
 
-/* Cards de rol con estilo del template */
+/* Opciones de rol */
 .role-options {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-  gap: 25px;
-  margin-bottom: 30px;
+  gap: 24px;
+  margin-bottom: 40px;
 }
 
 .role-card {
-  background: #ffffff;
-  border: 1px solid var(--template-border);
-  border-radius: 8px;
-  overflow: hidden;
-  transition: all 0.3s ease;
+  background: white;
+  border-radius: 12px;
+  padding: 32px 24px;
+  text-align: center;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
 }
 
 .role-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-  border-color: var(--template-primary);
+  transform: translateY(-6px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
 }
 
-.role-card-content {
-  padding: 35px 30px;
+.admin-card:hover {
+  border-color: #1e3a8a;
+}
+
+.employee-card:hover {
+  border-color: #059669;
 }
 
 .role-icon {
-  text-align: center;
   margin-bottom: 20px;
-  color: var(--template-primary);
+  color: #6b7280;
 }
 
-.role-icon ion-icon {
-  font-size: 3rem;
+.admin-card .role-icon {
+  color: #1e3a8a;
+}
+
+.employee-card .role-icon {
+  color: #059669;
 }
 
 .role-card h2 {
-  font-size: 1.8rem;
+  font-size: 1.6rem;
   font-weight: 700;
-  margin: 0 0 12px 0;
-  color: var(--template-primary);
-  text-align: center;
+  margin: 0 0 8px 0;
+  color: #1f2937;
 }
 
 .role-card p {
-  font-size: 1.1rem;
-  color: var(--template-text-dark);
-  margin: 0 0 25px 0;
-  text-align: center;
-  opacity: 0.8;
+  font-size: 1rem;
+  margin: 0 0 24px 0;
+  color: #6b7280;
 }
 
-/* Features con estilo de tabla del template */
-.role-features-container {
-  background: var(--template-bg-card);
-  border: 1px solid var(--template-border-light);
-  padding: 20px;
-  border-radius: 6px;
-  margin: 20px 0;
-}
-
-.role-features-container h3 {
-  margin: 0 0 15px 0;
-  font-size: 1.1rem;
-  color: var(--template-primary);
-  font-weight: 600;
-}
-
-.role-features-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+/* Features */
+.role-features {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  margin-bottom: 28px;
+  text-align: left;
 }
 
 .feature-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   padding: 8px 0;
-  font-size: 0.95rem;
-  color: var(--template-text-dark);
+  font-size: 0.9rem;
+  color: #4b5563;
 }
 
-.feature-icon {
+.feature-item ion-icon {
   font-size: 1.1rem;
-  width: 24px;
-  text-align: center;
+  color: #6b7280;
 }
 
-/* Botón de acción con gradiente del template */
+.admin-card .feature-item ion-icon {
+  color: #1e3a8a;
+}
+
+.employee-card .feature-item ion-icon {
+  color: #059669;
+}
+
+/* Botón de acción */
 .role-action {
-  background: linear-gradient(135deg, var(--template-primary) 0%, var(--template-secondary) 100%);
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
   color: white;
-  padding: 18px 35px;
-  border-radius: 6px;
+  padding: 14px 24px;
+  border-radius: 8px;
   font-weight: 600;
-  font-size: 1.1rem;
-  margin-top: 25px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 8px rgba(13, 27, 42, 0.2);
+}
+
+.employee-card .role-action {
+  background: linear-gradient(135deg, #047857 0%, #059669 100%);
 }
 
 .role-action:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(13, 27, 42, 0.3);
+  box-shadow: 0 6px 15px rgba(13, 27, 42, 0.3);
 }
 
-/* Sección de información con estilo del template */
+.employee-card .role-action:hover {
+  box-shadow: 0 6px 15px rgba(4, 120, 87, 0.3);
+}
+
+/* Información adicional */
 .info-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
   margin-bottom: 30px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
 }
 
-.info-card {
-  background: #ffffff;
-  border: 1px solid var(--template-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-}
-
-.info-card-content {
-  padding: 25px 30px;
-}
-
-.info-card h3 {
-  color: var(--template-primary);
-  font-weight: 600;
+.info-section h3 {
+  margin: 0 0 16px 0;
+  color: #1f2937;
   font-size: 1.2rem;
-  margin: 0 0 20px 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  font-weight: 600;
 }
 
 .help-content {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 12px;
 }
 
 .help-item {
-  background: var(--template-bg-section);
-  border: 1px solid #e9ecef;
-  padding: 20px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-}
-
-.help-item:hover {
-  background: #ffffff;
-  border-color: var(--template-border);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-
-.help-header {
-  margin-bottom: 8px;
-  color: var(--template-primary);
-  font-size: 1rem;
-}
-
-.help-description {
-  color: var(--template-text-muted);
-  font-size: 0.95rem;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-size: 0.9rem;
   line-height: 1.5;
+  color: #4b5563;
 }
 
-/* Footer con estilo del template */
-.role-footer {
-  background: var(--template-bg-section);
-  padding: 25px;
+.help-item strong {
+  color: #1f2937;
+}
+
+/* Footer */
+.footer {
   text-align: center;
-  border: 1px solid var(--template-border);
-  border-radius: 6px;
+  color: #6b7280;
 }
 
-.security-badge {
+.footer p {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin: 0 0 10px 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--template-text-muted);
+  margin: 0 0 8px 0;
+  font-size: 0.95rem;
+  font-weight: 500;
 }
 
 .version-info {
   font-size: 0.85rem;
-  color: #999;
-  line-height: 1.4;
+  color: #9ca3af;
 }
 
-/* Responsive mejorado */
+/* Responsive */
 @media (max-width: 768px) {
   .role-selection-container {
-    padding: 20px;
+    padding: 16px;
   }
   
-  .role-header {
-    padding: 25px 20px;
-    margin-bottom: 20px;
-  }
-  
-  .role-header h1 {
-    font-size: 2rem;
+  .page-header h1 {
+    font-size: 1.8rem;
   }
   
   .role-options {
@@ -452,37 +371,25 @@ const goToEmployeeLogin = () => {
     gap: 20px;
   }
   
-  .role-card-content {
-    padding: 25px 20px;
+  .role-card {
+    padding: 24px 20px;
   }
   
   .role-card h2 {
-    font-size: 1.5rem;
-  }
-  
-  .role-features-grid {
-    grid-template-columns: 1fr;
-    gap: 8px;
+    font-size: 1.4rem;
   }
   
   .help-content {
-    gap: 12px;
+    gap: 8px;
   }
   
   .help-item {
-    padding: 15px;
-  }
-  
-  .info-card-content {
-    padding: 20px;
-  }
-  
-  .role-footer {
-    padding: 20px;
+    padding: 10px 12px;
+    font-size: 0.85rem;
   }
 }
 
-/* Animaciones mejoradas */
+/* Animaciones */
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -494,7 +401,7 @@ const goToEmployeeLogin = () => {
   }
 }
 
-.role-header {
+.page-header {
   animation: fadeInUp 0.6s ease-out;
 }
 
@@ -506,16 +413,7 @@ const goToEmployeeLogin = () => {
   animation: fadeInUp 1s ease-out;
 }
 
-.role-footer {
+.footer {
   animation: fadeInUp 1.2s ease-out;
-}
-
-/* Hover effects para cards */
-.admin-card .role-action:hover {
-  background: linear-gradient(135deg, #1a2332 0%, #2547a8 100%);
-}
-
-.employee-card .role-action:hover {
-  background: linear-gradient(135deg, #1a2332 0%, #2547a8 100%);
 }
 </style>

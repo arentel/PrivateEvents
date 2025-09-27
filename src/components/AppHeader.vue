@@ -1,23 +1,20 @@
 <template>
   <ion-header>
-    <ion-toolbar>
+    <ion-toolbar class="custom-toolbar">
       <ion-title>{{ title }}</ion-title>
       
-      <!-- Botones de header -->
+      <!-- Información del usuario y logout -->
       <ion-buttons slot="end">
-        <!-- Info del usuario -->
-        <div class="user-info">
-          <span>{{ auth.username }}</span>
+        <div class="user-section">
+          <span class="username">{{ auth.username }}</span>
+          <ion-button
+            fill="clear"
+            @click="handleLogout"
+            class="logout-button"
+          >
+            <ion-icon :icon="logOutOutline" slot="icon-only"></ion-icon>
+          </ion-button>
         </div>
-        
-        <!-- Botón logout -->
-        <ion-button
-          fill="clear"
-          @click="handleLogout"
-          class="logout-button"
-        >
-          <ion-icon :icon="logOutOutline" slot="icon-only"></ion-icon>
-        </ion-button>
       </ion-buttons>
     </ion-toolbar>
   </ion-header>
@@ -56,19 +53,18 @@ const handleLogout = async () => {
     buttons: [
       {
         text: 'Cancelar',
-        role: 'cancel',
-        cssClass: 'secondary'
+        role: 'cancel'
       },
       {
         text: 'Salir',
-        cssClass: 'danger',
+        role: 'destructive',
         handler: async () => {
           // Logout
           auth.logout()
           
           // Toast de confirmación
           const toast = await toastController.create({
-            message: '¡Hasta luego! 👋',
+            message: '¡Hasta luego!',
             duration: 2000,
             color: 'medium',
             position: 'top'
@@ -87,25 +83,57 @@ const handleLogout = async () => {
 </script>
 
 <style scoped>
-.user-info {
+.custom-toolbar {
+  --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  --color: white;
+  --border-width: 0;
+}
+
+.user-section {
   display: flex;
   align-items: center;
-  margin-right: 8px;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  backdrop-filter: blur(10px);
+}
+
+.username {
   font-size: 0.9rem;
-  color: var(--ion-color-medium);
+  font-weight: 500;
+  color: white;
+  opacity: 0.9;
 }
 
 .logout-button {
-  --color: var(--ion-color-medium);
+  --color: white;
+  --background: rgba(255, 255, 255, 0.1);
+  --border-radius: 50%;
+  margin: 0;
+  width: 36px;
+  height: 36px;
 }
 
 .logout-button:hover {
-  --color: var(--ion-color-danger);
+  --background: rgba(255, 255, 255, 0.2);
+  --color: #ff6b6b;
 }
 
+/* Responsive */
 @media (max-width: 576px) {
-  .user-info span {
+  .user-section {
+    padding: 6px 8px;
+    gap: 8px;
+  }
+  
+  .username {
     display: none;
+  }
+  
+  .logout-button {
+    width: 32px;
+    height: 32px;
   }
 }
 </style>
