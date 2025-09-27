@@ -457,20 +457,39 @@ const getStatusText = (guest: Guest) => {
 
 // Limpiar todos los invitados
 const clearAllGuests = async () => {
+  if (!currentEvent.value) return
+
   const alert = await alertController.create({
     header: 'Limpiar Lista',
     message: '¿Estás seguro de eliminar todos los invitados de este evento?',
     buttons: [
       { text: 'Cancelar', role: 'cancel' },
       { text: 'Eliminar Todo', role: 'destructive', handler: async () => {
-        // Implementar limpieza
-        const toast = await toastController.create({
-          message: 'Lista limpiada completamente',
-          duration: 2000,
-          color: 'success',
-          position: 'top'
-        })
-        await toast.present()
+        try {
+          // Eliminar todos los invitados del evento actual uno por uno
+          const guestsToDelete = [...currentEventGuests.value]
+          
+          for (const guest of guestsToDelete) {
+            await eventsStore.deleteGuest(guest.id)
+          }
+          
+          const toast = await toastController.create({
+            message: 'Lista limpiada completamente',
+            duration: 2000,
+            color: 'success',
+            position: 'top'
+          })
+          await toast.present()
+        } catch (error) {
+          console.error('Error limpiando invitados:', error)
+          const toast = await toastController.create({
+            message: 'Error al limpiar la lista',
+            duration: 3000,
+            color: 'danger',
+            position: 'top'
+          })
+          await toast.present()
+        }
       }}
     ]
   })
