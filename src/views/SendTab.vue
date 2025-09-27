@@ -10,195 +10,173 @@
       </ion-header>
 
       <div class="send-container">
-        <!-- Selector de evento -->
-        <ion-card class="event-selector">
-          <ion-card-content>
-            <div class="event-header">
-              <div class="event-info">
-                <h2>{{ currentEvent?.name || 'Sin evento seleccionado' }}</h2>
-                <p v-if="currentEvent">
-                  {{ formatDate(currentEvent.date) }} • {{ currentEventGuests.length }} invitados
-                </p>
-              </div>
-              <ion-select
-                v-if="eventsStore.events.length > 1"
-                :value="eventsStore.currentEventId"
-                @ionChange="selectEvent($event.detail.value)"
-                placeholder="Seleccionar evento"
-                interface="popover"
-              >
-                <ion-select-option
-                  v-for="event in eventsStore.events"
-                  :key="event.id"
-                  :value="event.id"
-                >
-                  {{ event.name }}
-                </ion-select-option>
-              </ion-select>
+        <!-- Header simple -->
+        <div class="page-header">
+          <h1>Envío de QRs</h1>
+          <ion-select
+            v-if="eventsStore.events.length > 1"
+            :value="eventsStore.currentEventId"
+            @ionChange="selectEvent($event.detail.value)"
+            placeholder="Seleccionar evento"
+            interface="popover"
+            class="event-select"
+          >
+            <ion-select-option
+              v-for="event in eventsStore.events"
+              :key="event.id"
+              :value="event.id"
+            >
+              {{ event.name }}
+            </ion-select-option>
+          </ion-select>
+        </div>
+
+        <!-- Información del evento actual -->
+        <div class="event-info-card" v-if="currentEvent">
+          <div class="event-details">
+            <h2>{{ currentEvent.name }}</h2>
+            <p>{{ formatDate(currentEvent.date) }} • {{ currentEventGuests.length }} invitados</p>
+          </div>
+          <div class="event-stats">
+            <div class="stat-item">
+              <span class="stat-value">{{ pendingGuests.length }}</span>
+              <span class="stat-label">Pendientes</span>
             </div>
-          </ion-card-content>
-        </ion-card>
+            <div class="stat-item">
+              <span class="stat-value">{{ sentGuests.length }}</span>
+              <span class="stat-label">Enviados</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-value">{{ scannedGuests.length }}</span>
+              <span class="stat-label">Validados</span>
+            </div>
+          </div>
+        </div>
 
         <!-- Botón principal de envío -->
-        <ion-card>
-          <ion-card-header>
-            <ion-card-title>Envío de QRs</ion-card-title>
-            <p style="margin: 8px 0 0 0; color: var(--ion-color-medium); font-size: 0.9rem;">
-              Los emails se enviarán con EmailJS. Verifica tu configuración si no funcionan.
-            </p>
-          </ion-card-header>
-          <ion-card-content>
-            <ion-button 
-              expand="block" 
-              @click="sendAllQRs"
-              :disabled="isSending || pendingGuests.length === 0 || !currentEvent"
-              color="success"
-              class="send-button"
-            >
-              <ion-icon :icon="mailOutline" slot="start"></ion-icon>
-              <ion-spinner v-if="isSending" slot="start"></ion-spinner>
-              {{ isSending ? 'Enviando...' : `Enviar QRs (${pendingGuests.length})` }}
-            </ion-button>
-            
-            <!-- Barra de progreso -->
-            <div v-if="isSending" class="progress-container">
-              <ion-progress-bar 
-                :value="sendProgress"
-                color="success"
-              ></ion-progress-bar>
-              <p class="progress-text">
-                {{ currentSendStatus }}
-              </p>
-              <p class="progress-stats">
-                {{ sentCount }}/{{ totalToSend }} • {{ Math.round(sendProgress * 100) }}%
-              </p>
-            </div>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- Estadísticas de envío -->
-        <ion-card>
-          <ion-card-content>
-            <ion-row>
-              <ion-col size="3">
-                <div class="stat-mini">
-                  <div class="stat-number">{{ currentEventGuests.length }}</div>
-                  <div class="stat-label">Total</div>
-                </div>
-              </ion-col>
-              <ion-col size="3">
-                <div class="stat-mini pending">
-                  <div class="stat-number">{{ pendingGuests.length }}</div>
-                  <div class="stat-label">Pendientes</div>
-                </div>
-              </ion-col>
-              <ion-col size="3">
-                <div class="stat-mini sent">
-                  <div class="stat-number">{{ sentGuests.length }}</div>
-                  <div class="stat-label">Enviados</div>
-                </div>
-              </ion-col>
-              <ion-col size="3">
-                <div class="stat-mini scanned">
-                  <div class="stat-number">{{ scannedGuests.length }}</div>
-                  <div class="stat-label">Validados</div>
-                </div>
-              </ion-col>
-            </ion-row>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- Lista de estado de envíos -->
-        <ion-card>
-          <ion-card-header>
-            <div class="list-header">
-              <ion-card-title>Estado de Envíos</ion-card-title>
-              <ion-segment v-model="selectedTab" class="status-segment">
-                <ion-segment-button value="pending">
-                  <ion-label>Pendientes ({{ pendingGuests.length }})</ion-label>
-                </ion-segment-button>
-                <ion-segment-button value="sent">
-                  <ion-label>Enviados ({{ sentGuests.length }})</ion-label>
-                </ion-segment-button>
-              </ion-segment>
-            </div>
-          </ion-card-header>
+        <div class="send-section" v-if="currentEvent">
+          <ion-button 
+            expand="block" 
+            @click="sendAllQRs"
+            :disabled="isSending || pendingGuests.length === 0"
+            class="send-button"
+          >
+            <ion-icon :icon="mailOutline" slot="start" v-if="!isSending"></ion-icon>
+            <ion-spinner v-if="isSending" name="crescent" slot="start"></ion-spinner>
+            {{ isSending ? 'Enviando...' : `Enviar QRs (${pendingGuests.length})` }}
+          </ion-button>
           
-          <ion-card-content>
-            <!-- Lista de pendientes -->
-            <ion-list v-if="selectedTab === 'pending' && pendingGuests.length > 0">
-              <ion-item v-for="guest in pendingGuests" :key="guest.id">
-                <ion-avatar slot="start">
-                  <div class="avatar-placeholder pending">
-                    {{ guest.name.charAt(0).toUpperCase() }}
-                  </div>
-                </ion-avatar>
-                
-                <ion-label>
-                  <h2>{{ guest.name }}</h2>
-                  <p>{{ guest.email }}</p>
-                  <p v-if="guest.phone" class="phone">📞 {{ guest.phone }}</p>
-                </ion-label>
-                
+          <!-- Barra de progreso -->
+          <div v-if="isSending" class="progress-container">
+            <ion-progress-bar 
+              :value="sendProgress"
+              color="primary"
+            ></ion-progress-bar>
+            <p class="progress-text">{{ currentSendStatus }}</p>
+            <p class="progress-stats">
+              {{ sentCount }}/{{ totalToSend }} • {{ Math.round(sendProgress * 100) }}%
+            </p>
+          </div>
+
+          <div class="send-note">
+            <p>Los emails se enviarán con PDFs adjuntos. Verifica tu configuración de EmailJS si no funcionan.</p>
+          </div>
+        </div>
+
+        <!-- Lista de invitados -->
+        <div class="guests-section" v-if="currentEvent">
+          <div class="section-header">
+            <h3>Estado de Envíos</h3>
+            <ion-segment v-model="selectedTab" class="status-segment">
+              <ion-segment-button value="pending">
+                <ion-label>Pendientes ({{ pendingGuests.length }})</ion-label>
+              </ion-segment-button>
+              <ion-segment-button value="sent">
+                <ion-label>Enviados ({{ sentGuests.length }})</ion-label>
+              </ion-segment-button>
+            </ion-segment>
+          </div>
+
+          <!-- Lista de pendientes -->
+          <div class="guests-list" v-if="selectedTab === 'pending' && pendingGuests.length > 0">
+            <div
+              v-for="guest in pendingGuests"
+              :key="guest.id"
+              class="guest-item pending"
+            >
+              <div class="guest-avatar">
+                {{ guest.name.charAt(0).toUpperCase() }}
+              </div>
+              
+              <div class="guest-info">
+                <h4>{{ guest.name }}</h4>
+                <p>{{ guest.email }}</p>
+                <p v-if="guest.phone" class="phone">{{ guest.phone }}</p>
+              </div>
+              
+              <div class="guest-actions">
                 <ion-button 
-                  slot="end" 
                   size="small" 
                   fill="outline"
                   @click="sendSingleQR(guest)"
                   :disabled="isSending"
-                  color="primary"
                 >
                   <ion-icon :icon="mailOutline" slot="icon-only"></ion-icon>
                 </ion-button>
-              </ion-item>
-            </ion-list>
-            
-            <!-- Lista de enviados -->
-            <ion-list v-if="selectedTab === 'sent' && sentGuests.length > 0">
-              <ion-item v-for="guest in sentGuests" :key="guest.id">
-                <ion-avatar slot="start">
-                  <div class="avatar-placeholder sent">
-                    {{ guest.name.charAt(0).toUpperCase() }}
-                  </div>
-                </ion-avatar>
-                
-                <ion-label>
-                  <h2>{{ guest.name }}</h2>
-                  <p>{{ guest.email }}</p>
-                  <p class="timestamp" v-if="guest.sent_at">
-                    Enviado: {{ formatDateTime(guest.sent_at) }}
-                  </p>
-                  <p v-if="(guest as any).simulated_send" class="simulated-note">
-                    📧 Envío simulado (configurar variables EmailJS)
-                  </p>
-                </ion-label>
-                
-                <ion-chip :color="guest.has_entered || guest.scanned ? 'success' : 'warning'" slot="end">
+              </div>
+            </div>
+          </div>
+
+          <!-- Lista de enviados -->
+          <div class="guests-list" v-if="selectedTab === 'sent' && sentGuests.length > 0">
+            <div
+              v-for="guest in sentGuests"
+              :key="guest.id"
+              class="guest-item sent"
+            >
+              <div class="guest-avatar">
+                {{ guest.name.charAt(0).toUpperCase() }}
+              </div>
+              
+              <div class="guest-info">
+                <h4>{{ guest.name }}</h4>
+                <p>{{ guest.email }}</p>
+                <p class="timestamp" v-if="guest.sent_at">
+                  Enviado: {{ formatDateTime(guest.sent_at) }}
+                </p>
+                <p v-if="(guest as any).simulated_send" class="simulated-note">
+                  Envío simulado (configurar EmailJS)
+                </p>
+              </div>
+              
+              <div class="guest-status">
+                <span class="status-badge" :class="guest.has_entered || guest.scanned ? 'validated' : 'sent'">
                   {{ guest.has_entered || guest.scanned ? 'VALIDADO' : 'ENVIADO' }}
-                </ion-chip>
-              </ion-item>
-            </ion-list>
-            
-            <!-- Estado vacío -->
-            <div v-if="!currentEvent" class="empty-state">
-              <ion-icon :icon="calendarOutline" size="large" color="medium"></ion-icon>
-              <h3>Selecciona un evento</h3>
-              <p>Primero selecciona un evento para enviar QRs</p>
+                </span>
+              </div>
             </div>
-            
-            <div v-else-if="selectedTab === 'pending' && pendingGuests.length === 0" class="empty-state success">
-              <ion-icon :icon="checkmarkCircleOutline" size="large" color="success"></ion-icon>
-              <h3>✅ Todos los QRs enviados</h3>
-              <p>No hay invitados pendientes de envío</p>
-            </div>
-            
-            <div v-else-if="selectedTab === 'sent' && sentGuests.length === 0" class="empty-state">
-              <ion-icon :icon="mailOutline" size="large" color="medium"></ion-icon>
-              <h3>No hay QRs enviados</h3>
-              <p>Comienza enviando QRs a tus invitados</p>
-            </div>
-          </ion-card-content>
-        </ion-card>
+          </div>
+
+          <!-- Estados vacíos -->
+          <div v-if="selectedTab === 'pending' && pendingGuests.length === 0" class="empty-state success">
+            <ion-icon :icon="checkmarkCircleOutline" size="large"></ion-icon>
+            <h4>Todos los QRs enviados</h4>
+            <p>No hay invitados pendientes de envío</p>
+          </div>
+          
+          <div v-if="selectedTab === 'sent' && sentGuests.length === 0" class="empty-state">
+            <ion-icon :icon="mailOutline" size="large"></ion-icon>
+            <h4>No hay QRs enviados</h4>
+            <p>Comienza enviando QRs a tus invitados</p>
+          </div>
+        </div>
+
+        <!-- Estado sin evento -->
+        <div v-if="!currentEvent" class="no-event">
+          <ion-icon :icon="calendarOutline" size="large"></ion-icon>
+          <h3>Sin evento seleccionado</h3>
+          <p>Selecciona un evento para enviar QRs</p>
+        </div>
       </div>
     </ion-content>
   </ion-page>
@@ -212,19 +190,10 @@ import {
   IonHeader,
   IonToolbar,
   IonTitle,
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
   IonLabel,
   IonButton,
   IonIcon,
   IonProgressBar,
-  IonList,
-  IonAvatar,
-  IonChip,
-  IonRow,
-  IonCol,
   IonSegment,
   IonSegmentButton,
   IonSelect,
@@ -241,8 +210,6 @@ import AppHeader from '@/components/AppHeader.vue'
 import { eventsStore, type Guest } from '@/stores/events'
 // @ts-ignore
 import { supabase } from '@/services/supabase.js'
-
-// Importaciones del servicio de email actualizado
 // @ts-ignore
 import { sendQREmail, sendBulkQREmails, diagnoseEmailJS } from '@/services/email'
 
@@ -258,7 +225,6 @@ const selectedTab = ref('pending')
 const currentEvent = computed(() => eventsStore.currentEvent)
 const currentEventGuests = computed(() => eventsStore.currentEventGuests)
 
-// Filtros usando la nueva estructura de base de datos
 const pendingGuests = computed(() => 
   currentEventGuests.value.filter(guest => !guest.qr_sent && !guest.sent)
 )
@@ -274,31 +240,21 @@ const scannedGuests = computed(() =>
 // Inicializar
 onMounted(async () => {
   try {
-    console.log('📧 Inicializando SendTab...')
-    
+    console.log('Inicializando SendTab...')
     await eventsStore.init()
     
     setTimeout(() => {
       if (eventsStore.events.length > 0 && !eventsStore.currentEventId) {
-        console.log('🎯 SendTab: Seleccionando automáticamente el primer evento:', eventsStore.events[0].name)
         eventsStore.setCurrentEvent(eventsStore.events[0].id)
       }
-      
-      console.log('📊 Estado de SendTab:', {
-        eventos: eventsStore.events.length,
-        eventoActual: eventsStore.currentEvent?.name,
-        invitadosPendientes: pendingGuests.value.length,
-        invitadosEnviados: sentGuests.value.length
-      })
     }, 100)
     
-    // Diagnosticar EmailJS solo en desarrollo
     if (import.meta.env.DEV) {
       diagnoseEmailJS()
     }
     
   } catch (error) {
-    console.error('❌ Error inicializando SendTab:', error)
+    console.error('Error inicializando SendTab:', error)
     
     const toast = await toastController.create({
       message: 'Error conectando con la base de datos',
@@ -331,7 +287,6 @@ const formatDateTime = (dateString: string) => {
 // Seleccionar evento
 const selectEvent = (eventId: string) => {
   const event = eventsStore.events.find(e => e.id === eventId)
-  console.log('🎯 SendTab: Cambiando a evento:', event?.name)
   eventsStore.setCurrentEvent(eventId)
   
   if (event) {
@@ -344,7 +299,7 @@ const selectEvent = (eventId: string) => {
   }
 }
 
-// Función para enviar todos los QRs - ACTUALIZADA para nueva estructura con PDF
+// Función para enviar todos los QRs
 const sendAllQRs = async () => {
   if (!currentEvent.value) {
     const toast = await toastController.create({
@@ -383,9 +338,6 @@ const sendAllQRs = async () => {
   try {
     const guestsToSend = [...pendingGuests.value]
     
-    console.log('📧 Preparando envío masivo con PDF tickets para', guestsToSend.length, 'invitados')
-    
-    // Preparar datos para envío masivo con información del evento para PDF
     const guestsWithQRs = guestsToSend.map(guest => {
       if (!currentEvent.value) throw new Error('No hay evento seleccionado')
       
@@ -411,17 +363,15 @@ const sendAllQRs = async () => {
       }
     })
 
-    // Opciones para el email con información completa para PDF
     const emailOptions = {
       eventId: currentEvent.value.id,
       eventName: currentEvent.value.name,
       eventDate: formatDate(currentEvent.value.date),
       eventLocation: currentEvent.value.location || 'Ubicación por confirmar',
       organizerName: 'Organizador del Evento',
-      logoBase64: null // Aquí podrías añadir un logo si lo tienes
+      logoBase64: null
     }
 
-    // Callback de progreso actualizado
     const progressCallback = (progress: any) => {
       sendProgress.value = progress.percentage / 100
       
@@ -431,33 +381,28 @@ const sendAllQRs = async () => {
           statusText = `Generando PDF y enviando a ${progress.currentGuest}...`
           break
         case 'success':
-          statusText = `✅ PDF enviado a ${progress.currentGuest}`
+          statusText = `Enviado a ${progress.currentGuest}`
           sentCount.value = progress.current
           break
         case 'simulated':
-          statusText = `📧 Simulado (con PDF) para ${progress.currentGuest}`
+          statusText = `Simulado para ${progress.currentGuest}`
           sentCount.value = progress.current
           break
         case 'error':
-          statusText = `❌ Error con ${progress.currentGuest}`
+          statusText = `Error con ${progress.currentGuest}`
           break
         default:
-          statusText = `Procesando PDF para ${progress.currentGuest}...`
+          statusText = `Procesando ${progress.currentGuest}...`
       }
       
       currentSendStatus.value = statusText
     }
 
-    // Usar la función de envío masivo actualizada
-    console.log('🚀 Iniciando envío masivo con PDF tickets...')
     const results = await sendBulkQREmails(guestsWithQRs, emailOptions, progressCallback)
     
-    console.log('📊 Resultados del envío:', results)
-    
-    // Marcar invitados como enviados Y GUARDAR EN SUPABASE - USANDO NUEVA ESTRUCTURA
+    // Marcar invitados como enviados
     let updatedGuests = 0
     for (const guest of guestsToSend) {
-      // Actualizar en Supabase usando la nueva estructura
       const { error } = await supabase
         .from('guests')
         .update({
@@ -467,11 +412,10 @@ const sendAllQRs = async () => {
         .eq('id', guest.id)
       
       if (error) {
-        console.error('❌ Error actualizando guest en Supabase:', error)
+        console.error('Error actualizando guest en Supabase:', error)
       } else {
-        // Actualizar estado local
         guest.qr_sent = true
-        guest.sent = true // Alias para compatibilidad
+        guest.sent = true
         guest.sent_at = new Date().toISOString()
         ;(guest as any).simulated_send = results.simulated > 0
         ;(guest as any).has_pdf = true
@@ -479,24 +423,22 @@ const sendAllQRs = async () => {
       }
     }
     
-    currentSendStatus.value = '✅ Envío con PDFs completado'
+    currentSendStatus.value = 'Envío completado'
     
-    // Mostrar resultado detallado incluyendo info de PDFs
     let message = ''
     let toastColor = 'success'
     
     if (results.failed > 0) {
-      message = `⚠️ ${results.sent || 0} PDFs enviados, ${results.failed} fallaron`
+      message = `${results.sent || 0} PDFs enviados, ${results.failed} fallaron`
       toastColor = 'warning'
     } else if (results.simulated > 0) {
-      message = `📧 ${results.simulated} entradas PDF procesadas (modo simulación - verificar configuración EmailJS)`
+      message = `${results.simulated} entradas PDF procesadas (modo simulación)`
       toastColor = 'warning'
     } else if (results.sent > 0) {
-      const pdfText = results.withPDF ? ` con ${results.withPDF} PDFs adjuntos` : ''
-      message = `✅ ${results.sent} entradas enviadas correctamente${pdfText}`
+      message = `${results.sent} entradas enviadas correctamente`
       toastColor = 'success'
     } else {
-      message = `❌ No se pudo enviar ninguna entrada`
+      message = `No se pudo enviar ninguna entrada`
       toastColor = 'danger'
     }
     
@@ -508,33 +450,11 @@ const sendAllQRs = async () => {
     })
     await toast.present()
     
-    // Si hay errores, mostrar detalles
-    if (results.errors && results.errors.length > 0) {
-      console.error('Errores durante el envío:', results.errors)
-      
-      const errorNames = results.errors.slice(0, 3).map((e: any) => e.guest).join(', ')
-      const moreErrors = results.errors.length > 3 ? ` y ${results.errors.length - 3} más` : ''
-      
-      const errorToast = await toastController.create({
-        message: `Errores con: ${errorNames}${moreErrors}`,
-        duration: 6000,
-        color: 'danger',
-        position: 'bottom',
-        buttons: [{
-          text: 'Ver detalles',
-          handler: () => {
-            console.table(results.errors)
-          }
-        }]
-      })
-      await errorToast.present()
-    }
-    
   } catch (error: any) {
-    console.error('❌ Error sending QRs with PDFs:', error)
+    console.error('Error sending QRs:', error)
     
     const toast = await toastController.create({
-      message: `Error durante el envío masivo: ${error?.message || 'Error desconocido'}`,
+      message: `Error durante el envío: ${error?.message || 'Error desconocido'}`,
       duration: 4000,
       color: 'danger',
       position: 'top'
@@ -545,7 +465,7 @@ const sendAllQRs = async () => {
   }
 }
 
-// Función para enviar QR individual - ACTUALIZADA para nueva estructura con PDF
+// Función para enviar QR individual
 const sendSingleQR = async (guest: Guest) => {
   if (!currentEvent.value) {
     const toast = await toastController.create({
@@ -559,9 +479,6 @@ const sendSingleQR = async (guest: Guest) => {
   }
 
   try {
-    console.log('📧 Enviando entrada PDF individual a:', guest.name)
-    
-    // Generar datos del QR
     const qrData = {
       id: guest.id,
       name: guest.name,
@@ -574,28 +491,24 @@ const sendSingleQR = async (guest: Guest) => {
       version: '1.0'
     }
     
-    // Preparar guest con event_name e información completa
     const guestWithEvent = {
       ...guest,
       event_name: currentEvent.value.name,
       event_id: currentEvent.value.id
     }
     
-    // Opciones para el email con información completa para PDF
     const emailOptions = {
       eventId: currentEvent.value.id,
       eventName: currentEvent.value.name,
       eventDate: formatDate(currentEvent.value.date),
       eventLocation: currentEvent.value.location || 'Ubicación por confirmar',
       organizerName: 'Organizador del Evento',
-      logoBase64: null // Aquí podrías añadir un logo si lo tienes
+      logoBase64: null
     }
 
-    // Enviar usando la función de email.js actualizada
     const result = await sendQREmail(guestWithEvent, JSON.stringify(qrData), emailOptions)
     
     if (result.success) {
-      // Actualizar en Supabase usando la nueva estructura
       const { error } = await supabase
         .from('guests')
         .update({
@@ -605,21 +518,19 @@ const sendSingleQR = async (guest: Guest) => {
         .eq('id', guest.id)
       
       if (error) {
-        console.error('❌ Error actualizando guest en Supabase:', error)
+        console.error('Error actualizando guest en Supabase:', error)
         throw error
       }
       
-      // Actualizar estado local
       guest.qr_sent = true
-      guest.sent = true // Alias para compatibilidad
+      guest.sent = true
       guest.sent_at = new Date().toISOString()
       ;(guest as any).simulated_send = result.simulated
       ;(guest as any).has_pdf = result.hasPDF
       
-      const pdfText = result.hasPDF ? ' con PDF adjunto' : ''
       const message = result.simulated 
-        ? `📧 Envío simulado${pdfText} para ${guest.name} (configurar variables EmailJS)`
-        : `✅ Entrada${pdfText} enviada a ${guest.name}`
+        ? `Envío simulado para ${guest.name} (configurar EmailJS)`
+        : `Entrada enviada a ${guest.name}`
       
       const toast = await toastController.create({
         message,
@@ -630,11 +541,10 @@ const sendSingleQR = async (guest: Guest) => {
       await toast.present()
     }
   } catch (error: any) {
-    console.error('❌ Error sending single QR with PDF:', error)
+    console.error('Error sending single QR:', error)
     
-    const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
     const toast = await toastController.create({
-      message: `Error al enviar entrada PDF a ${guest.name}: ${errorMessage}`,
+      message: `Error al enviar entrada a ${guest.name}: ${error?.message || 'Error desconocido'}`,
       duration: 4000,
       color: 'danger',
       position: 'top'
@@ -646,51 +556,113 @@ const sendSingleQR = async (guest: Guest) => {
 
 <style scoped>
 .send-container {
-  padding: 16px;
+  padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
 }
 
-.event-selector {
-  margin-bottom: 16px;
-}
-
-.event-header {
+/* Header simple */
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  margin-bottom: 24px;
 }
 
-.event-info h2 {
-  margin: 0 0 4px 0;
-  color: var(--ion-color-primary);
-}
-
-.event-info p {
+.page-header h1 {
+  font-size: 1.8rem;
+  font-weight: 600;
   margin: 0;
-  color: var(--ion-color-medium);
-  font-size: 0.9rem;
+  color: #1f2937;
+}
+
+.event-select {
+  min-width: 200px;
+}
+
+/* Información del evento */
+.event-info-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.event-details h2 {
+  margin: 0 0 8px 0;
+  color: #1f2937;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.event-details p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.event-stats {
+  display: flex;
+  justify-content: space-around;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  color: white;
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-value {
+  font-weight: 700;
+  font-size: 1.4rem;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+/* Sección de envío */
+.send-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
 .send-button {
-  margin-bottom: 16px;
+  --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
   height: 56px;
   font-weight: 600;
   font-size: 1.1rem;
+  --border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.send-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(13, 27, 42, 0.3);
 }
 
 .progress-container {
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 1px solid var(--ion-color-light);
+  border-top: 1px solid #e5e7eb;
 }
 
 .progress-text {
   text-align: center;
   margin-top: 12px;
   font-size: 0.95rem;
-  color: var(--ion-color-dark);
+  color: #1f2937;
   font-weight: 500;
 }
 
@@ -698,136 +670,204 @@ const sendSingleQR = async (guest: Guest) => {
   text-align: center;
   margin-top: 4px;
   font-size: 0.85rem;
-  color: var(--ion-color-medium);
+  color: #6b7280;
 }
 
-.stat-mini {
-  text-align: center;
-  padding: 20px 12px;
-  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-  color: white;
+.send-note {
+  background: #f0f8ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 16px;
+}
+
+.send-note p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #0066cc;
+}
+
+/* Sección de invitados */
+.guests-section {
+  background: white;
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
-.stat-mini.pending {
-  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
-}
-
-.stat-mini.sent {
-  background: linear-gradient(135deg, #ffc107 0%, #ff8c00 100%);
-}
-
-.stat-mini.scanned {
-  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-}
-
-.stat-number {
-  font-size: 1.8rem;
-  font-weight: bold;
-  line-height: 1;
-}
-
-.stat-label {
-  font-size: 0.85rem;
-  opacity: 0.95;
-  margin-top: 6px;
-  font-weight: 500;
-}
-
-.list-header {
+.section-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.section-header h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 1.2rem;
+  font-weight: 600;
 }
 
 .status-segment {
   min-width: 320px;
 }
 
-.avatar-placeholder {
-  width: 44px;
-  height: 44px;
+/* Lista de invitados */
+.guests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guest-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.guest-item:hover {
+  background: #f1f3f4;
+  transform: translateX(4px);
+}
+
+.guest-item.pending {
+  border-left-color: #6b7280;
+}
+
+.guest-item.sent {
+  border-left-color: #10b981;
+}
+
+.guest-avatar {
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
+  background: #6b7280;
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: bold;
-  font-size: 1.1rem;
+  font-weight: 600;
+  font-size: 1.2rem;
 }
 
-.avatar-placeholder.pending {
-  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+.guest-item.sent .guest-avatar {
+  background: #10b981;
 }
 
-.avatar-placeholder.sent {
-  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+.guest-info {
+  flex: 1;
+}
+
+.guest-info h4 {
+  margin: 0 0 4px 0;
+  color: #1f2937;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.guest-info p {
+  margin: 0 0 2px 0;
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 
 .phone {
-  font-size: 0.85rem;
-  color: var(--ion-color-medium);
-  margin-top: 2px;
+  font-size: 0.8rem;
+  color: #9ca3af;
 }
 
 .timestamp {
-  font-size: 0.85rem;
-  color: var(--ion-color-medium);
-  margin-top: 2px;
+  font-size: 0.8rem;
+  color: #6b7280;
 }
 
 .simulated-note {
   font-size: 0.8rem;
-  color: var(--ion-color-warning);
+  color: #f59e0b;
   font-style: italic;
-  margin-top: 4px;
-  background: rgba(255, 193, 7, 0.1);
-  padding: 4px 8px;
-  border-radius: 4px;
-  display: inline-block;
 }
 
-.empty-state {
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.status-badge.sent {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge.validated {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* Estados vacíos */
+.empty-state,
+.no-event {
   text-align: center;
   padding: 60px 20px;
-  color: var(--ion-color-medium);
+  color: #6b7280;
 }
 
 .empty-state.success {
-  color: var(--ion-color-success);
+  color: #10b981;
 }
 
-.empty-state ion-icon {
+.empty-state ion-icon,
+.no-event ion-icon {
   margin-bottom: 20px;
-  opacity: 0.7;
+  color: #9ca3af;
 }
 
-.empty-state h3 {
+.empty-state h4,
+.no-event h3 {
   margin: 0 0 12px 0;
-  font-size: 1.3rem;
+  color: #374151;
 }
 
-.empty-state p {
+.empty-state p,
+.no-event p {
   margin: 0;
-  font-size: 1rem;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
   .send-container {
-    padding: 12px;
+    padding: 16px;
   }
   
-  .event-header {
+  .page-header {
     flex-direction: column;
+    gap: 16px;
     align-items: stretch;
+    text-align: center;
   }
   
-  .list-header {
+  .event-stats {
     flex-direction: column;
+    gap: 12px;
+  }
+  
+  .stat-item {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+  
+  .section-header {
+    flex-direction: column;
+    gap: 16px;
     align-items: stretch;
   }
   
@@ -835,27 +875,14 @@ const sendSingleQR = async (guest: Guest) => {
     min-width: auto;
   }
   
-  .stat-mini {
-    padding: 16px 8px;
+  .guest-item {
+    flex-wrap: wrap;
+    gap: 12px;
   }
   
-  .stat-number {
-    font-size: 1.5rem;
-  }
-  
-  .send-button {
-    height: 48px;
-    font-size: 1rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .stat-number {
-    font-size: 1.3rem;
-  }
-  
-  .stat-label {
-    font-size: 0.8rem;
+  .guest-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 </style>
