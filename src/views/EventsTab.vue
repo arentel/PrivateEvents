@@ -10,143 +10,117 @@
       </ion-header>
 
       <div class="events-container">
-        <!-- Header con estilo del template -->
+        <!-- Header simple con degradado -->
         <div class="page-header">
-          <div class="header-content">
-            <h1>📅 Gestión de Eventos</h1>
-            <p>Administra y organiza todos tus eventos desde aquí</p>
-          </div>
-          <div class="header-actions">
-            <button
-              @click="openCreateEventModal"
-              class="create-event-btn"
-            >
-              <ion-icon :icon="addOutline"></ion-icon>
-              <span>Crear Evento</span>
-            </button>
+          <h1>Gestión de Eventos</h1>
+          <ion-button
+            fill="solid"
+            @click="openCreateEventModal"
+            class="create-btn"
+          >
+            <ion-icon :icon="addOutline" slot="start"></ion-icon>
+            Crear Evento
+          </ion-button>
+        </div>
+
+        <!-- Lista de eventos simple -->
+        <div class="events-list">
+          <div
+            v-for="event in eventsStore.events"
+            :key="event.id"
+            class="event-card"
+            :class="{ 'current-event': event.id === eventsStore.currentEventId }"
+            @click="selectEvent(event)"
+          >
+            <!-- Header del evento -->
+            <div class="event-header">
+              <div class="event-info">
+                <h3>{{ event.name }}</h3>
+                <p>{{ event.description || 'Sin descripción' }}</p>
+              </div>
+              <div class="event-actions">
+                <ion-button
+                  fill="clear"
+                  size="small"
+                  @click.stop="editEvent(event)"
+                >
+                  <ion-icon :icon="pencilOutline" slot="icon-only"></ion-icon>
+                </ion-button>
+                <ion-button
+                  fill="clear"
+                  size="small"
+                  color="danger"
+                  @click.stop="confirmDeleteEvent(event)"
+                  :disabled="eventsStore.events.length <= 1"
+                >
+                  <ion-icon :icon="trashOutline" slot="icon-only"></ion-icon>
+                </ion-button>
+              </div>
+            </div>
+
+            <!-- Detalles simples -->
+            <div class="event-details">
+              <div class="detail-item">
+                <ion-icon :icon="calendarOutline"></ion-icon>
+                <span>{{ formatDate(event.date) }}</span>
+              </div>
+              <div class="detail-item" v-if="event.location">
+                <ion-icon :icon="locationOutline"></ion-icon>
+                <span>{{ event.location }}</span>
+              </div>
+              <div class="detail-item">
+                <ion-icon :icon="peopleOutline"></ion-icon>
+                <span>{{ getEventGuestCount(event.id) }} invitados</span>
+              </div>
+            </div>
+
+            <!-- Estadísticas solo para evento actual -->
+            <div class="event-stats" v-if="event.id === eventsStore.currentEventId">
+              <div class="stat-item">
+                <span class="stat-value">{{ eventsStore.currentEventStats.sent }}</span>
+                <span class="stat-label">Enviados</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value">{{ eventsStore.currentEventStats.scanned }}</span>
+                <span class="stat-label">Validados</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value">{{ eventsStore.currentEventStats.pending }}</span>
+                <span class="stat-label">Pendientes</span>
+              </div>
+            </div>
+
+            <!-- Badge evento actual -->
+            <div v-if="event.id === eventsStore.currentEventId" class="current-badge">
+              <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
+              Evento Actual
+            </div>
           </div>
         </div>
 
-        <!-- Lista de eventos con estilo del template -->
-        <div class="events-section">
-          <div class="events-grid" v-if="eventsStore.events.length > 0">
-            <div
-              v-for="event in eventsStore.events"
-              :key="event.id"
-              class="event-card"
-              :class="{ 'current-event': event.id === eventsStore.currentEventId }"
-              @click="selectEvent(event)"
-            >
-              <!-- Header del evento -->
-              <div class="event-card-header">
-                <div class="event-title-section">
-                  <h3 class="event-title">{{ event.name }}</h3>
-                  <p class="event-description">{{ event.description || 'Sin descripción' }}</p>
-                </div>
-                <div class="event-actions">
-                  <button
-                    class="action-btn edit-btn"
-                    @click.stop="editEvent(event)"
-                    title="Editar evento"
-                  >
-                    <ion-icon :icon="pencilOutline"></ion-icon>
-                  </button>
-                  <button
-                    class="action-btn delete-btn"
-                    @click.stop="confirmDeleteEvent(event)"
-                    :disabled="eventsStore.events.length <= 1"
-                    title="Eliminar evento"
-                  >
-                    <ion-icon :icon="trashOutline"></ion-icon>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Detalles del evento con estilo tabla del template -->
-              <div class="event-details-section">
-                <h4>📋 Detalles del Evento</h4>
-                <div class="details-table">
-                  <div class="detail-row">
-                    <span class="detail-label">📅 Fecha:</span>
-                    <span class="detail-value">{{ formatDate(event.date) }}</span>
-                  </div>
-                  <div class="detail-row" v-if="event.location">
-                    <span class="detail-label">📍 Ubicación:</span>
-                    <span class="detail-value">{{ event.location }}</span>
-                  </div>
-                  <div class="detail-row">
-                    <span class="detail-label">👥 Invitados:</span>
-                    <span class="detail-value">{{ getEventGuestCount(event.id) }} registrados</span>
-                  </div>
-                  <div class="detail-row" v-if="event.max_guests">
-                    <span class="detail-label">🎯 Capacidad:</span>
-                    <span class="detail-value">{{ event.max_guests }} máximo</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Estadísticas con estilo del template -->
-              <div class="event-stats-section" v-if="event.id === eventsStore.currentEventId">
-                <h4>📊 Estadísticas en Tiempo Real</h4>
-                <div class="stats-grid">
-                  <div class="stat-card sent">
-                    <div class="stat-icon">📧</div>
-                    <div class="stat-content">
-                      <div class="stat-number">{{ eventsStore.currentEventStats.sent }}</div>
-                      <div class="stat-label">Enviados</div>
-                    </div>
-                  </div>
-                  <div class="stat-card validated">
-                    <div class="stat-icon">✅</div>
-                    <div class="stat-content">
-                      <div class="stat-number">{{ eventsStore.currentEventStats.scanned }}</div>
-                      <div class="stat-label">Validados</div>
-                    </div>
-                  </div>
-                  <div class="stat-card pending">
-                    <div class="stat-icon">⏳</div>
-                    <div class="stat-content">
-                      <div class="stat-number">{{ eventsStore.currentEventStats.pending }}</div>
-                      <div class="stat-label">Pendientes</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Badge de evento actual -->
-              <div v-if="event.id === eventsStore.currentEventId" class="current-event-badge">
-                <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
-                <span>Evento Activo</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Estado vacío con estilo del template -->
-          <div v-else class="empty-state">
-            <div class="empty-state-content">
-              <div class="empty-state-icon">📅</div>
-              <h3>No hay eventos creados</h3>
-              <p>Crea tu primer evento para comenzar a gestionar invitados y generar códigos QR</p>
-              <button
-                @click="openCreateEventModal"
-                class="empty-state-btn"
-              >
-                <ion-icon :icon="addOutline"></ion-icon>
-                <span>Crear Primer Evento</span>
-              </button>
-            </div>
-          </div>
+        <!-- Estado vacío simple -->
+        <div v-if="eventsStore.events.length === 0" class="empty-state">
+          <ion-icon :icon="calendarOutline" size="large"></ion-icon>
+          <h3>No hay eventos</h3>
+          <p>Crea tu primer evento para comenzar</p>
+          <ion-button
+            fill="solid"
+            @click="openCreateEventModal"
+          >
+            <ion-icon :icon="addOutline" slot="start"></ion-icon>
+            Crear Evento
+          </ion-button>
         </div>
       </div>
     </ion-content>
 
-    <!-- Modal crear/editar evento con estilo del template -->
-    <ion-modal :is-open="isModalOpen" @did-dismiss="closeModal" class="event-modal">
+    <!-- Modal simple -->
+    <ion-modal :is-open="isModalOpen" @did-dismiss="closeModal">
       <ion-header>
-        <ion-toolbar class="modal-toolbar">
-          <ion-title>{{ isEditing ? '✏️ Editar Evento' : '📅 Crear Evento' }}</ion-title>
+        <ion-toolbar>
+          <ion-title>{{ isEditing ? 'Editar Evento' : 'Crear Evento' }}</ion-title>
           <ion-buttons slot="end">
-            <ion-button @click="closeModal" class="close-btn">
+            <ion-button @click="closeModal">
               <ion-icon :icon="closeOutline"></ion-icon>
             </ion-button>
           </ion-buttons>
@@ -154,91 +128,63 @@
       </ion-header>
       
       <ion-content class="modal-content">
-        <div class="modal-form-container">
-          <form @submit.prevent="saveEvent" class="event-form">
-            <div class="form-header">
-              <h3>{{ isEditing ? 'Actualizar información del evento' : 'Completa la información del evento' }}</h3>
-            </div>
+        <form @submit.prevent="saveEvent">
+          <ion-item>
+            <ion-label position="stacked">Nombre del Evento *</ion-label>
+            <ion-input
+              v-model="eventForm.name"
+              placeholder="Ej: Noche de Gala 2024"
+              required
+            ></ion-input>
+          </ion-item>
 
-            <div class="form-fields">
-              <div class="form-group">
-                <label class="form-label">🎉 Nombre del Evento *</label>
-                <div class="input-container">
-                  <ion-input
-                    v-model="eventForm.name"
-                    placeholder="Ej: Noche de Gala 2024"
-                    required
-                    class="custom-input"
-                  ></ion-input>
-                </div>
-              </div>
+          <ion-item>
+            <ion-label position="stacked">Descripción</ion-label>
+            <ion-textarea
+              v-model="eventForm.description"
+              placeholder="Descripción opcional del evento"
+              :rows="3"
+            ></ion-textarea>
+          </ion-item>
 
-              <div class="form-group">
-                <label class="form-label">📝 Descripción</label>
-                <div class="input-container">
-                  <ion-textarea
-                    v-model="eventForm.description"
-                    placeholder="Descripción opcional del evento"
-                    :rows="3"
-                    class="custom-textarea"
-                  ></ion-textarea>
-                </div>
-              </div>
+          <ion-item>
+            <ion-label position="stacked">Fecha *</ion-label>
+            <ion-input
+              v-model="eventForm.date"
+              type="date"
+              required
+            ></ion-input>
+          </ion-item>
 
-              <div class="form-group">
-                <label class="form-label">📅 Fecha del Evento *</label>
-                <div class="input-container">
-                  <ion-input
-                    v-model="eventForm.date"
-                    type="date"
-                    required
-                    class="custom-input"
-                  ></ion-input>
-                </div>
-              </div>
+          <ion-item>
+            <ion-label position="stacked">Ubicación</ion-label>
+            <ion-input
+              v-model="eventForm.location"
+              placeholder="Ej: Salón Principal, Hotel Plaza"
+            ></ion-input>
+          </ion-item>
 
-              <div class="form-group">
-                <label class="form-label">📍 Ubicación</label>
-                <div class="input-container">
-                  <ion-input
-                    v-model="eventForm.location"
-                    placeholder="Ej: Salón Principal, Hotel Plaza"
-                    class="custom-input"
-                  ></ion-input>
-                </div>
-              </div>
+          <ion-item>
+            <ion-label position="stacked">Máximo de Invitados</ion-label>
+            <ion-input
+              v-model.number="eventForm.max_guests"
+              type="number"
+              min="1"
+              placeholder="100"
+            ></ion-input>
+          </ion-item>
 
-              <div class="form-group">
-                <label class="form-label">👥 Máximo de Invitados</label>
-                <div class="input-container">
-                  <ion-input
-                    v-model.number="eventForm.max_guests"
-                    type="number"
-                    min="1"
-                    placeholder="100"
-                    class="custom-input"
-                  ></ion-input>
-                </div>
-              </div>
-            </div>
-
-            <div class="form-actions">
-              <button
-                type="submit"
-                :disabled="!eventForm.name || !eventForm.date || isSubmitting"
-                class="submit-btn"
-              >
-                <ion-spinner v-if="isSubmitting" class="button-spinner"></ion-spinner>
-                <span v-if="!isSubmitting">
-                  {{ isEditing ? '✏️ Actualizar' : '🚀 Crear' }} Evento
-                </span>
-                <span v-else>
-                  🔄 {{ isEditing ? 'Actualizando' : 'Creando' }}...
-                </span>
-              </button>
-            </div>
-          </form>
-        </div>
+          <div class="modal-actions">
+            <ion-button
+              expand="block"
+              type="submit"
+              :disabled="!eventForm.name || !eventForm.date || isSubmitting"
+            >
+              <ion-spinner v-if="isSubmitting" slot="start"></ion-spinner>
+              {{ isEditing ? 'Actualizar' : 'Crear' }} Evento
+            </ion-button>
+          </div>
+        </form>
       </ion-content>
     </ion-modal>
   </ion-page>
@@ -255,6 +201,8 @@ import {
   IonButton,
   IonIcon,
   IonModal,
+  IonItem,
+  IonLabel,
   IonInput,
   IonTextarea,
   IonButtons,
@@ -440,545 +388,221 @@ const deleteEvent = async (eventId: string) => {
 </script>
 
 <style scoped>
-/* Variables del template de email */
-:root {
-  --template-primary: #0d1b2a;
-  --template-secondary: #1e3a8a;
-  --template-bg-light: #f4f4f4;
-  --template-bg-card: #f9f9f9;
-  --template-bg-section: #f8f9fa;
-  --template-border: #e0e0e0;
-  --template-border-light: #dcdcdc;
-  --template-text-muted: #666;
-  --template-text-dark: #333;
-  --template-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  --template-info-bg: #f0f8ff;
-  --template-info-border: #b3d9ff;
-  --template-info-text: #0066cc;
-}
-
 .events-container {
-  padding: 30px;
+  padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
-  background: var(--template-bg-light);
+  background: #f5f5f5;
   min-height: 100vh;
 }
 
-/* Header con estilo del template */
+/* Header con degradado azul marino */
 .page-header {
-  background: linear-gradient(135deg, var(--template-primary) 0%, var(--template-secondary) 100%);
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
   color: white;
-  padding: 35px 30px;
-  border-radius: 8px;
-  margin-bottom: 30px;
-  box-shadow: var(--template-shadow);
+  padding: 30px;
+  border-radius: 12px;
+  margin-bottom: 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  box-shadow: 0 4px 20px rgba(13, 27, 42, 0.3);
 }
 
-.header-content h1 {
-  font-size: 2rem;
-  font-weight: 700;
-  margin: 0 0 8px 0;
-}
-
-.header-content p {
-  font-size: 1.1rem;
-  opacity: 0.9;
+.page-header h1 {
+  font-size: 1.8rem;
+  font-weight: 600;
   margin: 0;
 }
 
-.create-event-btn {
-  background: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 12px 20px;
+.create-btn {
+  --background: rgba(255, 255, 255, 0.15);
+  --color: white;
+  --border-radius: 8px;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
   backdrop-filter: blur(10px);
 }
 
-.create-event-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
-  transform: translateY(-2px);
+.create-btn:hover {
+  --background: rgba(255, 255, 255, 0.25);
 }
 
-/* Sección de eventos */
-.events-section {
-  background: #ffffff;
-  border: 1px solid var(--template-border);
-  border-radius: 8px;
-  padding: 35px 30px;
-  box-shadow: var(--template-shadow);
-}
-
-.events-grid {
+/* Lista de eventos */
+.events-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 25px;
+  gap: 20px;
 }
 
-/* Cards de eventos con estilo del template */
 .event-card {
-  background: #ffffff;
-  border: 1px solid var(--template-border);
-  border-radius: 8px;
-  padding: 25px;
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  border: 2px solid transparent;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
 .event-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-  border-color: var(--template-primary);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
 .current-event {
-  border-color: var(--template-primary);
-  box-shadow: 0 4px 12px rgba(13, 27, 42, 0.15);
+  border-color: #1e3a8a;
+  box-shadow: 0 4px 20px rgba(30, 58, 138, 0.2);
 }
 
-/* Header del card */
-.event-card-header {
+/* Header del evento */
+.event-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 1px solid var(--template-border-light);
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e7eb;
 }
 
-.event-title {
+.event-info h3 {
+  margin: 0 0 6px 0;
+  color: #1f2937;
   font-size: 1.3rem;
-  font-weight: 700;
-  color: var(--template-primary);
-  margin: 0 0 5px 0;
+  font-weight: 600;
 }
 
-.event-description {
-  color: var(--template-text-muted);
-  font-size: 0.95rem;
+.event-info p {
   margin: 0;
-  line-height: 1.4;
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 
 .event-actions {
   display: flex;
-  gap: 8px;
+  gap: 4px;
 }
 
-.action-btn {
-  background: var(--template-bg-section);
-  border: 1px solid var(--template-border-light);
-  border-radius: 6px;
-  padding: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+/* Detalles del evento */
+.event-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.detail-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-}
-
-.action-btn:hover {
-  background: #ffffff;
-  border-color: var(--template-border);
-}
-
-.edit-btn:hover {
-  color: var(--template-primary);
-}
-
-.delete-btn:hover {
-  color: #dc3545;
-}
-
-.delete-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* Detalles con estilo tabla del template */
-.event-details-section {
-  background: var(--template-bg-card);
-  border: 1px solid var(--template-border-light);
-  padding: 20px;
-  border-radius: 6px;
-  margin-bottom: 20px;
-}
-
-.event-details-section h4 {
-  margin: 0 0 15px 0;
-  font-size: 1.1rem;
-  color: var(--template-primary);
-  font-weight: 600;
-}
-
-.details-table {
-  display: grid;
-  gap: 8px;
-}
-
-.detail-row {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  padding: 5px 0;
+  gap: 10px;
   font-size: 0.95rem;
+  color: #4b5563;
 }
 
-.detail-label {
-  font-weight: 600;
-  color: var(--template-text-muted);
-}
-
-.detail-value {
-  color: var(--template-text-dark);
-}
-
-/* Estadísticas con estilo del template */
-.event-stats-section {
-  background: var(--template-info-bg);
-  border: 1px solid var(--template-info-border);
-  padding: 20px;
-  border-radius: 6px;
-  margin-bottom: 20px;
-}
-
-.event-stats-section h4 {
-  margin: 0 0 15px 0;
+.detail-item ion-icon {
+  color: #1e3a8a;
   font-size: 1.1rem;
-  color: var(--template-info-text);
-  font-weight: 600;
 }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 15px;
+/* Estadísticas */
+.event-stats {
+  display: flex;
+  justify-content: space-around;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  color: white;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
 }
 
-.stat-card {
-  background: #ffffff;
-  border: 1px solid var(--template-info-border);
-  border-radius: 6px;
-  padding: 15px;
-  text-align: center;
-  transition: all 0.2s ease;
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
-.stat-card:hover {
-  box-shadow: 0 2px 8px rgba(0,102,204,0.1);
-}
-
-.stat-icon {
-  font-size: 1.5rem;
-  margin-bottom: 8px;
-}
-
-.stat-number {
-  font-size: 1.5rem;
+.stat-value {
   font-weight: 700;
-  color: var(--template-primary);
-  margin-bottom: 4px;
+  font-size: 1.4rem;
 }
 
 .stat-label {
-  font-size: 0.85rem;
-  color: var(--template-text-muted);
-  font-weight: 500;
+  font-size: 0.8rem;
+  opacity: 0.9;
 }
 
-/* Badge de evento actual */
-.current-event-badge {
-  background: linear-gradient(135deg, var(--template-primary) 0%, var(--template-secondary) 100%);
-  color: white;
-  padding: 10px 15px;
-  border-radius: 6px;
+/* Badge evento actual */
+.current-badge {
   display: flex;
   align-items: center;
   gap: 8px;
+  color: #059669;
   font-weight: 600;
   font-size: 0.9rem;
+  background: #ecfdf5;
+  padding: 8px 12px;
+  border-radius: 6px;
 }
 
-/* Estado vacío con estilo del template */
+/* Estado vacío */
 .empty-state {
   text-align: center;
-  padding: 60px 30px;
+  padding: 60px 20px;
+  color: #6b7280;
+  background: white;
+  border-radius: 12px;
 }
 
-.empty-state-content {
-  max-width: 400px;
-  margin: 0 auto;
-}
-
-.empty-state-icon {
-  font-size: 4rem;
+.empty-state ion-icon {
   margin-bottom: 20px;
-  opacity: 0.5;
+  color: #9ca3af;
 }
 
 .empty-state h3 {
-  font-size: 1.5rem;
-  color: var(--template-primary);
-  margin: 0 0 15px 0;
-  font-weight: 600;
+  margin: 0 0 12px 0;
+  color: #374151;
+  font-size: 1.4rem;
 }
 
 .empty-state p {
-  color: var(--template-text-muted);
-  line-height: 1.6;
-  margin: 0 0 30px 0;
+  margin: 0 0 24px 0;
+  font-size: 1rem;
 }
 
-.empty-state-btn {
-  background: linear-gradient(135deg, var(--template-primary) 0%, var(--template-secondary) 100%);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 15px 25px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  box-shadow: 0 4px 8px rgba(13, 27, 42, 0.2);
-}
-
-.empty-state-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(13, 27, 42, 0.3);
-}
-
-/* Modal con estilo del template */
-.event-modal {
-  --border-radius: 8px;
-}
-
-.modal-toolbar {
-  --background: linear-gradient(135deg, var(--template-primary) 0%, var(--template-secondary) 100%);
-  --color: white;
-}
-
+/* Modal */
 .modal-content {
-  --background: var(--template-bg-light);
+  padding: 20px;
 }
 
-.modal-form-container {
-  padding: 30px;
-  max-width: 600px;
-  margin: 0 auto;
-}
-
-.event-form {
-  background: #ffffff;
-  border: 1px solid var(--template-border);
-  border-radius: 8px;
-  padding: 35px 30px;
-  box-shadow: var(--template-shadow);
-}
-
-.form-header {
-  text-align: center;
-  margin-bottom: 30px;
-}
-
-.form-header h3 {
-  color: var(--template-primary);
-  font-weight: 600;
-  font-size: 1.3rem;
-  margin: 0;
-}
-
-.form-fields {
-  margin-bottom: 30px;
-}
-
-.form-group {
-  margin-bottom: 20px;
-}
-
-.form-label {
-  display: block;
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: var(--template-text-dark);
-  margin-bottom: 8px;
-}
-
-.input-container {
-  position: relative;
-}
-
-.custom-input,
-.custom-textarea {
-  --background: var(--template-bg-section);
-  --border-color: var(--template-border-light);
-  --color: var(--template-text-dark);
-  --placeholder-color: var(--template-text-muted);
-  --padding-start: 15px;
-  --padding-end: 15px;
-  --padding-top: 12px;
-  --padding-bottom: 12px;
-  
-  border: 1px solid var(--template-border-light);
-  border-radius: 6px;
-  transition: all 0.3s ease;
-}
-
-.custom-input:focus,
-.custom-textarea:focus {
-  --border-color: var(--template-primary);
-  --background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(13, 27, 42, 0.1);
-}
-
-.submit-btn {
-  background: linear-gradient(135deg, var(--template-primary) 0%, var(--template-secondary) 100%);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  padding: 18px 35px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  width: 100%;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 8px rgba(13, 27, 42, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.submit-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(13, 27, 42, 0.3);
-}
-
-.submit-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.button-spinner {
-  width: 20px;
-  height: 20px;
+.modal-actions {
+  padding: 24px 0;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
   .events-container {
-    padding: 20px;
-  }
-  
-  .page-header {
-    flex-direction: column;
-    gap: 20px;
-    align-items: stretch;
-    padding: 25px 20px;
-  }
-  
-  .events-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .event-card {
-    padding: 20px;
-  }
-  
-  .stats-grid {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-  
-  .detail-row {
-    grid-template-columns: 1fr;
-    gap: 5px;
-  }
-  
-  .modal-form-container {
-    padding: 20px;
-  }
-  
-  .event-form {
-    padding: 25px 20px;
-  }
-}
-
-@media (max-width: 480px) {
-  .events-container {
     padding: 16px;
   }
   
   .page-header {
-    padding: 20px 16px;
-  }
-  
-  .events-section {
-    padding: 25px 16px;
-  }
-  
-  .event-card {
-    padding: 16px;
-  }
-  
-  .event-card-header {
     flex-direction: column;
-    gap: 15px;
+    gap: 16px;
     align-items: stretch;
+    text-align: center;
   }
   
-  .event-actions {
-    justify-content: flex-end;
+  .events-list {
+    grid-template-columns: 1fr;
   }
-}
-
-/* Animaciones */
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
+  
+  .event-stats {
+    flex-direction: column;
+    gap: 12px;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  
+  .stat-item {
+    flex-direction: row;
+    justify-content: space-between;
   }
-}
-
-.page-header {
-  animation: fadeInUp 0.6s ease-out;
-}
-
-.events-section {
-  animation: fadeInUp 0.8s ease-out;
-}
-
-.event-card {
-  animation: fadeInUp 1s ease-out;
-}
-
-.empty-state {
-  animation: fadeInUp 1.2s ease-out;
-}
-
-/* Efecto de carga en botones */
-.submit-btn:disabled .button-spinner {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
 }
 </style>
