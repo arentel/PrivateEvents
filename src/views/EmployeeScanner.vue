@@ -1,205 +1,223 @@
 <template>
   <ion-page>
-    <!-- Header simple -->
-    <ion-header>
-      <ion-toolbar color="primary">
-        <ion-title>
-          <ion-icon :icon="scanOutline" style="margin-right: 8px;"></ion-icon>
-          Escáner QR
-        </ion-title>
-        <ion-buttons slot="end">
-          <ion-button @click="logout" fill="clear">
-            <ion-icon :icon="logOutOutline"></ion-icon>
-          </ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
-
-    <ion-content class="scanner-content">
+    <ion-content>
       <div class="scanner-container">
-        
+        <!-- Header simple -->
+        <div class="page-header">
+          <h1>📱 Escáner QR</h1>
+          <ion-button
+            fill="outline"
+            @click="logout"
+          >
+            <ion-icon :icon="logOutOutline" slot="start"></ion-icon>
+            Salir
+          </ion-button>
+        </div>
+
         <!-- Estadísticas rápidas -->
-        <div class="quick-stats">
-          <div class="stat-item success">
-            <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
-            <div class="stat-info">
-              <span class="stat-number">{{ successfulEntries }}</span>
+        <div class="stats-section">
+          <div class="section-header">
+            <h3>Estadísticas de Validación</h3>
+          </div>
+          
+          <div class="event-stats">
+            <div class="stat-item">
+              <span class="stat-value">{{ successfulEntries }}</span>
               <span class="stat-label">Exitosos</span>
             </div>
-          </div>
-          <div class="stat-item rejected">
-            <ion-icon :icon="closeCircleOutline"></ion-icon>
-            <div class="stat-info">
-              <span class="stat-number">{{ rejectedEntries }}</span>
+            <div class="stat-item">
+              <span class="stat-value">{{ rejectedEntries }}</span>
               <span class="stat-label">Rechazados</span>
             </div>
-          </div>
-          <div class="stat-item total">
-            <ion-icon :icon="qrCodeOutline"></ion-icon>
-            <div class="stat-info">
-              <span class="stat-number">{{ totalValidations }}</span>
+            <div class="stat-item">
+              <span class="stat-value">{{ totalValidations }}</span>
               <span class="stat-label">Total</span>
             </div>
           </div>
         </div>
 
         <!-- Scanner QR -->
-        <div class="qr-scanner-section">
-          <ion-card class="scanner-card">
-            <ion-card-header>
-              <ion-card-title>
-                <ion-icon :icon="cameraOutline"></ion-icon>
-                Escáner de Códigos QR
-              </ion-card-title>
-            </ion-card-header>
+        <div class="scanner-section">
+          <div class="section-header">
+            <h3>
+              <ion-icon :icon="cameraOutline"></ion-icon>
+              Escáner de Códigos QR
+            </h3>
+          </div>
+          
+          <!-- Área del scanner -->
+          <div class="scanner-area">
+            <div 
+              id="employee-qr-reader" 
+              class="qr-reader"
+              :class="{ 'scanner-loading': isLoading }"
+            ></div>
             
-            <ion-card-content>
-              <!-- Área del scanner -->
-              <div class="scanner-area">
-                <div 
-                  id="employee-qr-reader" 
-                  class="qr-reader"
-                  :class="{ 'scanner-loading': isLoading }"
-                ></div>
-                
-                <!-- Loading overlay -->
-                <div v-if="isLoading" class="scanner-loading-overlay">
-                  <ion-spinner name="crescent" color="primary"></ion-spinner>
-                  <p>Iniciando cámara...</p>
-                </div>
-                
-                <!-- Error de cámara -->
-                <div v-if="cameraError" class="camera-error">
-                  <ion-icon :icon="alertCircleOutline" color="danger"></ion-icon>
-                  <h3>Error de Cámara</h3>
-                  <p>{{ cameraError }}</p>
-                  <ion-button @click="startScanner" fill="outline" color="primary">
-                    <ion-icon :icon="refreshOutline" slot="start"></ion-icon>
-                    Reintentar
-                  </ion-button>
-                </div>
-              </div>
+            <!-- Loading overlay -->
+            <div v-if="isLoading" class="scanner-loading-overlay">
+              <ion-spinner name="crescent" color="primary"></ion-spinner>
+              <p>Iniciando cámara...</p>
+            </div>
+            
+            <!-- Error de cámara -->
+            <div v-if="cameraError" class="camera-error">
+              <ion-icon :icon="alertCircleOutline" color="danger"></ion-icon>
+              <h4>Error de Cámara</h4>
+              <p>{{ cameraError }}</p>
+              <ion-button @click="startScanner" fill="outline" class="retry-btn">
+                <ion-icon :icon="refreshOutline" slot="start"></ion-icon>
+                Reintentar
+              </ion-button>
+            </div>
+          </div>
 
-              <!-- Controles del scanner -->
-              <div class="scanner-controls">
-                <ion-button
-                  @click="toggleScanner"
-                  :color="scannerActive ? 'danger' : 'success'"
-                  expand="block"
-                  size="large"
-                  :disabled="isLoading"
-                >
-                  <ion-icon 
-                    :icon="scannerActive ? stopCircleOutline : playCircleOutline" 
-                    slot="start"
-                  ></ion-icon>
-                  {{ scannerActive ? 'Detener Escáner' : 'Iniciar Escáner' }}
-                </ion-button>
-                
-                <!-- Botón de entrada manual -->
-                <ion-button
-                  @click="openManualEntry"
-                  fill="outline"
-                  expand="block"
-                  :disabled="isLoading"
-                >
-                  <ion-icon :icon="keypadOutline" slot="start"></ion-icon>
-                  Entrada Manual
-                </ion-button>
-              </div>
-            </ion-card-content>
-          </ion-card>
+          <!-- Controles del scanner -->
+          <div class="form-content">
+            <ion-button
+              @click="toggleScanner"
+              :color="scannerActive ? 'danger' : undefined"
+              expand="block"
+              :disabled="isLoading"
+              class="scanner-btn"
+            >
+              <ion-icon 
+                :icon="scannerActive ? stopCircleOutline : playCircleOutline" 
+                slot="start"
+              ></ion-icon>
+              {{ scannerActive ? 'Detener Escáner' : 'Iniciar Escáner' }}
+            </ion-button>
+            
+            <ion-button
+              @click="openManualEntry"
+              fill="outline"
+              expand="block"
+              :disabled="isLoading"
+              class="manual-btn"
+            >
+              <ion-icon :icon="keypadOutline" slot="start"></ion-icon>
+              Entrada Manual
+            </ion-button>
+          </div>
         </div>
 
         <!-- Resultado de validación -->
-        <ion-card 
+        <div 
           v-if="validationResult.show" 
-          class="validation-result"
+          class="validation-detail-card"
           :class="validationResult.type"
         >
-          <ion-card-content>
-            <div class="result-header">
-              <ion-icon :icon="getResultIcon()"></ion-icon>
-              <h2>{{ validationResult.title }}</h2>
+          <div class="detail-header" :class="'header-' + validationResult.type">
+            <div class="result-icon">
+              <ion-icon :name="getResultIcon()"></ion-icon>
             </div>
-            <p class="result-message">{{ validationResult.message }}</p>
-            <div v-if="validationResult.guest" class="guest-info">
-              <strong>{{ validationResult.guest.name }}</strong>
-              <span v-if="validationResult.guest.company">- {{ validationResult.guest.company }}</span>
+            <div class="detail-title">
+              <h2>{{ validationResult.title }}</h2>
+              <p>{{ validationResult.message }}</p>
             </div>
             <ion-button 
-              @click="validationResult.show = false" 
               fill="clear" 
               size="small"
-              class="close-result-btn"
+              @click="validationResult.show = false"
+              class="close-detail-btn"
             >
-              Cerrar
+              <ion-icon name="close-outline"></ion-icon>
             </ion-button>
-          </ion-card-content>
-        </ion-card>
+          </div>
 
-        <!-- Últimas entradas -->
-        <div v-if="recentEntriesDisplay.length > 0" class="recent-entries">
-          <h3>
-            <ion-icon :icon="timeOutline"></ion-icon>
-            Últimas Entradas ({{ recentEntriesDisplay.length }})
-          </h3>
-          <div class="entries-list">
-            <div 
-              v-for="entry in recentEntriesDisplay.slice(0, 5)" 
-              :key="entry.id"
-              class="entry-item"
-            >
-              <div class="entry-info">
-                <strong>{{ entry.name }}</strong>
-                <span class="entry-company" v-if="entry.company">{{ entry.company }}</span>
+          <div v-if="validationResult.guest" class="detail-content">
+            <div class="guest-main-info">
+              <div class="guest-avatar-large">
+                {{ validationResult.guest.name.charAt(0).toUpperCase() }}
               </div>
-              <div class="entry-time">
-                {{ formatTime(entry.entered_at) }}
+              <div class="guest-primary">
+                <h3>{{ validationResult.guest.name }}</h3>
+                <p v-if="validationResult.guest.company" class="guest-company">{{ validationResult.guest.company }}</p>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Modal entrada manual -->
-      <ion-modal :is-open="showManualEntry" @did-dismiss="showManualEntry = false">
-        <ion-header>
-          <ion-toolbar>
-            <ion-title>Entrada Manual</ion-title>
-            <ion-buttons slot="end">
-              <ion-button @click="showManualEntry = false" fill="clear">
-                <ion-icon :icon="closeOutline"></ion-icon>
-              </ion-button>
-            </ion-buttons>
-          </ion-toolbar>
-        </ion-header>
-        
-        <ion-content class="modal-content">
-          <div class="manual-entry-form">
-            <ion-item>
-              <ion-label position="floating">Código QR o Nombre</ion-label>
-              <ion-input
-                v-model="manualCode"
-                placeholder="Ingresa el código QR o busca por nombre..."
-                @keyup.enter="validateManualEntry"
-              ></ion-input>
-            </ion-item>
-            
-            <div class="manual-entry-buttons">
-              <ion-button 
-                @click="validateManualEntry" 
-                expand="block"
-                :disabled="!manualCode"
-              >
-                <ion-icon :icon="checkmarkOutline" slot="start"></ion-icon>
-                Validar
-              </ion-button>
+        <!-- Últimas entradas -->
+        <div v-if="recentEntriesDisplay.length > 0" class="recent-section">
+          <div class="section-header">
+            <h3>
+              <ion-icon :icon="timeOutline"></ion-icon>
+              Últimas Entradas ({{ recentEntriesDisplay.length }})
+            </h3>
+          </div>
+          
+          <div class="guests-list">
+            <div 
+              v-for="entry in recentEntriesDisplay.slice(0, 5)" 
+              :key="entry.id"
+              class="guest-item scanned"
+            >
+              <div class="guest-avatar">
+                {{ entry.name.charAt(0).toUpperCase() }}
+              </div>
+              
+              <div class="guest-info">
+                <h4>{{ entry.name }}</h4>
+                <p v-if="entry.company" class="company">{{ entry.company }}</p>
+                <p class="timestamp">{{ formatTime(entry.entered_at) }}</p>
+              </div>
+              
+              <div class="guest-status">
+                <span class="status-badge success">
+                  VALIDADO
+                </span>
+              </div>
             </div>
           </div>
-        </ion-content>
-      </ion-modal>
+        </div>
+
+        <!-- Estado vacío -->
+        <div v-if="recentEntriesDisplay.length === 0" class="empty-state">
+          <ion-icon :icon="qrCodeOutline" size="large"></ion-icon>
+          <h3>No hay entradas registradas</h3>
+          <p>Las validaciones exitosas aparecerán aquí</p>
+        </div>
+      </div>
     </ion-content>
+
+    <!-- Modal entrada manual -->
+    <ion-modal :is-open="showManualEntry" @did-dismiss="showManualEntry = false">
+      <ion-header>
+        <ion-toolbar>
+          <ion-title>Entrada Manual</ion-title>
+          <ion-buttons slot="end">
+            <ion-button @click="showManualEntry = false" fill="clear">
+              <ion-icon :icon="closeOutline"></ion-icon>
+            </ion-button>
+          </ion-buttons>
+        </ion-toolbar>
+      </ion-header>
+      
+      <ion-content class="modal-content">
+        <div class="manual-entry-form">
+          <ion-item>
+            <ion-label position="stacked">Código QR o Nombre</ion-label>
+            <ion-input
+              v-model="manualCode"
+              placeholder="Ingresa el código QR o busca por nombre..."
+              @keyup.enter="validateManualEntry"
+            ></ion-input>
+          </ion-item>
+          
+          <div class="manual-entry-buttons">
+            <ion-button 
+              @click="validateManualEntry" 
+              expand="block"
+              :disabled="!manualCode"
+              class="validate-btn"
+            >
+              <ion-icon :icon="checkmarkOutline" slot="start"></ion-icon>
+              Validar
+            </ion-button>
+          </div>
+        </div>
+      </ion-content>
+    </ion-modal>
   </ion-page>
 </template>
 
@@ -209,27 +227,22 @@ import { useRouter } from 'vue-router'
 import { Html5Qrcode } from 'html5-qrcode'
 import {
   IonPage,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonButtons,
-  IonButton,
   IonContent,
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
+  IonButton,
   IonIcon,
   IonSpinner,
   IonModal,
   IonItem,
   IonLabel,
   IonInput,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonButtons,
   toastController,
   alertController
 } from '@ionic/vue'
 import {
-  scanOutline,
   logOutOutline,
   checkmarkCircleOutline,
   closeCircleOutline,
@@ -247,8 +260,6 @@ import {
 } from 'ionicons/icons'
 // @ts-ignore
 import { supabase } from '@/services/supabase'
-// @ts-ignore
-import { validateQRCode } from '@/services/qr'
 
 // Interfaces para TypeScript
 interface Guest {
@@ -582,7 +593,7 @@ const validateScannedCode = async (qrCode: string): Promise<void> => {
     
     recentEntries.value.unshift(updatedGuest)
     
-    // Mostrar información más detallada como en ScanTab
+    // Mostrar información más detallada
     const eventInfo = guest.event_name ? ` - ${guest.event_name}` : ''
     showValidationResult(
       'success',
@@ -593,7 +604,7 @@ const validateScannedCode = async (qrCode: string): Promise<void> => {
     
     successfulEntries.value++
     saveStats()
-    showToast(`✅ ${guest.name} ha ingresado correctamente`, 'success')
+    showToast(`${guest.name} ha ingresado correctamente`, 'success')
     
     setTimeout(() => {
       validationResult.value.show = false
@@ -709,91 +720,83 @@ const showToast = async (message: string, color: string = 'primary', duration: n
 </script>
 
 <style scoped>
-.scanner-content {
-  --background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  min-height: 100vh;
-}
-
 .scanner-container {
-  padding: 16px;
-  max-width: 600px;
+  padding: 20px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
-/* Estadísticas rápidas */
-.quick-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.stat-item {
-  background: white;
-  padding: 16px;
-  border-radius: 12px;
+/* Header simple */
+.page-header {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  transition: transform 0.2s ease;
+  margin-bottom: 24px;
 }
 
-.stat-item:hover {
-  transform: translateY(-2px);
+.page-header h1 {
+  font-size: 1.8rem;
+  font-weight: 600;
+  margin: 0;
+  color: #1f2937;
 }
 
-.stat-item ion-icon {
-  font-size: 24px;
+/* Secciones - mismo estilo que las otras vistas */
+.stats-section,
+.scanner-section,
+.recent-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
-.stat-item.success ion-icon {
-  color: #10dc60;
-}
-
-.stat-item.rejected ion-icon {
-  color: #f04141;
-}
-
-.stat-item.total ion-icon {
-  color: #3880ff;
-}
-
-.stat-info {
+.section-header {
   display: flex;
-  flex-direction: column;
-}
-
-.stat-number {
-  font-size: 18px;
-  font-weight: bold;
-  line-height: 1;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: #666;
-  font-weight: 500;
-}
-
-/* Scanner */
-.qr-scanner-section {
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
 }
 
-.scanner-card {
+.section-header h3 {
   margin: 0;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-  border-radius: 16px;
-}
-
-.scanner-card ion-card-title {
+  color: #1f2937;
+  font-size: 1.2rem;
+  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 1.2rem;
 }
 
+/* Estadísticas - mismo estilo que las otras vistas */
+.event-stats {
+  display: flex;
+  justify-content: space-around;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  color: white;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-value {
+  font-weight: 700;
+  font-size: 1.4rem;
+}
+
+.stat-label {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+/* Scanner area */
 .scanner-area {
   position: relative;
   border-radius: 12px;
@@ -801,6 +804,7 @@ const showToast = async (message: string, color: string = 'primary', duration: n
   background: #000;
   min-height: 300px;
   margin-bottom: 20px;
+  border: 2px solid #0d1b2a;
 }
 
 .qr-reader {
@@ -839,7 +843,8 @@ const showToast = async (message: string, color: string = 'primary', duration: n
   justify-content: center;
   height: 300px;
   text-align: center;
-  color: #666;
+  color: #6b7280;
+  padding: 20px;
 }
 
 .camera-error ion-icon {
@@ -847,140 +852,285 @@ const showToast = async (message: string, color: string = 'primary', duration: n
   margin-bottom: 16px;
 }
 
-.camera-error h3 {
+.camera-error h4 {
   margin-bottom: 8px;
-  color: #333;
+  color: #1f2937;
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
 .camera-error p {
   margin-bottom: 20px;
   line-height: 1.4;
+  font-size: 0.9rem;
 }
 
-.scanner-controls {
+/* Botones - mismo estilo que las otras vistas */
+.scanner-btn,
+.manual-btn,
+.retry-btn,
+.validate-btn {
+  --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  --border-radius: 8px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.scanner-btn:hover,
+.manual-btn:hover,
+.retry-btn:hover,
+.validate-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(13, 27, 42, 0.3);
+}
+
+.scanner-btn[color="danger"] {
+  --background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+}
+
+.form-content {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-/* Resultado de validación */
-.validation-result {
-  margin-bottom: 20px;
-  border-radius: 16px;
+/* POPUP DETALLADO MEJORADO - Igual que ScanTab */
+.validation-detail-card {
+  background: white;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(13, 27, 42, 0.15);
   overflow: hidden;
-  animation: slideInDown 0.3s ease-out;
+  animation: slideInUp 0.4s ease-out;
 }
 
-.validation-result.success {
-  border-left: 4px solid #10dc60;
-  background: linear-gradient(135deg, #d4edda, #c3e6cb);
+.validation-detail-card.success {
+  border: 2px solid #28a745;
 }
 
-.validation-result.warning {
-  border-left: 4px solid #ffce00;
-  background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+.validation-detail-card.warning {
+  border: 2px solid #ffc107;
 }
 
-.validation-result.error {
-  border-left: 4px solid #f04141;
-  background: linear-gradient(135deg, #f8d7da, #f1c0c7);
+.validation-detail-card.error {
+  border: 2px solid #dc3545;
 }
 
-.result-header {
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.detail-header {
+  color: white;
+  padding: 20px 24px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 16px;
+  position: relative;
 }
 
-.result-header ion-icon {
-  font-size: 28px;
+.detail-header.header-success {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
 }
 
-.validation-result.success .result-header ion-icon {
-  color: #10dc60;
+.detail-header.header-warning {
+  background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
 }
 
-.validation-result.warning .result-header ion-icon {
-  color: #ffce00;
+.detail-header.header-error {
+  background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
 }
 
-.validation-result.error .result-header ion-icon {
-  color: #f04141;
+.result-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
 }
 
-.result-header h2 {
+.detail-title h2 {
+  margin: 0 0 4px 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.detail-title p {
   margin: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
+  opacity: 0.9;
+  font-size: 0.95rem;
 }
 
-.result-message {
-  margin-bottom: 8px;
+.close-detail-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  --color: white;
+}
+
+.detail-content {
+  padding: 24px;
+}
+
+/* Información principal del invitado - igual que ScanTab */
+.guest-main-info {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px;
+  border-left: 4px solid #28a745;
+}
+
+.guest-avatar-large {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 2rem;
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.guest-primary h3 {
+  margin: 0 0 8px 0;
+  color: #1f2937;
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+.guest-company {
+  margin: 0;
+  color: #6b7280;
+  font-size: 1.1rem;
   font-weight: 500;
-  line-height: 1.4;
+}
+
+/* Lista de invitados - mismo estilo que las otras vistas */
+.guests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guest-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #e5e7eb;
+  transition: all 0.2s ease;
+}
+
+.guest-item:hover {
+  background: #f1f3f4;
+  transform: translateX(4px);
+}
+
+.guest-item.scanned {
+  border-left-color: #10b981;
+}
+
+.guest-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #6b7280;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 1.2rem;
+}
+
+.guest-item.scanned .guest-avatar {
+  background: #10b981;
 }
 
 .guest-info {
-  background: rgba(255,255,255,0.8);
-  padding: 8px 12px;
-  border-radius: 8px;
-  margin-bottom: 12px;
+  flex: 1;
 }
 
-.close-result-btn {
-  --color: #666;
-}
-
-/* Últimas entradas */
-.recent-entries h3 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  color: #333;
+.guest-info h4 {
+  margin: 0 0 4px 0;
+  color: #1f2937;
   font-size: 1rem;
   font-weight: 600;
 }
 
-.entries-list {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  overflow: hidden;
+.guest-info p {
+  margin: 0 0 2px 0;
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 
-.entry-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #f0f0f0;
+.company {
+  font-size: 0.8rem;
+  color: #9ca3af;
 }
 
-.entry-item:last-child {
-  border-bottom: none;
+.timestamp {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  font-style: italic;
 }
 
-.entry-info strong {
-  display: block;
+.status-badge {
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
   font-weight: 600;
-  margin-bottom: 2px;
+  text-transform: uppercase;
 }
 
-.entry-company {
-  font-size: 0.85rem;
-  color: #666;
+.status-badge.success {
+  background: #d1fae5;
+  color: #065f46;
 }
 
-.entry-time {
-  font-size: 0.85rem;
-  color: #999;
-  font-family: monospace;
-  font-weight: 500;
+/* Estado vacío */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6b7280;
 }
 
-/* Modal entrada manual */
+.empty-state ion-icon {
+  margin-bottom: 20px;
+  color: #9ca3af;
+}
+
+.empty-state h3 {
+  margin: 0 0 12px 0;
+  color: #374151;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* Modal */
 .modal-content {
   padding: 20px;
 }
@@ -994,44 +1144,118 @@ const showToast = async (message: string, color: string = 'primary', duration: n
   margin-top: 20px;
 }
 
+/* Items y inputs */
+ion-item {
+  --background: #f8f9fa;
+  --color: #1f2937;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+ion-input {
+  --color: #1f2937;
+  --placeholder-color: #9ca3af;
+}
+
+/* Botones de outline */
+ion-button[fill="outline"] {
+  --border-color: #0d1b2a;
+  --color: #0d1b2a;
+  --background: transparent;
+}
+
+ion-button[fill="outline"]:hover {
+  --background: #f8f9fa;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(13, 27, 42, 0.15);
+}
+
 /* Responsive */
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .scanner-container {
-    padding: 12px;
+    padding: 16px;
   }
   
-  .quick-stats {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+  .page-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .event-stats {
+    flex-direction: column;
+    gap: 12px;
   }
   
   .stat-item {
-    padding: 12px;
-    gap: 8px;
+    flex-direction: row;
+    justify-content: space-between;
   }
   
-  .stat-info {
-    align-items: center;
+  .stats-section,
+  .scanner-section,
+  .recent-section {
+    padding: 16px;
   }
   
-  .stat-number {
-    font-size: 16px;
+  .guest-item {
+    flex-wrap: wrap;
+    gap: 12px;
   }
   
-  .stat-label {
-    font-size: 11px;
+  .scanner-area {
+    min-height: 250px;
+  }
+  
+  .detail-content {
+    padding: 16px;
+  }
+  
+  .guest-main-info {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+  
+  .guest-avatar-large {
+    width: 60px;
+    height: 60px;
+    font-size: 1.5rem;
+  }
+  
+  .guest-primary h3 {
+    font-size: 1.3rem;
+  }
+  
+  .detail-header {
+    padding: 16px;
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+  
+  .close-detail-btn {
+    top: 8px;
+    right: 8px;
   }
 }
 
-/* Animaciones */
-@keyframes slideInDown {
-  from {
-    transform: translateY(-20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+/* Ajustes específicos para html5-qrcode */
+:deep(#employee-qr-reader) {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+:deep(#employee-qr-reader video) {
+  width: 100% !important;
+  height: auto !important;
+  border-radius: 6px;
+}
+
+:deep(#employee-qr-reader canvas) {
+  width: 100% !important;
+  height: auto !important;
 }
 </style>
