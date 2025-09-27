@@ -20,14 +20,14 @@
           <form @submit.prevent="handleEmployeeLogin">
             <div class="form-fields">
               <ion-item>
-                <ion-label position="floating">Código de Empleado</ion-label>
+                <ion-label position="stacked">Código de Empleado</ion-label>
                 <ion-input
                   v-model="employeeCode"
                   type="text"
                   required
                   :disabled="isLoading"
                   autocomplete="off"
-                  placeholder="Ej: SYF2025"
+                  placeholder="Ej: STAFF001"
                   :maxlength="20"
                   @keyup.enter="handleEmployeeLogin"
                   @input="onCodeInput"

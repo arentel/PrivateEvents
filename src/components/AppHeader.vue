@@ -3,19 +3,20 @@
     <ion-toolbar class="custom-toolbar">
       <ion-title>{{ title }}</ion-title>
       
-      <!-- Información del usuario y logout -->
-      <ion-buttons slot="end">
-        <div class="user-section">
-          <span class="username">{{ auth.username }}</span>
-          <ion-button
-            fill="clear"
-            @click="handleLogout"
-            class="logout-button"
-          >
-            <ion-icon :icon="logOutOutline" slot="icon-only"></ion-icon>
-          </ion-button>
+      <!-- Información del usuario y logout mejorado -->
+      <div slot="end" class="header-user-section">
+        <div class="user-info">
+          <span class="user-name">{{ auth.username }}</span>
+          <span class="user-role">Administrador</span>
         </div>
-      </ion-buttons>
+        <button
+          @click="handleLogout"
+          class="logout-btn"
+          title="Cerrar sesión"
+        >
+          <ion-icon :icon="logOutOutline"></ion-icon>
+        </button>
+      </div>
     </ion-toolbar>
   </ion-header>
 </template>
@@ -87,53 +88,73 @@ const handleLogout = async () => {
   --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
   --color: white;
   --border-width: 0;
+  padding: 0 16px;
 }
 
-.user-section {
+.header-user-section {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  backdrop-filter: blur(10px);
+  gap: 16px;
+  padding: 8px 0;
 }
 
-.username {
-  font-size: 0.9rem;
-  font-weight: 500;
+.user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+}
+
+.user-name {
+  font-size: 0.95rem;
+  font-weight: 600;
   color: white;
-  opacity: 0.9;
 }
 
-.logout-button {
-  --color: white;
-  --background: rgba(255, 255, 255, 0.1);
-  --border-radius: 50%;
-  margin: 0;
-  width: 36px;
-  height: 36px;
+.user-role {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
 }
 
-.logout-button:hover {
-  --background: rgba(255, 255, 255, 0.2);
-  --color: #ff6b6b;
+.logout-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: white;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.logout-btn ion-icon {
+  font-size: 1.2rem;
 }
 
 /* Responsive */
-@media (max-width: 576px) {
-  .user-section {
-    padding: 6px 8px;
-    gap: 8px;
-  }
-  
-  .username {
+@media (max-width: 768px) {
+  .user-info {
     display: none;
   }
   
-  .logout-button {
-    width: 32px;
-    height: 32px;
+  .header-user-section {
+    gap: 0;
+  }
+  
+  .logout-btn {
+    width: 36px;
+    height: 36px;
   }
 }
 </style>

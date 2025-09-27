@@ -85,6 +85,135 @@
         </ion-card-content>
       </ion-card>
 
+      <!-- POPUP DETALLADO - Nueva sección -->
+      <div v-if="lastValidatedGuest" class="validation-detail-card">
+        <div class="detail-header">
+          <div class="success-icon">
+            <ion-icon name="checkmark-circle" color="success"></ion-icon>
+          </div>
+          <div class="detail-title">
+            <h2>✅ Entrada Validada</h2>
+            <p>Acceso confirmado exitosamente</p>
+          </div>
+          <ion-button 
+            fill="clear" 
+            size="small"
+            @click="clearLastValidated"
+            class="close-detail-btn"
+          >
+            <ion-icon name="close-outline"></ion-icon>
+          </ion-button>
+        </div>
+
+        <div class="detail-content">
+          <!-- Avatar y nombre principal -->
+          <div class="guest-main-info">
+            <div class="guest-avatar-large">
+              {{ lastValidatedGuest.name.charAt(0).toUpperCase() }}
+            </div>
+            <div class="guest-primary">
+              <h3>{{ lastValidatedGuest.name }}</h3>
+              <p class="guest-email">{{ lastValidatedGuest.email }}</p>
+            </div>
+          </div>
+
+          <!-- Información del evento -->
+          <div class="event-details-section">
+            <div class="section-title">
+              <ion-icon name="calendar-outline"></ion-icon>
+              <span>Detalles del Evento</span>
+            </div>
+            
+            <div class="detail-grid">
+              <div class="detail-item">
+                <ion-icon name="star-outline" color="primary"></ion-icon>
+                <div>
+                  <span class="detail-label">Evento</span>
+                  <span class="detail-value">{{ lastValidatedGuest.event_name || 'Evento Principal' }}</span>
+                </div>
+              </div>
+              
+              <div class="detail-item">
+                <ion-icon name="location-outline" color="primary"></ion-icon>
+                <div>
+                  <span class="detail-label">Ubicación</span>
+                  <span class="detail-value">Salón Principal</span>
+                </div>
+              </div>
+
+              <div class="detail-item" v-if="lastValidatedGuest.phone">
+                <ion-icon name="call-outline" color="primary"></ion-icon>
+                <div>
+                  <span class="detail-label">Teléfono</span>
+                  <span class="detail-value">{{ lastValidatedGuest.phone }}</span>
+                </div>
+              </div>
+
+              <div class="detail-item" v-if="lastValidatedGuest.table_number">
+                <ion-icon name="restaurant-outline" color="primary"></ion-icon>
+                <div>
+                  <span class="detail-label">Mesa</span>
+                  <span class="detail-value">Mesa {{ lastValidatedGuest.table_number }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Información de acceso -->
+          <div class="access-info-section">
+            <div class="section-title">
+              <ion-icon name="checkmark-circle-outline"></ion-icon>
+              <span>Información de Acceso</span>
+            </div>
+            
+            <div class="access-timeline">
+              <div class="timeline-item completed">
+                <div class="timeline-icon">
+                  <ion-icon name="qr-code-outline"></ion-icon>
+                </div>
+                <div class="timeline-content">
+                  <h4>QR Generado</h4>
+                  <p>{{ formatDateTime(lastValidatedGuest.created_at || '') }}</p>
+                </div>
+              </div>
+
+              <div class="timeline-item completed" v-if="lastValidatedGuest.sent_at">
+                <div class="timeline-icon">
+                  <ion-icon name="mail-outline"></ion-icon>
+                </div>
+                <div class="timeline-content">
+                  <h4>Email Enviado</h4>
+                  <p>{{ formatDateTime(lastValidatedGuest.sent_at || '') }}</p>
+                </div>
+              </div>
+
+              <div class="timeline-item completed current">
+                <div class="timeline-icon">
+                  <ion-icon name="checkmark-circle"></ion-icon>
+                </div>
+                <div class="timeline-content">
+                  <h4>Entrada Validada</h4>
+                  <p>{{ formatDateTime(lastValidatedGuest.entered_at || '') }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Botones de acción -->
+          <div class="detail-actions">
+            <ion-button 
+              expand="block" 
+              fill="solid"
+              @click="clearLastValidated"
+              class="continue-btn"
+            >
+              <ion-icon name="scan-outline" slot="start"></ion-icon>
+              Continuar Escaneando
+            </ion-button>
+          </div>
+        </div>
+      </div>
+
       <!-- Estadísticas -->
       <ion-card>
         <ion-card-header>
@@ -269,7 +398,14 @@ import {
   closeOutline,
   checkmarkOutline,
   checkmarkCircleOutline,
-  closeCircleOutline
+  closeCircleOutline,
+  calendarOutline,
+  locationOutline,
+  callOutline,
+  restaurantOutline,
+  mailOutline,
+  starOutline,
+  checkmarkCircle
 } from 'ionicons/icons'
 import { Html5Qrcode } from 'html5-qrcode'
 // @ts-ignore
@@ -323,6 +459,9 @@ const successfulEntries = ref(0)
 const rejectedEntries = ref(0)
 const recentEntries = ref<Guest[]>([])
 
+// NUEVO: Estado para el popup detallado
+const lastValidatedGuest = ref<Guest | null>(null)
+
 // Estado de inputs manuales
 const showManualQR = ref(false)
 const manualQRCode = ref('')
@@ -344,12 +483,16 @@ const recentEntriesDisplay = computed(() =>
   )
 )
 
+// NUEVA: Función para limpiar el último validado
+const clearLastValidated = () => {
+  lastValidatedGuest.value = null
+}
+
 // Función para cargar entradas recientes desde la base de datos
 const loadRecentEntries = async () => {
   try {
     console.log('Cargando entradas recientes desde la base de datos...')
     
-    // Obtener invitados que han entrado hoy
     const today = new Date().toISOString().split('T')[0]
     
     const { data: entries, error } = await supabase
@@ -367,7 +510,6 @@ const loadRecentEntries = async () => {
     }
     
     recentEntries.value = entries || []
-    
     console.log('Entradas recientes cargadas:', recentEntries.value.length)
     
   } catch (error) {
@@ -380,7 +522,6 @@ const loadTodayStats = async () => {
   try {
     const today = new Date().toISOString().split('T')[0]
     
-    // Contar entradas del día
     const { data: todayEntries, error: entriesError } = await supabase
       .from('guests')
       .select('has_entered, entered_at')
@@ -394,12 +535,7 @@ const loadTodayStats = async () => {
     }
     
     const todaySuccessful = (todayEntries || []).length
-    
-    // Actualizar estadísticas
     successfulEntries.value = todaySuccessful
-    
-    // Las estadísticas de validaciones totales y rechazadas se mantienen en memoria
-    // durante la sesión, pero se resetean al recargar
     
     console.log('Estadísticas del día cargadas:', { successful: todaySuccessful })
     
@@ -430,7 +566,6 @@ const formatDateTime = (dateString: string) => {
   })
 }
 
-// Función para obtener la fecha y hora actual en formato España/Madrid
 const getCurrentMadridTime = () => {
   return new Date().toLocaleString('en-CA', {
     timeZone: 'Europe/Madrid',
@@ -461,21 +596,18 @@ const startScanner = async () => {
     
     html5QrCode.value = new Html5Qrcode("qr-reader")
     
-    // Configuración del scanner
     const config = {
       fps: 10,
       qrbox: { width: 250, height: 250 },
       aspectRatio: 1.0
     }
     
-    // Obtener cámaras disponibles
     const cameras = await Html5Qrcode.getCameras()
     
     if (!cameras || cameras.length === 0) {
       throw new Error('No se encontraron cámaras disponibles')
     }
     
-    // Preferir cámara trasera si está disponible
     const backCamera = cameras.find(camera => 
       camera.label.toLowerCase().includes('back') || 
       camera.label.toLowerCase().includes('trasera') ||
@@ -503,7 +635,6 @@ const startScanner = async () => {
   }
 }
 
-// Función para obtener mensaje de error amigable
 const getErrorMessage = (error: any) => {
   const message = error.message || error.toString()
   
@@ -526,7 +657,6 @@ const getErrorMessage = (error: any) => {
   return 'Error al acceder a la cámara: ' + message
 }
 
-// Función para parar el scanner
 const stopScanner = async () => {
   try {
     if (html5QrCode.value && scannerActive.value) {
@@ -543,20 +673,16 @@ const stopScanner = async () => {
   }
 }
 
-// Función llamada cuando se escanea exitosamente
 const onScanSuccess = async (decodedText: string) => {
   console.log('QR Code scanned:', decodedText)
   
-  // Parar el scanner temporalmente para procesar
   if (html5QrCode.value && scannerActive.value) {
     try {
       await html5QrCode.value.stop()
       scannerActive.value = false
       
-      // Procesar el código
       await validateScannedCode(decodedText)
       
-      // Esperar 3 segundos antes de reactivar
       setTimeout(async () => {
         if (!scannerActive.value) {
           await startScanner()
@@ -569,18 +695,15 @@ const onScanSuccess = async (decodedText: string) => {
   }
 }
 
-// Función llamada cuando falla el escaneo (normal)
 const onScanFailure = (error: string) => {
   // No hacer nada - errores de escaneo son normales
 }
 
-// Función para abrir input manual de QR
 const openManualQRInput = () => {
   showManualQR.value = true
   manualQRCode.value = ''
 }
 
-// Función para validar QR manual
 const validateManualQR = async () => {
   if (!manualQRCode.value.trim()) return
   
@@ -596,19 +719,16 @@ const validateScannedCode = async (qrCode: string) => {
   try {
     console.log('Validating QR code:', qrCode.substring(0, 100) + '...')
     
-    // NUEVA LÓGICA: Intentar parsear como JSON directo primero
     let guestData: QRData | null = null
     
     try {
-      // Intentar decodificar como JSON directo (nuevo formato)
       guestData = JSON.parse(qrCode) as QRData
       console.log('QR decoded as direct JSON:', guestData)
     } catch (jsonError) {
       console.log('QR is not direct JSON, trying encrypted format...')
       
-      // Si no es JSON directo, intentar el formato encriptado (formato antiguo)
       try {
-        // @ts-ignore - Importación dinámica para evitar errores de TypeScript
+        // @ts-ignore
         const qrModule = await import('../services/qr.js')
         guestData = await qrModule.validateQRCode(qrCode)
         console.log('QR decoded as encrypted:', guestData)
@@ -617,14 +737,12 @@ const validateScannedCode = async (qrCode: string) => {
       }
     }
     
-    // Validar que se pudo decodificar
     if (!guestData) {
       showValidationResult('error', '❌ CÓDIGO NO VÁLIDO', 'El código QR no es válido o está corrupto')
       rejectedEntries.value++
       return
     }
     
-    // Validar que tiene los campos requeridos
     if (!guestData.id || !guestData.name || !guestData.email) {
       console.error('QR missing required fields:', guestData)
       showValidationResult('error', '❌ CÓDIGO INCOMPLETO', 'El código QR no contiene la información necesaria')
@@ -634,7 +752,6 @@ const validateScannedCode = async (qrCode: string) => {
     
     console.log('Guest data decoded successfully:', guestData)
     
-    // Buscar invitado en la base de datos
     const { data: guest, error } = await supabase
       .from('guests')
       .select('*')
@@ -650,7 +767,6 @@ const validateScannedCode = async (qrCode: string) => {
     
     console.log('Guest found:', guest)
     
-    // Verificar si ya entró
     if (guest.has_entered) {
       showValidationResult(
         'warning', 
@@ -662,10 +778,8 @@ const validateScannedCode = async (qrCode: string) => {
       return
     }
     
-    // Obtener la fecha/hora actual en zona horaria Madrid
     const madridTime = getCurrentMadridTime()
     
-    // Marcar como entrada exitosa
     const { error: updateError } = await supabase
       .from('guests')
       .update({
@@ -674,20 +788,18 @@ const validateScannedCode = async (qrCode: string) => {
       })
       .eq('id', guest.id)
     
-    if (updateError) {
-      console.error('Error updating guest:', updateError)
-      throw updateError
-    }
+    if (updateError) throw updateError
     
-    // Actualizar listas locales
     const updatedGuest: Guest = {
       ...guest,
       has_entered: true,
       entered_at: madridTime
     }
     
-    // Agregar al principio de la lista de entradas recientes
     recentEntries.value.unshift(updatedGuest)
+    
+    // ACTUALIZACIÓN: Establecer el último guest validado para el popup detallado
+    lastValidatedGuest.value = updatedGuest
     
     showValidationResult(
       'success',
@@ -699,7 +811,6 @@ const validateScannedCode = async (qrCode: string) => {
     successfulEntries.value++
     showToast(`${guest.name} ha ingresado correctamente`, 'success')
     
-    // Auto-ocultar después de 4 segundos
     setTimeout(() => {
       validationResult.value.show = false
     }, 4000)
@@ -711,7 +822,6 @@ const validateScannedCode = async (qrCode: string) => {
   }
 }
 
-// Función para buscar invitado manualmente
 const searchGuest = async () => {
   if (!manualSearch.value.trim()) return
   
@@ -738,7 +848,6 @@ const searchGuest = async () => {
     
     const guest = guests[0] as Guest
     
-    // Verificar si ya entró
     if (guest.has_entered) {
       showValidationResult(
         'warning',
@@ -749,7 +858,6 @@ const searchGuest = async () => {
       return
     }
     
-    // Marcar entrada manual
     const madridTime = getCurrentMadridTime()
     
     const { error: updateError } = await supabase
@@ -768,8 +876,8 @@ const searchGuest = async () => {
       entered_at: madridTime
     }
     
-    // Agregar a entradas recientes
     recentEntries.value.unshift(updatedGuest)
+    lastValidatedGuest.value = updatedGuest
     
     showValidationResult(
       'success',
@@ -790,7 +898,6 @@ const searchGuest = async () => {
   manualSearch.value = ''
 }
 
-// Función para mostrar resultado de validación
 const showValidationResult = (type: 'success' | 'warning' | 'error', title: string, message: string, guest: Guest | null = null) => {
   validationResult.value = {
     show: true,
@@ -801,7 +908,6 @@ const showValidationResult = (type: 'success' | 'warning' | 'error', title: stri
   }
 }
 
-// Función para obtener icono según el resultado
 const getResultIcon = () => {
   switch (validationResult.value.type) {
     case 'success':
@@ -814,18 +920,17 @@ const getResultIcon = () => {
   }
 }
 
-// Función para limpiar estadísticas
 const clearValidationStats = () => {
   if (confirm('¿Limpiar todas las estadísticas de validación?')) {
     totalValidations.value = 0
     successfulEntries.value = 0
     rejectedEntries.value = 0
     recentEntries.value = []
+    lastValidatedGuest.value = null
     showToast('Estadísticas limpiadas', 'success')
   }
 }
 
-// Función para refrescar datos manualmente
 const refreshData = async () => {
   await Promise.all([
     loadRecentEntries(),
@@ -834,18 +939,15 @@ const refreshData = async () => {
   showToast('Datos actualizados', 'success')
 }
 
-// Ciclo de vida
 onMounted(async () => {
   console.log('ScanTab mounted - loading data...')
   
-  // Cargar entradas recientes y estadísticas
   await Promise.all([
     loadRecentEntries(),
     loadTodayStats()
   ])
 })
 
-// Recargar datos cuando se activa la vista
 onActivated(async () => {
   console.log('ScanTab activated - refreshing recent entries...')
   await loadRecentEntries()
@@ -900,9 +1002,8 @@ onUnmounted(async () => {
   margin: 0 auto;
 }
 
-/* Estilos específicos para html5-qrcode */
 :deep(#qr-reader) {
-  border: 2px solid #667eea;
+  border: 2px solid #0d1b2a;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -989,6 +1090,265 @@ onUnmounted(async () => {
   }
 }
 
+/* ESTILOS PARA EL POPUP DETALLADO */
+.validation-detail-card {
+  background: white;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 20px rgba(13, 27, 42, 0.15);
+  overflow: hidden;
+  border: 2px solid #28a745;
+  animation: slideInUp 0.4s ease-out;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.detail-header {
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  color: white;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+}
+
+.success-icon {
+  background: #28a745;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+}
+
+.detail-title h2 {
+  margin: 0 0 4px 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.detail-title p {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 0.95rem;
+}
+
+.close-detail-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  --color: white;
+  --color-hover: #f1f3f4;
+}
+
+.detail-content {
+  padding: 24px;
+}
+
+/* Información principal del invitado */
+.guest-main-info {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 32px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px;
+  border-left: 4px solid #28a745;
+}
+
+.guest-avatar-large {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #28a745, #20c997);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 2rem;
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.guest-primary h3 {
+  margin: 0 0 8px 0;
+  color: #1f2937;
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+.guest-email {
+  margin: 0;
+  color: #6b7280;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+/* Secciones */
+.event-details-section,
+.access-info-section {
+  margin-bottom: 28px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: #1f2937;
+  font-weight: 600;
+  font-size: 1.1rem;
+}
+
+.section-title ion-icon {
+  font-size: 1.3rem;
+  color: #0d1b2a;
+}
+
+/* Grid de detalles */
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.detail-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 3px solid #0d1b2a;
+}
+
+.detail-item ion-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.detail-item div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.detail-label {
+  font-size: 0.8rem;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-value {
+  font-size: 1rem;
+  color: #1f2937;
+  font-weight: 600;
+}
+
+/* Timeline de acceso */
+.access-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.timeline-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+}
+
+.timeline-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 50px;
+  width: 2px;
+  height: 16px;
+  background: #e5e7eb;
+}
+
+.timeline-item.completed::after {
+  background: #28a745;
+}
+
+.timeline-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #e5e7eb;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.timeline-item.completed .timeline-icon {
+  background: #28a745;
+  color: white;
+}
+
+.timeline-item.current .timeline-icon {
+  background: #0d1b2a;
+  color: white;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.timeline-content h4 {
+  margin: 0 0 4px 0;
+  color: #1f2937;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.timeline-content p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+/* Botones de acción */
+.detail-actions {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.continue-btn {
+  --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  --border-radius: 8px;
+  font-weight: 600;
+  height: 48px;
+}
+
+.continue-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(13, 27, 42, 0.3);
+}
+
 .manual-qr-btn {
   margin-top: 1rem;
 }
@@ -996,7 +1356,7 @@ onUnmounted(async () => {
 .stat-card {
   text-align: center;
   padding: 1rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
   color: white;
   border-radius: 8px;
   margin: 0.2rem;
@@ -1026,7 +1386,7 @@ onUnmounted(async () => {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: #667eea;
+  background: #0d1b2a;
   color: white;
   display: flex;
   align-items: center;
@@ -1069,8 +1429,41 @@ onUnmounted(async () => {
     max-width: 100%;
   }
   
-  .guest-details {
-    font-size: 0.85rem;
+  .detail-content {
+    padding: 16px;
+  }
+  
+  .guest-main-info {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+  
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .guest-avatar-large {
+    width: 60px;
+    height: 60px;
+    font-size: 1.5rem;
+  }
+  
+  .guest-primary h3 {
+    font-size: 1.3rem;
+  }
+  
+  .detail-header {
+    padding: 16px;
+    flex-direction: column;
+    text-align: center;
+    gap: 12px;
+  }
+  
+  .close-detail-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
   }
 }
 </style>
