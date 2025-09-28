@@ -168,6 +168,18 @@
                 <ion-icon :icon="downloadOutline" slot="start"></ion-icon>
                 {{ downloading ? 'Generando PDF...' : 'Descargar Ticket PDF' }}
               </ion-button>
+              
+              <!-- Botón adicional para Android -->
+              <ion-button 
+                v-if="isAndroid()"
+                fill="outline"
+                expand="block"
+                @click="openDownloadsFolder"
+                class="downloads-btn"
+              >
+                <ion-icon :icon="folderOpenOutline" slot="start"></ion-icon>
+                Abrir Descargas
+              </ion-button>
             </div>
           </div>
 
@@ -190,6 +202,11 @@
                 <ion-icon :icon="bookmarkOutline" class="instruction-icon"></ion-icon>
                 <span>Guarda este enlace para futuras descargas</span>
               </div>
+              <!-- Instrucción específica para móvil -->
+              <div v-if="isMobile()" class="instruction-item mobile-tip">
+                <ion-icon :icon="checkmarkCircleOutline" class="instruction-icon"></ion-icon>
+                <span>Después de descargar, busca en tu carpeta de Descargas</span>
+              </div>
             </div>
           </div>
         </div>
@@ -207,7 +224,8 @@ import {
   IonButton,
   IonIcon,
   IonSpinner,
-  toastController
+  toastController,
+  alertController
 } from '@ionic/vue'
 import {
   downloadOutline,
@@ -216,7 +234,9 @@ import {
   homeOutline,
   mailOutline,
   timeOutline,
-  bookmarkOutline
+  bookmarkOutline,
+  checkmarkCircleOutline,
+  folderOpenOutline
 } from 'ionicons/icons'
 
 // Importaciones corregidas
@@ -303,6 +323,19 @@ const eventStatus = computed(() => {
     return ''
   }
 })
+
+// Detectar dispositivo
+const isMobile = () => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+}
+
+const isAndroid = () => {
+  return /Android/i.test(navigator.userAgent)
+}
+
+const isIOS = () => {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent)
+}
 
 // FUNCIÓN CORREGIDA: Cargar datos del ticket
 const loadTicketData = async () => {
@@ -438,7 +471,60 @@ const markTicketAsDownloaded = async () => {
   }
 }
 
-// FUNCIÓN CORREGIDA: Usar el QR almacenado en la base de datos
+// Mostrar instrucciones específicas por dispositivo
+const showDownloadInstructions = async () => {
+  let message = ''
+  let header = 'PDF Descargado'
+  
+  if (isAndroid()) {
+    message = `
+      <div style="text-align: left; line-height: 1.5;">
+        <p><strong>📱 En Android:</strong></p>
+        <p>1. Busca la notificación de descarga en la barra superior</p>
+        <p>2. O ve a <strong>Descargas</strong> en tu navegador (menú ⋮)</p>
+        <p>3. O abre la app <strong>Archivos</strong> > <strong>Descargas</strong></p>
+        <p>4. Busca el archivo: <strong>${ticketData.value.guest.name}_ticket.pdf</strong></p>
+      </div>
+    `
+  } else if (isIOS()) {
+    message = `
+      <div style="text-align: left; line-height: 1.5;">
+        <p><strong>📱 En iPhone/iPad:</strong></p>
+        <p>1. El PDF se abrirá automáticamente en Safari</p>
+        <p>2. Toca el botón <strong>Compartir</strong> (⬆️)</p>
+        <p>3. Selecciona <strong>"Guardar en Archivos"</strong></p>
+        <p>4. O <strong>"Añadir a Fotos"</strong> para guardarlo en la galería</p>
+      </div>
+    `
+  } else {
+    message = `
+      <div style="text-align: left; line-height: 1.5;">
+        <p><strong>💻 En tu navegador:</strong></p>
+        <p>1. El archivo se ha descargado en tu carpeta de <strong>Descargas</strong></p>
+        <p>2. Nombre del archivo: <strong>${ticketData.value.guest.name}_ticket.pdf</strong></p>
+        <p>3. Puedes abrirlo desde allí o guardarlo donde prefieras</p>
+      </div>
+    `
+  }
+
+  const alert = await alertController.create({
+    header: header,
+    message: message,
+    buttons: [
+      {
+        text: 'Entendido',
+        role: 'confirm',
+        handler: () => {
+          console.log('Usuario confirmó instrucciones')
+        }
+      }
+    ]
+  })
+
+  await alert.present()
+}
+
+// FUNCIÓN MEJORADA: Usar el QR almacenado en la base de datos
 const downloadTicket = async () => {
   if (!ticketData.value) return
 
@@ -477,13 +563,19 @@ const downloadTicket = async () => {
     if (success) {
       await markTicketAsDownloaded()
       
+      // Toast de éxito
       const toast = await toastController.create({
         message: '🎫 Ticket descargado correctamente',
-        duration: 3000,
+        duration: 2000,
         color: 'success',
         position: 'top'
       })
       await toast.present()
+      
+      // Mostrar instrucciones específicas después de un breve delay
+      setTimeout(() => {
+        showDownloadInstructions()
+      }, 1000)
     }
     
   } catch (error) {
@@ -498,6 +590,18 @@ const downloadTicket = async () => {
     await toast.present()
   } finally {
     downloading.value = false
+  }
+}
+
+// Función para abrir carpeta de descargas (Android)
+const openDownloadsFolder = () => {
+  if (isAndroid()) {
+    // Intentar abrir la app de archivos
+    try {
+      window.open('content://com.android.externalstorage.documents/document/primary%3ADownload', '_blank')
+    } catch (e) {
+      console.log('No se pudo abrir carpeta de descargas automáticamente')
+    }
   }
 }
 
@@ -735,6 +839,13 @@ watch(
   font-weight: 600;
 }
 
+.downloads-btn {
+  --border-color: #0d1b2a;
+  --color: #0d1b2a;
+  --background: transparent;
+  margin-top: 8px;
+}
+
 .download-btn:hover,
 .retry-btn:hover {
   transform: translateY(-1px);
@@ -742,14 +853,16 @@ watch(
 }
 
 .home-btn,
-.contact-btn {
+.contact-btn,
+.downloads-btn {
   --border-color: #0d1b2a;
   --color: #0d1b2a;
   --background: transparent;
 }
 
 .home-btn:hover,
-.contact-btn:hover {
+.contact-btn:hover,
+.downloads-btn:hover {
   --background: #f8f9fa;
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(13, 27, 42, 0.15);
@@ -770,6 +883,11 @@ watch(
   background: #f8f9fa;
   border-radius: 8px;
   border-left: 4px solid #0d1b2a;
+}
+
+.instruction-item.mobile-tip {
+  border-left-color: #10b981;
+  background: #f0f9ff;
 }
 
 .instruction-number {
@@ -955,7 +1073,8 @@ watch(
 .download-btn,
 .retry-btn,
 .home-btn,
-.contact-btn {
+.contact-btn,
+.downloads-btn {
   transition: all 0.2s ease;
 }
 
