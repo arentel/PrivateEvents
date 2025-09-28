@@ -358,6 +358,8 @@ const generateQRPreview = async () => {
 }
 
 // Función principal para cargar datos del ticket
+// FUNCIÓN loadTicketData CORREGIDA - Reemplaza esta función en tu DownloadTicket.vue
+
 const loadTicketData = async () => {
   if (!downloadCode.value) return
 
@@ -367,81 +369,157 @@ const loadTicketData = async () => {
   qrImageUrl.value = ''
   
   try {
-    console.log('🔍 Buscando ticket:', downloadCode.value)
+    console.log('🔍 Buscando ticket por código:', downloadCode.value)
     
-    // Paso 1: Buscar el invitado
-    const { data: guest, error: guestError } = await supabase
-      .from('guests')
+    // ✅ CORRECCIÓN: Buscar en download_tickets por download_code
+    const { data: ticketRecord, error: ticketError } = await supabase
+      .from('download_tickets')
       .select('*')
-      .eq('id', downloadCode.value)
+      .eq('download_code', downloadCode.value) // Usar download_code que es el campo correcto
       .single()
     
-    if (guestError || !guest) {
-      throw new Error('Código no encontrado o inválido')
+    if (ticketError) {
+      if (ticketError.code === 'PGRST116') {
+        throw new Error('Enlace no encontrado o inválido. Verifica que el enlace del email sea correcto.')
+      }
+      throw ticketError
     }
     
-    console.log('✅ Invitado encontrado:', guest.name)
-    
-    // Paso 2: Buscar el evento del invitado
-    const { data: event, error: eventError } = await supabase
-      .from('events')
-      .select('*')
-      .eq('id', guest.event_id)
-      .single()
-    
-    if (eventError || !event) {
-      throw new Error('Evento no encontrado')
+    if (!ticketRecord) {
+      throw new Error('Ticket no encontrado')
     }
     
-    console.log('✅ Evento encontrado:', event.name)
-    
-    // Crear QR simple con datos del invitado
-    const qrData = {
-      id: guest.id,
-      name: guest.name,
-      email: guest.email,
-      event_name: event.name,
-      eventId: event.id,
-      timestamp: new Date().toISOString(),
-      version: '1.0'
+    // Verificar expiración si existe el campo
+    if (ticketRecord.expires_at) {
+      const now = new Date()
+      const expiresAt = new Date(ticketRecord.expires_at)
+      
+      if (now > expiresAt) {
+        throw new Error('Este enlace ha expirado. Solicita un nuevo enlace al organizador.')
+      }
     }
     
+    console.log('✅ Ticket válido encontrado:', ticketRecord.event_name)
+    
+    // Buscar datos completos del invitado desde la tabla guests
+    let guestData = {
+      id: ticketRecord.guest_id,
+      name: 'Invitado', // Fallback
+      email: 'email@ejemplo.com' // Fallback
+    }
+    
+    if (ticketRecord.guest_id) {
+      try {
+        const { data: guest, error: guestError } = await supabase
+          .from('guests')
+          .select('*')
+          .eq('id', ticketRecord.guest_id)
+          .single()
+        
+        if (!guestError && guest) {
+          guestData = guest
+        }
+      } catch (guestErr) {
+        console.warn('No se pudo cargar datos del invitado:', guestErr)
+      }
+    }
+    
+    // Buscar datos completos del evento
+    let eventData = {
+      id: ticketRecord.event_id,
+      name: ticketRecord.event_name || 'Evento',
+      date: ticketRecord.event_date || new Date().toISOString(),
+      location: ticketRecord.event_location || 'Ubicación por confirmar'
+    }
+    
+    if (ticketRecord.event_id) {
+      try {
+        const { data: event, error: eventError } = await supabase
+          .from('events')
+          .select('*')
+          .eq('id', ticketRecord.event_id)
+          .single()
+        
+        if (!eventError && event) {
+          eventData = event
+        }
+      } catch (eventErr) {
+        console.warn('No se pudo cargar datos del evento:', eventErr)
+      }
+    }
+    
+    // Crear estructura de datos compatible con tu vista
     ticketData.value = {
-      guest: guest,
-      event: event,
-      qrCode: JSON.stringify(qrData)
+      guest: guestData,
+      event: eventData,
+      qrCode: ticketRecord.qr_code || JSON.stringify({
+        id: guestData.id,
+        name: guestData.name,
+        event: eventData.name,
+        timestamp: new Date().toISOString()
+      }),
+      downloadCode: ticketRecord.download_code
     }
     
-    console.log('✅ Ticket completo:', guest.name, '-', event.name)
+    console.log('✅ Datos del ticket cargados:', {
+      invitado: guestData.name,
+      evento: eventData.name,
+      codigo: ticketRecord.download_code
+    })
     
     // Generar vista previa del QR
     await generateQRPreview()
     
   } catch (err) {
-    console.error('Error cargando ticket:', err)
+    console.error('❌ Error cargando ticket:', err)
     error.value = err.message || 'Error al cargar el ticket'
   } finally {
     loading.value = false
   }
 }
 
-// Función de descarga
+// ✅ FUNCIÓN ADICIONAL: Marcar ticket como descargado
+const markTicketAsDownloaded = async () => {
+  if (!ticketData.value?.downloadCode) return
+  
+  try {
+    await supabase
+      .from('download_tickets')
+      .update({ 
+        is_used: true,
+        used_at: new Date().toISOString() 
+      })
+      .eq('download_code', ticketData.value.downloadCode)
+    
+    console.log('📥 Ticket marcado como descargado')
+  } catch (error) {
+    console.warn('Advertencia marcando ticket:', error)
+  }
+}
+
+// ✅ FUNCIÓN downloadTicket MEJORADA - También reemplaza esta
 const downloadTicket = async () => {
   if (!ticketData.value) return
 
   downloading.value = true
   
   try {
-    console.log('Cargando generador de PDF...')
+    console.log('Generando PDF del ticket...')
     
-    // Importación dinámica
     const { generateTicketPDF } = await import('@/services/ticketPDF.js')
     
-    const success = await generateTicketPDF(ticketData.value.guest, ticketData.value.event)
+    const success = await generateTicketPDF(
+      ticketData.value.guest, 
+      ticketData.value.event,
+      ticketData.value.qrCode
+    )
     
     if (success) {
+      // Marcar como descargado
+      await markTicketAsDownloaded()
+      
       const toast = await toastController.create({
-        message: 'Ticket descargado correctamente',
+        message: '🎫 Ticket descargado correctamente',
         duration: 3000,
         color: 'success',
         position: 'top'
@@ -453,7 +531,7 @@ const downloadTicket = async () => {
     console.error('Error descargando ticket:', error)
     
     const toast = await toastController.create({
-      message: 'Error al descargar el ticket',
+      message: 'Error al descargar el ticket. Inténtalo de nuevo.',
       duration: 3000,
       color: 'danger',
       position: 'top'
