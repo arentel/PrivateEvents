@@ -44,7 +44,8 @@ const routes: Array<RouteRecordRaw> = [
     meta: {
       requiresAuth: false,
       requiresEmployeeAuth: true,
-      title: 'Escáner QR - Empleados'
+      title: 'Escáner QR - Empleados',
+      preload: ['scanner'] // Indicar que necesita precargar scanner
     }
   },
   {
@@ -53,7 +54,8 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import('@/views/DownloadTicket.vue'),
     meta: {
       requiresAuth: false, // IMPORTANTE: Ruta pública
-      title: 'Descargar Entrada'
+      title: 'Descargar Entrada',
+      preload: ['pdf'] // Indicar que necesita precargar PDF
     }
   },
   {
@@ -92,7 +94,8 @@ const routes: Array<RouteRecordRaw> = [
         meta: {
           requiresAuth: true,
           title: 'Validar',
-          icon: 'scan-outline'
+          icon: 'scan-outline',
+          preload: ['scanner'] // Precargar scanner para admin
         }
       },
       {
@@ -102,7 +105,8 @@ const routes: Array<RouteRecordRaw> = [
         meta: {
           requiresAuth: true,
           title: 'Reportes',
-          icon: 'analytics-outline'
+          icon: 'analytics-outline',
+          preload: ['pdf'] // Precargar PDF para reportes
         }
       },
       {
@@ -152,9 +156,69 @@ const checkEmployeeAuth = (): boolean => {
   }
 }
 
-// Guard de navegación para autenticación
+// NUEVO: Sistema de preloading inteligente
+const preloadResources = (preloadList: string[]) => {
+  const preloadTasks: Promise<any>[] = []
+  
+  preloadList.forEach(resource => {
+    switch (resource) {
+      case 'scanner':
+        preloadTasks.push(
+          import('html5-qrcode').catch(() => console.log('Scanner preload falló'))
+        )
+        break
+        
+      case 'pdf':
+        preloadTasks.push(
+          // @ts-ignore - Importación dinámica temporal
+          import('@/services/ticketPDF.js').catch(() => console.log('PDF preload falló'))
+        )
+        break
+        
+      case 'reports':
+        preloadTasks.push(
+          // @ts-ignore - Importación dinámica temporal
+          import('@/services/pdf.js').catch(() => {}) // Silencioso si no existe
+        )
+        break
+        
+      case 'qr':
+        preloadTasks.push(
+          import('qrious').catch(() => console.log('QR preload falló'))
+        )
+        break
+    }
+  })
+  
+  // Ejecutar en background sin bloquear navegación
+  if (preloadTasks.length > 0) {
+    Promise.all(preloadTasks).catch(() => {})
+  }
+}
+
+// NUEVO: Cache de componentes visitados para preload inteligente
+const visitedRoutes = new Set<string>()
+const preloadCache = new Set<string>()
+
+// Guard de navegación para autenticación (MANTENER TODA LA LÓGICA EXISTENTE)
 router.beforeEach((to, from, next) => {
   console.log(`🧭 Navegando a: ${to.path}`)
+  
+  // NUEVO: Preload inteligente basado en la ruta de destino
+  if (to.meta?.preload && Array.isArray(to.meta.preload)) {
+    const cacheKey = `${to.path}-${to.meta.preload.join(',')}`
+    if (!preloadCache.has(cacheKey)) {
+      preloadCache.add(cacheKey)
+      preloadResources(to.meta.preload as string[])
+    }
+  }
+  
+  // NUEVO: Preload predictivo basado en patrones de navegación
+  if (visitedRoutes.has(to.path)) {
+    // Si ya visitó esta ruta, precargar rutas relacionadas
+    predictivePreload(to.path)
+  }
+  visitedRoutes.add(to.path)
   
   // IMPORTANTE: Permitir acceso directo a rutas de descarga sin autenticación
   if (to.path.startsWith('/download-ticket/')) {
@@ -264,15 +328,103 @@ router.beforeEach((to, from, next) => {
   next()
 })
 
-// Guard después de cada navegación
-router.afterEach((to) => {
+// NUEVO: Preload predictivo basado en patrones de uso
+const predictivePreload = (currentPath: string) => {
+  // Patrones comunes de navegación para precargar proactivamente
+  const preloadPatterns: Record<string, string[]> = {
+    '/tabs/guests': ['scanner', 'pdf'], // Desde guests suelen ir a scan o enviar
+    '/tabs/send': ['pdf'], // Desde send suelen generar PDFs
+    '/employee/login': ['scanner'], // Empleados van directo al scanner
+    '/role-selection': ['scanner', 'pdf'] // Desde role selection pueden ir a cualquier lado
+  }
+  
+  const shouldPreload = preloadPatterns[currentPath]
+  if (shouldPreload) {
+    // Pequeño delay para no interferir con la navegación actual
+    setTimeout(() => {
+      preloadResources(shouldPreload)
+    }, 500)
+  }
+}
+
+// NUEVO: Limpieza de cache para evitar memory leaks
+const cleanupCache = () => {
+  // Limpiar cache de preload después de 10 minutos de inactividad
+  if (preloadCache.size > 20) {
+    preloadCache.clear()
+  }
+  
+  if (visitedRoutes.size > 50) {
+    visitedRoutes.clear()
+  }
+}
+
+// Ejecutar limpieza cada 10 minutos
+if (typeof window !== 'undefined') {
+  setInterval(cleanupCache, 10 * 60 * 1000)
+}
+
+// Guard después de cada navegación (MANTENER LÓGICA EXISTENTE + MEJORAS)
+router.afterEach((to, from) => {
   // Actualizar título de la página
   document.title = to.meta.title ? `${to.meta.title} - Sistema QR Eventos` : 'Sistema QR Eventos'
+  
+  // NUEVO: Preload inteligente basado en la ruta anterior y actual
+  if (from.path && to.path !== from.path) {
+    // Preload basado en transiciones comunes
+    scheduleSmartPreload(from.path, to.path)
+  }
   
   // Log de navegación en desarrollo
   if (import.meta.env.DEV) {
     console.log(`📍 En: ${to.path} (${String(to.name)})`)
   }
 })
+
+// NUEVO: Programar preload inteligente basado en transiciones
+const scheduleSmartPreload = (fromPath: string, toPath: string) => {
+  // Mapeo de transiciones comunes para preload predictivo
+  const transitionPreloads: Record<string, Record<string, string[]>> = {
+    '/tabs/guests': {
+      '/tabs/scan': [], // Ya se precargaría en la ruta scan
+      '/tabs/send': ['pdf'],
+      '/tabs/reports': ['pdf']
+    },
+    '/tabs/send': {
+      '/tabs/scan': ['scanner'],
+      '/tabs/reports': ['pdf']
+    },
+    '/employee/login': {
+      '/employee/scanner': [] // Ya se precargaría en la ruta scanner
+    }
+  }
+  
+  const fromPreloads = transitionPreloads[fromPath]
+  if (fromPreloads && fromPreloads[toPath]) {
+    // Delay para no interferir con la navegación
+    setTimeout(() => {
+      preloadResources(fromPreloads[toPath])
+    }, 1000)
+  }
+}
+
+// NUEVO: Preload cuando la app está idle
+let idleTimer: NodeJS.Timeout | null = null
+
+const scheduleIdlePreload = () => {
+  if (idleTimer) clearTimeout(idleTimer)
+  
+  idleTimer = setTimeout(() => {
+    // Precargar recursos comunes durante idle
+    preloadResources(['scanner', 'pdf', 'qr'])
+  }, 5000) // 5 segundos de idle
+}
+
+// Detectar actividad del usuario para idle preloading
+if (typeof window !== 'undefined') {
+  ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(event => {
+    document.addEventListener(event, scheduleIdlePreload, { passive: true })
+  })
+}
 
 export default router

@@ -224,7 +224,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Html5Qrcode } from 'html5-qrcode'
 import {
   IonPage,
   IonContent,
@@ -289,7 +288,7 @@ interface EmployeeSession {
 const router = useRouter()
 
 // Estado del scanner
-const html5QrCode = ref<Html5Qrcode | null>(null)
+const html5QrCode = ref<any>(null)
 const scannerActive = ref<boolean>(false)
 const isLoading = ref<boolean>(false)
 const cameraError = ref<string>('')
@@ -411,48 +410,39 @@ const toggleScanner = async (): Promise<void> => {
 
 // Iniciar scanner
 const startScanner = async (): Promise<void> => {
+  if (scannerActive.value) return
+
   try {
     isLoading.value = true
     cameraError.value = ''
     
-    html5QrCode.value = new Html5Qrcode("employee-qr-reader")
+    // Importación dinámica - solo cuando el usuario activa el scanner
+    console.log('Cargando librerías del scanner...')
+    const { Html5Qrcode } = await import('html5-qrcode')
+    
+    html5QrCode.value = new Html5Qrcode('employee-qr-reader')
     
     const config = {
       fps: 10,
       qrbox: { width: 250, height: 250 },
       aspectRatio: 1.0
     }
-    
-    const cameras = await Html5Qrcode.getCameras()
-    
-    if (!cameras || cameras.length === 0) {
-      throw new Error('No se encontraron cámaras disponibles')
-    }
-    
-    const backCamera = cameras.find(camera => 
-      camera.label.toLowerCase().includes('back') || 
-      camera.label.toLowerCase().includes('trasera') ||
-      camera.label.toLowerCase().includes('environment')
-    )
-    
-    const cameraId = backCamera ? backCamera.id : cameras[0].id
-    
+
     await html5QrCode.value.start(
-      cameraId,
+      { facingMode: 'environment' },
       config,
       onScanSuccess,
-      () => {} // onScanFailure - ignorar errores normales
+      onScanFailure
     )
-    
+
     scannerActive.value = true
-    isLoading.value = false
-    showToast('Cámara activada - Apunta al código QR', 'success')
+    console.log('Scanner iniciado correctamente')
     
   } catch (error) {
-    console.error('Error starting scanner:', error)
-    isLoading.value = false
+    console.error('Error iniciando scanner:', error)
     cameraError.value = getErrorMessage(error)
-    showToast(cameraError.value, 'danger')
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -492,6 +482,13 @@ const onScanSuccess = async (decodedText: string): Promise<void> => {
   } else {
     await validateScannedCode(decodedText)
   }
+}
+
+// Fallo del escaneo (función que faltaba)
+const onScanFailure = (error: string): void => {
+  // No mostrar errores constantemente, solo log silencioso
+  // Los fallos de escaneo son normales cuando la cámara no ve un QR válido
+  // console.log('QR scan error (silent):', error)
 }
 
 // Validar código escaneado

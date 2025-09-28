@@ -50,11 +50,12 @@ export const generateQRCode = async (guestData) => {
  * @param {Object} options - Opciones de configuración
  * @returns {string} - Data URL de la imagen QR
  */
-export const generateQRImage = (encryptedData, options = {}) => {
+export const generateQRImage = async (encryptedData, config = QR_CONFIG.default) => {
   try {
-    const config = { ...QR_CONFIG, ...options }
+    // Importación dinámica
+    console.log('Cargando librería QR...')
+    const QRious = (await import('qrious')).default
     
-    // Crear canvas temporal
     const canvas = document.createElement('canvas')
     
     const qr = new QRious({
@@ -66,13 +67,13 @@ export const generateQRImage = (encryptedData, options = {}) => {
       foreground: config.foreground
     })
 
-    // Retornar como data URL
     return canvas.toDataURL('image/png')
   } catch (error) {
     console.error('Error generating QR image:', error)
     throw new Error('Error al generar imagen QR')
   }
 }
+
 
 /**
  * Validar y desencriptar código QR

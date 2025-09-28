@@ -303,7 +303,8 @@ import {
   barChartOutline
 } from 'ionicons/icons'
 import { eventsStore } from '../stores/events'
-import { generatePDF } from '../services/pdf'
+// ❌ QUITAMOS ESTE IMPORT ESTÁTICO:
+// import { generatePDF } from '../services/pdf'
 import { supabase } from '../services/supabase'
 
 // Estado reactivo
@@ -456,7 +457,7 @@ const refreshData = async () => {
   }
 }
 
-// Función para generar PDF de asistentes
+// ✅ FUNCIÓN 1 OPTIMIZADA: PDF de asistentes
 const generateAttendeesPDF = async () => {
   if (eventStats.value.attended === 0) {
     showToast('No hay asistentes para generar PDF', 'warning')
@@ -466,6 +467,11 @@ const generateAttendeesPDF = async () => {
   isGeneratingPDF.value = true
   
   try {
+    console.log('Cargando generador de PDF para asistentes...')
+    
+    // ✅ Importación dinámica - solo cuando el usuario descarga
+    const { generatePDF } = await import('../services/pdf')
+    
     const attendeesList = eventGuests.value.filter(g => g.has_entered)
     
     await generatePDF({
@@ -492,7 +498,7 @@ const generateAttendeesPDF = async () => {
   }
 }
 
-// Función para generar PDF de reporte completo
+// ✅ FUNCIÓN 2 OPTIMIZADA: PDF de reporte completo
 const generateFullReportPDF = async () => {
   if (eventStats.value.total === 0) {
     showToast('No hay datos para generar reporte', 'warning')
@@ -502,6 +508,11 @@ const generateFullReportPDF = async () => {
   isGeneratingPDF.value = true
   
   try {
+    console.log('Cargando generador de PDF para reporte completo...')
+    
+    // ✅ Importación dinámica - solo cuando el usuario descarga
+    const { generatePDF } = await import('../services/pdf')
+    
     await generatePDF({
       type: 'full',
       eventName: selectedEvent.value.name,
@@ -531,7 +542,7 @@ const generateFullReportPDF = async () => {
   }
 }
 
-// Función para generar PDF lista de invitados
+// ✅ FUNCIÓN 3 OPTIMIZADA: PDF lista de invitados
 const generateGuestListPDF = async () => {
   if (eventStats.value.total === 0) {
     showToast('No hay invitados para generar lista', 'warning')
@@ -541,6 +552,11 @@ const generateGuestListPDF = async () => {
   isGeneratingPDF.value = true
   
   try {
+    console.log('Cargando generador de PDF para lista de invitados...')
+    
+    // ✅ Importación dinámica - solo cuando el usuario descarga
+    const { generatePDF } = await import('../services/pdf')
+    
     await generatePDF({
       type: 'guests',
       eventName: selectedEvent.value.name,
@@ -565,7 +581,7 @@ const generateGuestListPDF = async () => {
   }
 }
 
-// Función para generar reporte comparativo
+// ✅ FUNCIÓN 4 OPTIMIZADA: Reporte comparativo
 const generateComparativeReport = async () => {
   if (eventsStore.events.length < 2) {
     showToast('Se necesitan al menos 2 eventos para comparar', 'warning')
@@ -575,6 +591,11 @@ const generateComparativeReport = async () => {
   isGeneratingPDF.value = true
   
   try {
+    console.log('Cargando generador de PDF para reporte comparativo...')
+    
+    // ✅ Importación dinámica - solo cuando el usuario descarga
+    const { generatePDF } = await import('../services/pdf')
+    
     const eventsData = eventsStore.events.map(event => {
       const eventGuestsForComparison = localGuests.value.filter(g => g.event_id === event.id)
       return {

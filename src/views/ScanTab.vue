@@ -583,48 +583,39 @@ const toggleScanner = async () => {
 
 // Función para iniciar el scanner
 const startScanner = async () => {
+  if (scannerActive.value) return
+
   try {
     isLoading.value = true
     cameraError.value = ''
     
-    html5QrCode.value = new Html5Qrcode("qr-reader")
+    // Importación dinámica - solo cuando el usuario activa el scanner
+    console.log('Cargando librerías del scanner...')
+    const { Html5Qrcode } = await import('html5-qrcode')
+    
+    html5QrCode.value = new Html5Qrcode('qr-reader')
     
     const config = {
       fps: 10,
       qrbox: { width: 250, height: 250 },
       aspectRatio: 1.0
     }
-    
-    const cameras = await Html5Qrcode.getCameras()
-    
-    if (!cameras || cameras.length === 0) {
-      throw new Error('No se encontraron cámaras disponibles')
-    }
-    
-    const backCamera = cameras.find(camera => 
-      camera.label.toLowerCase().includes('back') || 
-      camera.label.toLowerCase().includes('trasera') ||
-      camera.label.toLowerCase().includes('environment')
-    )
-    
-    const cameraId = backCamera ? backCamera.id : cameras[0].id
-    
+
     await html5QrCode.value.start(
-      cameraId,
+      { facingMode: 'environment' },
       config,
       onScanSuccess,
       onScanFailure
     )
-    
+
     scannerActive.value = true
-    isLoading.value = false
-    showToast('Cámara activada - Apunta al código QR', 'success')
+    console.log('Scanner iniciado correctamente')
     
-  } catch (error: any) {
-    console.error('Error starting scanner:', error)
+  } catch (error) {
+    console.error('Error iniciando scanner:', error)
+    cameraError.value = 'Error al acceder a la cámara'
+  } finally {
     isLoading.value = false
-    cameraError.value = getErrorMessage(error)
-    showToast(cameraError.value, 'danger')
   }
 }
 
