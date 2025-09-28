@@ -369,19 +369,10 @@ const loadTicketData = async () => {
   try {
     console.log('🔍 Buscando ticket:', downloadCode.value)
     
-    // Buscar directamente en Supabase
+    // Paso 1: Buscar el invitado
     const { data: guest, error: guestError } = await supabase
       .from('guests')
-      .select(`
-        *,
-        events:event_id (
-          id,
-          name,
-          description,
-          date,
-          location
-        )
-      `)
+      .select('*')
       .eq('id', downloadCode.value)
       .single()
     
@@ -389,24 +380,39 @@ const loadTicketData = async () => {
       throw new Error('Código no encontrado o inválido')
     }
     
+    console.log('✅ Invitado encontrado:', guest.name)
+    
+    // Paso 2: Buscar el evento del invitado
+    const { data: event, error: eventError } = await supabase
+      .from('events')
+      .select('*')
+      .eq('id', guest.event_id)
+      .single()
+    
+    if (eventError || !event) {
+      throw new Error('Evento no encontrado')
+    }
+    
+    console.log('✅ Evento encontrado:', event.name)
+    
     // Crear QR simple con datos del invitado
     const qrData = {
       id: guest.id,
       name: guest.name,
       email: guest.email,
-      event_name: guest.events.name,
-      eventId: guest.events.id,
+      event_name: event.name,
+      eventId: event.id,
       timestamp: new Date().toISOString(),
       version: '1.0'
     }
     
     ticketData.value = {
       guest: guest,
-      event: guest.events,
+      event: event,
       qrCode: JSON.stringify(qrData)
     }
     
-    console.log('✅ Ticket encontrado:', guest.name, '-', guest.events.name)
+    console.log('✅ Ticket completo:', guest.name, '-', event.name)
     
     // Generar vista previa del QR
     await generateQRPreview()
