@@ -1,6 +1,6 @@
-// email.js - Versión con base de datos
+// email.js - Versión con base de datos CORREGIDA
 import { generateQRImage } from './qr.js'
-import { supabase } from './supabase.js' // Tu conexión a Supabase
+import { supabase } from './supabase.js'
 
 // Configuración EmailJS
 const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID
@@ -12,30 +12,6 @@ const BATCH_SIZE = 15
 const BATCH_DELAY = 500
 const EMAIL_TIMEOUT = 8000
 const MAX_RETRIES = 2
-
-/**
- * Crear tabla en Supabase (ejecutar una sola vez)
- * 
- * CREATE TABLE download_tickets (
- *   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
- *   download_code TEXT UNIQUE NOT NULL,
- *   guest_id TEXT,
- *   guest_name TEXT NOT NULL,
- *   guest_email TEXT NOT NULL,
- *   event_id TEXT,
- *   event_name TEXT NOT NULL,
- *   event_date TIMESTAMP,
- *   event_location TEXT,
- *   qr_code TEXT NOT NULL,
- *   created_at TIMESTAMP DEFAULT NOW(),
- *   expires_at TIMESTAMP NOT NULL,
- *   is_used BOOLEAN DEFAULT FALSE,
- *   used_at TIMESTAMP NULL
- * );
- * 
- * CREATE INDEX idx_download_code ON download_tickets(download_code);
- * CREATE INDEX idx_expires_at ON download_tickets(expires_at);
- */
 
 /**
  * Generar código único para descarga
@@ -50,13 +26,29 @@ const generateDownloadCode = (guestId, eventId) => {
 }
 
 /**
+ * NUEVA FUNCIÓN: Crear QR consistente
+ */
+export const createConsistentQR = (guestData, eventData) => {
+  const qrData = {
+    id: guestData.id,
+    name: guestData.name,
+    email: guestData.email,
+    event_name: eventData.name,
+    eventId: eventData.id,
+    timestamp: new Date().toISOString(),
+    version: '2.0'
+  }
+  
+  return JSON.stringify(qrData)
+}
+
+/**
  * Guardar ticket en la base de datos
  */
 const saveTicketToDatabase = async (downloadCode, guestData, eventData, qrCode) => {
   try {
-    const expiresAt = new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)) // 7 días
+    const expiresAt = new Date(Date.now() + (30 * 24 * 60 * 60 * 1000)) // 30 días
     
-    // Asegurar que event_date esté en formato correcto
     let eventDateForDB = null
     if (eventData.date) {
       try {
@@ -122,14 +114,13 @@ export const getTicketByCode = async (code) => {
       .single()
 
     if (error) {
-      if (error.code === 'PGRST116') { // No rows found
+      if (error.code === 'PGRST116') {
         console.log(`❌ Ticket no encontrado: ${code}`)
         return null
       }
       throw error
     }
 
-    // Verificar expiración
     const now = new Date()
     const expiresAt = new Date(data.expires_at)
     
@@ -138,7 +129,6 @@ export const getTicketByCode = async (code) => {
       return null
     }
 
-    // Transformar datos para compatibilidad con la vista
     const ticketData = {
       code: data.download_code,
       guest: {
@@ -169,7 +159,7 @@ export const getTicketByCode = async (code) => {
 }
 
 /**
- * Marcar ticket como usado (opcional, para control de acceso)
+ * Marcar ticket como usado
  */
 export const markTicketAsUsed = async (code) => {
   try {
@@ -194,7 +184,7 @@ export const markTicketAsUsed = async (code) => {
 }
 
 /**
- * Limpiar tickets expirados de la base de datos
+ * Limpiar tickets expirados
  */
 export const cleanupExpiredTickets = async () => {
   try {
@@ -262,7 +252,7 @@ const initializeEmailJS = async () => {
 }
 
 /**
- * Enviar email individual con código de descarga
+ * FUNCIÓN CORREGIDA: Enviar email individual con código de descarga
  */
 const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1) => {
   try {
@@ -284,14 +274,28 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       throw new Error('No se pudo inicializar EmailJS')
     }
 
-    const qrImageDataUrl = generateQRImage(qrCode, { size: 400 })
+    // CORRECCIÓN 1: Usar el QR que llega como parámetro
+    console.log('🔍 QR recibido:', qrCode ? 'Sí' : 'No')
     
-    // Formatear fecha correctamente para la base de datos
+    // CORRECCIÓN 2: Generar imagen QR solo si existe
+    let qrImageDataUrl = null
+    if (qrCode) {
+      try {
+        qrImageDataUrl = generateQRImage(qrCode, { 
+          size: 300,
+          margin: 1,
+          errorCorrectionLevel: 'M'
+        })
+        console.log('✅ QR generado para email')
+      } catch (error) {
+        console.warn('⚠️ Error generando QR para email:', error)
+      }
+    }
+    
     let eventDateISO = new Date().toISOString()
     
     if (options.eventDate) {
       try {
-        // Si viene como string, intentar parsearlo
         const parsedDate = new Date(options.eventDate)
         if (!isNaN(parsedDate.getTime())) {
           eventDateISO = parsedDate.toISOString()
@@ -315,17 +319,17 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       phone: guest.phone || ''
     }
 
-    // Generar código único
+    // CORRECCIÓN 3: Usar QR recibido para guardar en BD también
     const downloadCode = generateDownloadCode(guestData.id, eventData.id)
     const baseUrl = window.location.origin
     const downloadUrl = `${baseUrl}/#/download-ticket/${downloadCode}`
     
     console.log(`💾 Guardando ticket en BD: ${downloadCode}`)
     
-    // Guardar en base de datos
+    // Guardar en base de datos con el QR recibido
     await saveTicketToDatabase(downloadCode, guestData, eventData, qrCode)
     
-    // Parámetros para EmailJS
+    // CORRECCIÓN 4: Parámetros mejorados para EmailJS
     const templateParams = {
       to_name: guest.name,
       to_email: guest.email,
@@ -338,10 +342,18 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       download_link: downloadUrl,
       download_code: downloadCode,
       has_pdf: true,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      // CORRECCIÓN 5: Datos adicionales para template
+      qr_code_text: qrCode,
+      has_qr_image: !!qrImageDataUrl
     }
 
     console.log(`📨 Enviando email a ${guest.email}`)
+    console.log('📊 Parámetros del email:', {
+      tiene_qr_imagen: !!qrImageDataUrl,
+      codigo_descarga: downloadCode,
+      evento: eventData.name
+    })
 
     const result = await Promise.race([
       emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams),
@@ -359,6 +371,7 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       service: 'emailjs',
       downloadCode: downloadCode,
       downloadUrl: downloadUrl,
+      qrCode: qrCode,
       attempt
     }
 
@@ -382,9 +395,27 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
 }
 
 /**
- * Enviar email principal
+ * FUNCIÓN CORREGIDA: Enviar email principal - ahora crea QR consistente
  */
-export const sendQREmail = async (guest, qrCode, options = {}) => {
+export const sendQREmail = async (guest, qrCodeInput, options = {}) => {
+  // Si no se pasa QR, crear uno consistente
+  let qrCode = qrCodeInput
+  
+  if (!qrCode) {
+    const eventData = {
+      id: options.eventId || 'event_' + Date.now(),
+      name: guest.event_name || options.eventName || 'Nuestro Evento'
+    }
+    
+    const guestData = {
+      id: guest.id || 'guest_' + Date.now(),
+      name: guest.name,
+      email: guest.email
+    }
+    
+    qrCode = createConsistentQR(guestData, eventData)
+  }
+  
   const result = await sendSingleEmailWithRetry(guest, qrCode, options)
   
   if (!result.success) {
@@ -393,7 +424,8 @@ export const sendQREmail = async (guest, qrCode, options = {}) => {
       success: true,
       messageId: `fallback_${Date.now()}`,
       simulated: true,
-      error: result.error
+      error: result.error,
+      qrCode: qrCode
     }
   }
   
@@ -401,7 +433,7 @@ export const sendQREmail = async (guest, qrCode, options = {}) => {
 }
 
 /**
- * Enviar emails masivos
+ * FUNCIÓN CORREGIDA: Enviar emails masivos
  */
 export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCallback = null) => {
   const results = {
@@ -429,12 +461,23 @@ export const sendBulkQREmails = async (guestsWithQRs, options = {}, progressCall
     
     const batchPromises = batch.map(async ({ guest, qrCode }) => {
       try {
+        // Crear QR consistente si no existe
+        let finalQrCode = qrCode
+        if (!finalQrCode) {
+          const eventData = {
+            id: options.eventId || guest.event_id,
+            name: guest.event_name || options.eventName
+          }
+          
+          finalQrCode = createConsistentQR(guest, eventData)
+        }
+        
         const emailOptions = {
           ...options,
           eventId: guest.event_id || options.eventId
         }
 
-        const result = await sendSingleEmailWithRetry(guest, qrCode, emailOptions)
+        const result = await sendSingleEmailWithRetry(guest, finalQrCode, emailOptions)
         processedCount++
         
         if (progressCallback) {
@@ -532,7 +575,6 @@ export const diagnoseEmailJS = async () => {
   console.log('🗄️ Base de datos:')
   console.log('  - Supabase:', supabase ? '✅ Conectado' : '❌ No conectado')
   
-  // Test de conexión a la base de datos
   try {
     const { data, error } = await supabase
       .from('download_tickets')
@@ -548,7 +590,6 @@ export const diagnoseEmailJS = async () => {
     console.log('  - Tabla download_tickets: ❌ Error de conexión')
   }
   
-  // Obtener estadísticas
   const stats = await getTicketStats()
   if (stats) {
     console.log('📊 Estadísticas:')
@@ -558,20 +599,16 @@ export const diagnoseEmailJS = async () => {
     console.log(`  - Expirados: ${stats.expired}`)
   }
   
-  // Limpiar tickets expirados
   await cleanupExpiredTickets()
-  
   console.log('✅ Diagnóstico completado')
 }
 
 // Limpieza automática periódica
 if (typeof window !== 'undefined') {
-  // Limpieza inicial
   setTimeout(async () => {
     await cleanupExpiredTickets()
   }, 5000)
   
-  // Limpieza cada 2 horas
   setInterval(async () => {
     await cleanupExpiredTickets()
   }, 2 * 60 * 60 * 1000)
@@ -585,5 +622,6 @@ export default {
   cleanupExpiredTickets,
   getTicketStats,
   checkEmailConfig,
-  diagnoseEmailJS
+  diagnoseEmailJS,
+  createConsistentQR
 }

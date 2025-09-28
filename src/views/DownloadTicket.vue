@@ -152,7 +152,7 @@
             </div>
           </div>
 
-          <!-- Acciones de Descarga - MOVIDO ARRIBA -->
+          <!-- Acciones de Descarga -->
           <div class="actions-section">
             <div class="section-header">
               <h3>Descargar Ticket</h3>
@@ -242,7 +242,6 @@ const loadingMessage = computed(() => {
   return 'Cargando tu ticket...'
 })
 
-// Corrección de fecha - Sin timeZone para evitar problemas de zona horaria
 const formattedEventDate = computed(() => {
   if (!ticketData.value?.event?.date) return ''
   
@@ -254,7 +253,6 @@ const formattedEventDate = computed(() => {
       return ticketData.value.event.date
     }
     
-    // Removido timeZone: 'Europe/Madrid' para evitar conversiones incorrectas
     return eventDate.toLocaleDateString('es-ES', {
       weekday: 'long',
       year: 'numeric',
@@ -306,7 +304,7 @@ const eventStatus = computed(() => {
   }
 })
 
-// Función principal para cargar datos del ticket
+// FUNCIÓN CORREGIDA: Cargar datos del ticket
 const loadTicketData = async () => {
   if (!downloadCode.value) return
 
@@ -335,7 +333,7 @@ const loadTicketData = async () => {
       throw new Error('Ticket no encontrado')
     }
     
-    // Verificar expiración si existe el campo
+    // Verificar expiración
     if (ticketRecord.expires_at) {
       const now = new Date()
       const expiresAt = new Date(ticketRecord.expires_at)
@@ -346,12 +344,13 @@ const loadTicketData = async () => {
     }
     
     console.log('✅ Ticket válido encontrado:', ticketRecord.event_name)
+    console.log('🔍 QR almacenado:', ticketRecord.qr_code ? 'Presente' : 'Ausente')
     
-    // Buscar datos completos del invitado desde la tabla guests
+    // Buscar datos completos del invitado
     let guestData = {
       id: ticketRecord.guest_id,
-      name: 'Invitado', // Fallback
-      email: 'email@ejemplo.com' // Fallback
+      name: ticketRecord.guest_name || 'Invitado',
+      email: ticketRecord.guest_email || 'email@ejemplo.com'
     }
     
     if (ticketRecord.guest_id) {
@@ -394,17 +393,22 @@ const loadTicketData = async () => {
       }
     }
     
-    // Crear estructura de datos compatible con tu vista
+    // CORRECCIÓN CRÍTICA: Incluir el QR almacenado en la estructura de datos
     ticketData.value = {
       guest: guestData,
       event: eventData,
-      downloadCode: ticketRecord.download_code
+      downloadCode: ticketRecord.download_code,
+      // ✅ AGREGAR EL QR ALMACENADO
+      qrCode: ticketRecord.qr_code,
+      // También agregarlo como qr_code para compatibilidad
+      qr_code: ticketRecord.qr_code
     }
     
     console.log('✅ Datos del ticket cargados:', {
       invitado: guestData.name,
       evento: eventData.name,
-      codigo: ticketRecord.download_code
+      codigo: ticketRecord.download_code,
+      tieneQR: !!ticketRecord.qr_code
     })
     
   } catch (err) {
@@ -434,33 +438,43 @@ const markTicketAsDownloaded = async () => {
   }
 }
 
-// Función de descarga mejorada
+// FUNCIÓN CORREGIDA: Usar el QR almacenado en la base de datos
 const downloadTicket = async () => {
   if (!ticketData.value) return
 
   downloading.value = true
   
   try {
-    console.log('Generando PDF del ticket...')
+    console.log('🎫 Generando PDF del ticket...')
     
     const { generateTicketPDF } = await import('@/services/ticketPDF.js')
     
-    // Crear QR simple para el PDF
-    const qrData = JSON.stringify({
-      id: ticketData.value.guest.id,
-      name: ticketData.value.guest.name,
-      event: ticketData.value.event.name,
-      timestamp: new Date().toISOString()
-    })
+    // ✅ CORRECCIÓN CRÍTICA: Usar el QR almacenado, NO crear uno nuevo
+    let qrCodeToUse = ticketData.value.qrCode || ticketData.value.qr_code
+    
+    // Solo si no hay QR almacenado (caso de emergencia), crear uno
+    if (!qrCodeToUse) {
+      console.warn('⚠️ No hay QR almacenado, creando QR de emergencia')
+      qrCodeToUse = JSON.stringify({
+        id: ticketData.value.guest.id,
+        name: ticketData.value.guest.name,
+        email: ticketData.value.guest.email,
+        event_name: ticketData.value.event.name,
+        eventId: ticketData.value.event.id,
+        timestamp: new Date().toISOString(),
+        version: '2.0'
+      })
+    } else {
+      console.log('✅ Usando QR almacenado en la base de datos')
+    }
     
     const success = await generateTicketPDF(
       ticketData.value.guest, 
       ticketData.value.event,
-      qrData
+      qrCodeToUse  // ✅ Pasar el QR correcto
     )
     
     if (success) {
-      // Marcar como descargado
       await markTicketAsDownloaded()
       
       const toast = await toastController.create({
@@ -602,7 +616,7 @@ watch(
   color: white;
 }
 
-/* Event stats - CORREGIDO LAYOUT */
+/* Event stats */
 .event-stats {
   background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
   color: white;
