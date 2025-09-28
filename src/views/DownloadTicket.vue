@@ -117,12 +117,12 @@
             
             <div class="event-stats">
               <div class="stat-item">
-                <span class="stat-value">{{ formattedEventDate }}</span>
                 <span class="stat-label">Fecha y hora</span>
+                <span class="stat-value">{{ formattedEventDate }}</span>
               </div>
               <div class="stat-item" v-if="ticketData.event.location">
-                <span class="stat-value">{{ ticketData.event.location }}</span>
                 <span class="stat-label">Ubicación</span>
+                <span class="stat-value">{{ ticketData.event.location }}</span>
               </div>
             </div>
           </div>
@@ -152,23 +152,7 @@
             </div>
           </div>
 
-          <!-- Código QR -->
-          <div class="qr-section" v-if="qrImageUrl">
-            <div class="section-header">
-              <h3>Código QR de Entrada</h3>
-            </div>
-            
-            <div class="qr-content">
-              <div class="qr-image-container">
-                <img :src="qrImageUrl" alt="QR Code" class="qr-image" />
-              </div>
-              <p class="qr-instruction">
-                Presenta este código QR en el evento para ingresar
-              </p>
-            </div>
-          </div>
-
-          <!-- Acciones -->
+          <!-- Acciones de Descarga - MOVIDO ARRIBA -->
           <div class="actions-section">
             <div class="section-header">
               <h3>Descargar Ticket</h3>
@@ -183,16 +167,6 @@
               >
                 <ion-icon :icon="downloadOutline" slot="start"></ion-icon>
                 {{ downloading ? 'Generando PDF...' : 'Descargar Ticket PDF' }}
-              </ion-button>
-
-              <ion-button 
-                expand="block"
-                fill="outline"
-                @click="shareTicket"
-                class="share-btn"
-              >
-                <ion-icon :icon="shareOutline" slot="start"></ion-icon>
-                Compartir enlace
               </ion-button>
             </div>
           </div>
@@ -209,16 +183,12 @@
                 <span>Descarga el ticket antes del evento</span>
               </div>
               <div class="instruction-item">
-                <ion-icon :icon="qrCodeOutline" class="instruction-icon"></ion-icon>
-                <span>Presenta el código QR en la entrada</span>
-              </div>
-              <div class="instruction-item">
                 <ion-icon :icon="timeOutline" class="instruction-icon"></ion-icon>
                 <span>Llega 15 minutos antes del inicio</span>
               </div>
               <div class="instruction-item">
                 <ion-icon :icon="bookmarkOutline" class="instruction-icon"></ion-icon>
-                <span>Guarda este enlace para descargas futuras</span>
+                <span>Guarda este enlace para futuras descargas</span>
               </div>
             </div>
           </div>
@@ -241,12 +211,10 @@ import {
 } from '@ionic/vue'
 import {
   downloadOutline,
-  shareOutline,
   alertCircleOutline,
   refreshOutline,
   homeOutline,
   mailOutline,
-  qrCodeOutline,
   timeOutline,
   bookmarkOutline
 } from 'ionicons/icons'
@@ -260,7 +228,6 @@ const router = useRouter()
 
 // Estados del componente
 const ticketData = ref(null)
-const qrImageUrl = ref('')
 const downloading = ref(false)
 const retrying = ref(false)
 const loading = ref(false)
@@ -275,7 +242,7 @@ const loadingMessage = computed(() => {
   return 'Cargando tu ticket...'
 })
 
-// ✅ CORRECCIÓN DE FECHA - Sin timeZone para evitar problemas de zona horaria
+// Corrección de fecha - Sin timeZone para evitar problemas de zona horaria
 const formattedEventDate = computed(() => {
   if (!ticketData.value?.event?.date) return ''
   
@@ -326,7 +293,7 @@ const eventStatus = computed(() => {
     if (diffDays < 0) {
       return 'Evento finalizado'
     } else if (diffDays === 0) {
-      return '¡Hoy es el evento!'
+      return '¡HOY ES EL EVENTO!'
     } else if (diffDays === 1) {
       return '¡Mañana es el evento!'
     } else if (diffDays <= 7) {
@@ -339,25 +306,6 @@ const eventStatus = computed(() => {
   }
 })
 
-// Función para generar QR
-const generateQRPreview = async () => {
-  if (!ticketData.value?.qrCode) return
-  
-  try {
-    // Importación dinámica del QR
-    const { generateQRImage } = await import('@/services/qr.js')
-    
-    const qrImage = await generateQRImage(ticketData.value.qrCode, { 
-      size: 400,
-      margin: 2,
-      errorCorrectionLevel: 'H'
-    })
-    qrImageUrl.value = qrImage
-  } catch (error) {
-    console.error('Error generando vista previa del QR:', error)
-  }
-}
-
 // Función principal para cargar datos del ticket
 const loadTicketData = async () => {
   if (!downloadCode.value) return
@@ -365,7 +313,6 @@ const loadTicketData = async () => {
   loading.value = true
   error.value = null
   ticketData.value = null
-  qrImageUrl.value = ''
   
   try {
     console.log('🔍 Buscando ticket por código:', downloadCode.value)
@@ -451,12 +398,6 @@ const loadTicketData = async () => {
     ticketData.value = {
       guest: guestData,
       event: eventData,
-      qrCode: ticketRecord.qr_code || JSON.stringify({
-        id: guestData.id,
-        name: guestData.name,
-        event: eventData.name,
-        timestamp: new Date().toISOString()
-      }),
       downloadCode: ticketRecord.download_code
     }
     
@@ -465,9 +406,6 @@ const loadTicketData = async () => {
       evento: eventData.name,
       codigo: ticketRecord.download_code
     })
-    
-    // Generar vista previa del QR
-    await generateQRPreview()
     
   } catch (err) {
     console.error('❌ Error cargando ticket:', err)
@@ -507,10 +445,18 @@ const downloadTicket = async () => {
     
     const { generateTicketPDF } = await import('@/services/ticketPDF.js')
     
+    // Crear QR simple para el PDF
+    const qrData = JSON.stringify({
+      id: ticketData.value.guest.id,
+      name: ticketData.value.guest.name,
+      event: ticketData.value.event.name,
+      timestamp: new Date().toISOString()
+    })
+    
     const success = await generateTicketPDF(
       ticketData.value.guest, 
       ticketData.value.event,
-      ticketData.value.qrCode
+      qrData
     )
     
     if (success) {
@@ -538,35 +484,6 @@ const downloadTicket = async () => {
     await toast.present()
   } finally {
     downloading.value = false
-  }
-}
-
-// Función para compartir
-const shareTicket = async () => {
-  if (!ticketData.value) return
-
-  const shareData = {
-    title: `Ticket - ${ticketData.value.event.name}`,
-    text: `Mi ticket para ${ticketData.value.event.name}`,
-    url: window.location.href
-  }
-
-  try {
-    if (navigator.share) {
-      await navigator.share(shareData)
-    } else {
-      await navigator.clipboard.writeText(window.location.href)
-      
-      const toast = await toastController.create({
-        message: '📋 Enlace copiado al portapapeles',
-        duration: 2000,
-        color: 'success',
-        position: 'top'
-      })
-      await toast.present()
-    }
-  } catch (error) {
-    console.error('Error compartiendo:', error)
   }
 }
 
@@ -641,7 +558,6 @@ watch(
 .error-section,
 .event-info-section,
 .guest-info-section,
-.qr-section,
 .actions-section,
 .instructions-section {
   background: white;
@@ -686,33 +602,41 @@ watch(
   color: white;
 }
 
-/* Event stats */
+/* Event stats - CORREGIDO LAYOUT */
 .event-stats {
-  display: flex;
-  justify-content: space-around;
   background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
   color: white;
-  padding: 16px;
+  padding: 20px;
   border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .stat-item {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
   align-items: center;
-  gap: 4px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.stat-value {
-  font-weight: 700;
-  font-size: 1rem;
-  text-align: center;
+.stat-item:last-child {
+  border-bottom: none;
 }
 
 .stat-label {
-  font-size: 0.8rem;
-  opacity: 0.9;
-  text-align: center;
+  font-size: 0.9rem;
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-weight: 600;
+  font-size: 1rem;
+  text-align: right;
+  flex: 1;
+  margin-left: 16px;
 }
 
 /* Guest item */
@@ -789,7 +713,6 @@ watch(
 
 /* Botones */
 .download-btn,
-.share-btn,
 .retry-btn,
 .home-btn,
 .contact-btn {
@@ -804,7 +727,6 @@ watch(
   box-shadow: 0 4px 12px rgba(13, 27, 42, 0.3);
 }
 
-.share-btn,
 .home-btn,
 .contact-btn {
   --border-color: #0d1b2a;
@@ -812,7 +734,6 @@ watch(
   --background: transparent;
 }
 
-.share-btn:hover,
 .home-btn:hover,
 .contact-btn:hover {
   --background: #f8f9fa;
@@ -894,34 +815,6 @@ watch(
   font-weight: 500;
 }
 
-/* QR content */
-.qr-content {
-  text-align: center;
-}
-
-.qr-image-container {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 16px;
-  padding: 20px;
-  background: #f8f9fa;
-  border-radius: 12px;
-  border: 2px dashed #e5e7eb;
-}
-
-.qr-image {
-  max-width: 200px;
-  height: auto;
-  border-radius: 8px;
-}
-
-.qr-instruction {
-  color: #6b7280;
-  font-size: 0.9rem;
-  margin: 0;
-  line-height: 1.4;
-}
-
 /* Loading content */
 .loading-content {
   display: flex;
@@ -981,14 +874,15 @@ watch(
     padding: 16px;
   }
   
-  .event-stats {
+  .stat-item {
     flex-direction: column;
-    gap: 12px;
+    align-items: flex-start;
+    gap: 4px;
   }
   
-  .stat-item {
-    flex-direction: row;
-    justify-content: space-between;
+  .stat-value {
+    text-align: left;
+    margin-left: 0;
   }
   
   .welcome-section,
@@ -997,7 +891,6 @@ watch(
   .error-section,
   .event-info-section,
   .guest-info-section,
-  .qr-section,
   .actions-section,
   .instructions-section {
     padding: 16px;
@@ -1017,10 +910,6 @@ watch(
   .instructions-content .instruction-item {
     flex-direction: row;
     text-align: left;
-  }
-  
-  .qr-image {
-    max-width: 150px;
   }
   
   .section-header {
@@ -1050,7 +939,6 @@ watch(
 .instruction-item,
 .guest-item,
 .download-btn,
-.share-btn,
 .retry-btn,
 .home-btn,
 .contact-btn {
@@ -1106,10 +994,6 @@ ion-spinner {
     width: 40px;
     height: 40px;
     font-size: 1rem;
-  }
-  
-  .qr-image {
-    max-width: 120px;
   }
 }
 </style>
