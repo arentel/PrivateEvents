@@ -43,6 +43,76 @@ export const createConsistentQR = (guestData, eventData) => {
 }
 
 /**
+ * NUEVA FUNCIÓN: Generar imagen QR para emails (sin encriptación)
+ */
+const generateQRImageForEmail = (qrDataString, options = {}) => {
+  try {
+    const config = {
+      size: 300,
+      margin: 1,
+      background: 'white',
+      foreground: 'black',
+      ...options
+    }
+    
+    // Crear canvas temporal
+    const canvas = document.createElement('canvas')
+    
+    // Importar QRious dinámicamente si no está disponible
+    if (typeof QRious === 'undefined') {
+      // Si QRious no está disponible, intentar crear QR simple
+      console.warn('QRious no disponible, usando método alternativo')
+      return createSimpleQRDataURL(qrDataString, config)
+    }
+    
+    // Usar QRious directamente con los datos JSON
+    const qr = new QRious({
+      element: canvas,
+      value: qrDataString, // Usar directamente el JSON string
+      size: config.size,
+      level: 'H', // Alta corrección de errores
+      background: config.background,
+      foreground: config.foreground
+    })
+
+    return canvas.toDataURL('image/png')
+  } catch (error) {
+    console.error('Error generando QR para email:', error)
+    return null
+  }
+}
+
+/**
+ * Método alternativo para generar QR si QRious no funciona
+ */
+const createSimpleQRDataURL = (data, config) => {
+  try {
+    // Crear un canvas simple con texto como fallback
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    
+    canvas.width = config.size
+    canvas.height = config.size
+    
+    // Fondo blanco
+    ctx.fillStyle = config.background
+    ctx.fillRect(0, 0, config.size, config.size)
+    
+    // Texto como fallback
+    ctx.fillStyle = config.foreground
+    ctx.font = '12px Arial'
+    ctx.textAlign = 'center'
+    ctx.fillText('QR Code', config.size/2, config.size/2)
+    ctx.fillText('(Ver PDF)', config.size/2, config.size/2 + 20)
+    
+    return canvas.toDataURL('image/png')
+  } catch (error) {
+    console.error('Error en fallback QR:', error)
+    return null
+  }
+}
+
+/**
  * Guardar ticket en la base de datos
  */
 const saveTicketToDatabase = async (downloadCode, guestData, eventData, qrCode) => {
@@ -274,19 +344,19 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       throw new Error('No se pudo inicializar EmailJS')
     }
 
-    // CORRECCIÓN 1: Usar el QR que llega como parámetro
+    // CORRECCIÓN: Usar el QR que llega como parámetro
     console.log('🔍 QR recibido:', qrCode ? 'Sí' : 'No')
     
-    // CORRECCIÓN 2: Generar imagen QR solo si existe
+    // CORRECCIÓN: Generar imagen QR usando la nueva función
     let qrImageDataUrl = null
     if (qrCode) {
       try {
-        qrImageDataUrl = generateQRImage(qrCode, { 
+        // Usar la nueva función que maneja JSON directamente
+        qrImageDataUrl = generateQRImageForEmail(qrCode, { 
           size: 300,
-          margin: 1,
-          errorCorrectionLevel: 'M'
+          margin: 1
         })
-        console.log('✅ QR generado para email')
+        console.log('✅ QR generado para email:', !!qrImageDataUrl)
       } catch (error) {
         console.warn('⚠️ Error generando QR para email:', error)
       }
@@ -319,7 +389,7 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       phone: guest.phone || ''
     }
 
-    // CORRECCIÓN 3: Usar QR recibido para guardar en BD también
+    // Generar código de descarga
     const downloadCode = generateDownloadCode(guestData.id, eventData.id)
     const baseUrl = window.location.origin
     const downloadUrl = `${baseUrl}/#/download-ticket/${downloadCode}`
@@ -329,7 +399,7 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
     // Guardar en base de datos con el QR recibido
     await saveTicketToDatabase(downloadCode, guestData, eventData, qrCode)
     
-    // CORRECCIÓN 4: Parámetros mejorados para EmailJS
+    // Parámetros mejorados para EmailJS
     const templateParams = {
       to_name: guest.name,
       to_email: guest.email,
@@ -337,13 +407,12 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
       event_name: eventData.name,
       event_date: options.eventDate || new Date().toLocaleDateString('es-ES'),
       event_location: eventData.location,
-      qr_image: qrImageDataUrl,
+      qr_image: qrImageDataUrl || '', // Asegurar que no sea null
       reply_to: options.replyTo || 'noreply@evento.com',
       download_link: downloadUrl,
       download_code: downloadCode,
       has_pdf: true,
       timestamp: Date.now(),
-      // CORRECCIÓN 5: Datos adicionales para template
       qr_code_text: qrCode,
       has_qr_image: !!qrImageDataUrl
     }
