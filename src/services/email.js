@@ -392,7 +392,7 @@ const sendSingleEmailWithRetry = async (guest, qrCode, options = {}, attempt = 1
     // Generar código de descarga
     const downloadCode = generateDownloadCode(guestData.id, eventData.id)
     const baseUrl = window.location.origin
-    const downloadUrl = `${baseUrl}/#/download-ticket/${downloadCode}`
+    const downloadUrl = `${baseUrl}/download-ticket/${downloadCode}`
     
     console.log(`💾 Guardando ticket en BD: ${downloadCode}`)
     
