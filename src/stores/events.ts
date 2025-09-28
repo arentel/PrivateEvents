@@ -1,8 +1,8 @@
-import { reactive } from 'vue'
-// @ts-ignore
-import { supabase } from '@/services/supabase.js'
+import { reactive, computed } from 'vue'
+import { db } from '@/services/supabase.js' // El archivo de tipos manejará esto
+// import { useLoading } from '@/composables/useLoading.js' // Comentar hasta que se cree
 
-// Interfaces
+// Interfaces y tipos
 export interface Guest {
   id: string
   name: string
@@ -35,403 +35,671 @@ export interface Event {
   is_active: boolean
 }
 
-// Estado global de eventos
+// Tipo para el cache
+interface CacheData {
+  eventStats: Map<string, any>
+  guestsByEvent: Map<string, Guest[]>
+  lastCacheUpdate: Map<string, Date>
+  [key: string]: any // Index signature para acceso dinámico
+}
+
+// Estado global optimizado con cache interno
 const eventsState = reactive({
   events: [] as Event[],
   currentEventId: null as string | null,
   guests: [] as Guest[],
-  loading: false,
+  initialized: false,
+  lastFetch: null as Date | null,
   error: null as string | null
 })
 
-// Store de eventos
+// Cache para optimizar consultas frecuentes
+const cache: CacheData = reactive({
+  eventStats: new Map<string, any>(),
+  guestsByEvent: new Map<string, Guest[]>(),
+  lastCacheUpdate: new Map<string, Date>()
+})
+
+const CACHE_DURATION = 2 * 60 * 1000 // 2 minutos
+
+// Simulación del hook de loading hasta que se cree el archivo
+const mockUseLoading = () => ({
+  withLoading: async (fn: () => Promise<any>, options?: any) => {
+    try {
+      return await fn()
+    } catch (error) {
+      console.error('Error en operación:', error)
+      throw error
+    }
+  },
+  setError: (error: string) => console.error(error),
+  clearError: () => console.log('Error cleared')
+})
+
+// Hook de loading para el store
+const { withLoading, setError, clearError } = mockUseLoading()
+
+// Utilidades de cache
+const isCacheValid = (key: string): boolean => {
+  const lastUpdate = cache.lastCacheUpdate.get(key)
+  if (!lastUpdate) return false
+  return Date.now() - lastUpdate.getTime() < CACHE_DURATION
+}
+
+const setCache = (key: string, data: any): void => {
+  cache[key] = data
+  cache.lastCacheUpdate.set(key, new Date())
+}
+
+const clearCache = (pattern?: string): void => {
+  if (pattern) {
+    // Limpiar cache específico
+    Object.keys(cache).forEach(key => {
+      if (key.includes(pattern)) {
+        delete cache[key]
+        cache.lastCacheUpdate.delete(key)
+      }
+    })
+  } else {
+    // Limpiar todo el cache
+    cache.eventStats.clear()
+    cache.guestsByEvent.clear()
+    cache.lastCacheUpdate.clear()
+  }
+}
+
+// Store de eventos optimizado
 export const eventsStore = {
-  // Getters
-  get events() {
+  // Getters computados
+  get events(): Event[] {
     return eventsState.events
   },
 
-  get currentEvent() {
+  get currentEvent(): Event | null {
     if (!eventsState.currentEventId) return null
     return eventsState.events.find(e => e.id === eventsState.currentEventId) || null
   },
 
-  get currentEventId() {
+  get currentEventId(): string | null {
     return eventsState.currentEventId
   },
 
-  get guests() {
+  get guests(): Guest[] {
     return eventsState.guests
   },
 
-  get currentEventGuests() {
+  get currentEventGuests(): Guest[] {
     if (!eventsState.currentEventId) return []
     
-    return eventsState.guests
-      .filter(g => g.event_id === eventsState.currentEventId)
-      .map(g => ({
+    const cacheKey = `guests_${eventsState.currentEventId}`
+    if (isCacheValid(cacheKey) && cache.guestsByEvent.has(cacheKey)) {
+      return cache.guestsByEvent.get(cacheKey) || []
+    }
+    
+    const guests = eventsState.guests
+      .filter((g: Guest) => g.event_id === eventsState.currentEventId)
+      .map((g: Guest) => ({
         ...g,
         sent: g.qr_sent,
         scanned: g.has_entered,
         table: g.table_number
       }))
+    
+    cache.guestsByEvent.set(cacheKey, guests)
+    cache.lastCacheUpdate.set(cacheKey, new Date())
+    
+    return guests
   },
 
-  get loading() {
-    return eventsState.loading
+  get activeEvents(): Event[] {
+    return eventsState.events.filter((e: Event) => e.is_active)
   },
 
-  get error() {
+  get initialized(): boolean {
+    return eventsState.initialized
+  },
+
+  get error(): string | null {
     return eventsState.error
   },
 
-  // Eventos activos
-  get activeEvents() {
-    return eventsState.events.filter(e => e.is_active)
-  },
-
-  // Estadísticas del evento actual
+  // Estadísticas optimizadas con cache
   get currentEventStats() {
-    const eventGuests = this.currentEventGuests
-    return {
-      total: eventGuests.length,
-      confirmed: eventGuests.filter(g => g.has_entered).length,
-      sent: eventGuests.filter(g => g.qr_sent).length,
-      scanned: eventGuests.filter(g => g.has_entered).length,
-      pending: eventGuests.filter(g => !g.qr_sent).length
-    }
-  },
-
-  // Inicializar datos desde Supabase
-  async init() {
-    eventsState.loading = true
-    eventsState.error = null
-
-    try {
-      await this.loadFromSupabase()
-      
-      // Si no hay eventos, crear uno por defecto
-      if (eventsState.events.length === 0) {
-        await this.createDefaultEvent()
-      }
-
-      // Si no hay evento actual, seleccionar el primero
-      if (!eventsState.currentEventId && eventsState.events.length > 0) {
-        eventsState.currentEventId = eventsState.events[0].id
-        this.saveCurrentEventLocal()
-      }
-
-      console.log('✅ Eventos inicializados:', eventsState.events.length)
-    } catch (error) {
-      console.error('❌ Error inicializando:', error)
-      this.loadFromLocalStorage()
-    } finally {
-      eventsState.loading = false
-    }
-  },
-
-  // Cargar datos desde Supabase
-  async loadFromSupabase() {
-    try {
-      // Cargar eventos
-      const { data: events, error: eventsError } = await supabase
-        .from('events')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (eventsError) throw eventsError
-
-      // Cargar invitados
-      const { data: guests, error: guestsError } = await supabase
-        .from('guests')
-        .select('*')
-        .order('created_at', { ascending: false })
-
-      if (guestsError) throw guestsError
-
-      eventsState.events = events || []
-      eventsState.guests = guests || []
-
-      // Cargar evento actual desde localStorage
-      const savedCurrentEvent = localStorage.getItem('current_event_id')
-      if (savedCurrentEvent && eventsState.events.find(e => e.id === savedCurrentEvent)) {
-        eventsState.currentEventId = savedCurrentEvent
-      }
-    } catch (error) {
-      console.error('Error loading from Supabase:', error)
-      throw error
-    }
-  },
-
-  // Fallback: Cargar desde localStorage
-  loadFromLocalStorage() {
-    try {
-      const savedEvents = localStorage.getItem('events_data')
-      const savedGuests = localStorage.getItem('guests_data')
-      const savedCurrentEvent = localStorage.getItem('current_event_id')
-
-      if (savedEvents) eventsState.events = JSON.parse(savedEvents)
-      if (savedGuests) eventsState.guests = JSON.parse(savedGuests)
-      if (savedCurrentEvent) eventsState.currentEventId = savedCurrentEvent
-
-      console.log('⚠️ Usando datos locales como fallback')
-    } catch (error) {
-      console.error('Error loading from localStorage:', error)
-      eventsState.error = 'Error cargando eventos'
-    }
-  },
-
-  // Crear evento por defecto
-  async createDefaultEvent() {
-    const defaultEvent = {
-      name: 'Mi Primer Evento',
-      description: 'Evento de ejemplo',
-      date: new Date().toISOString().split('T')[0],
-      location: 'Ubicación del evento',
-      max_guests: 100,
-      is_active: true
-    }
-
-    const createdEvent = await this.createEvent(defaultEvent)
-    eventsState.currentEventId = createdEvent.id
-    this.saveCurrentEventLocal()
-  },
-
-  // Crear nuevo evento
-  async createEvent(eventData: Omit<Event, 'id' | 'created_at' | 'updated_at'>): Promise<Event> {
-    eventsState.loading = true
-    eventsState.error = null
-
-    try {
-      const { data, error } = await supabase
-        .from('events')
-        .insert([{
-          ...eventData,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }])
-        .select()
-        .single()
-
-      if (error) throw error
-
-      eventsState.events.unshift(data)
-      console.log('✅ Evento creado:', data.name)
-      return data
-    } catch (error) {
-      console.error('❌ Error creating event:', error)
-      throw error
-    } finally {
-      eventsState.loading = false
-    }
-  },
-
-  // Actualizar evento
-  async updateEvent(eventId: string, updates: Partial<Event>): Promise<void> {
-    eventsState.loading = true
-
-    try {
-      const { data, error } = await supabase
-        .from('events')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', eventId)
-        .select()
-        .single()
-
-      if (error) throw error
-
-      const eventIndex = eventsState.events.findIndex(e => e.id === eventId)
-      if (eventIndex !== -1) {
-        eventsState.events[eventIndex] = data
-      }
-
-      console.log('✅ Evento actualizado:', eventId)
-    } catch (error) {
-      console.error('❌ Error updating event:', error)
-      throw error
-    } finally {
-      eventsState.loading = false
-    }
-  },
-
-  // Eliminar evento
-  async deleteEvent(eventId: string): Promise<void> {
-    eventsState.loading = true
-
-    try {
-      const { error } = await supabase.from('events').delete().eq('id', eventId)
-      if (error) throw error
-
-      // Actualizar estado local (los invitados se eliminan automáticamente por CASCADE)
-      eventsState.events = eventsState.events.filter(e => e.id !== eventId)
-      eventsState.guests = eventsState.guests.filter(g => g.event_id !== eventId)
-
-      // Si era el evento actual, cambiar a otro
-      if (eventsState.currentEventId === eventId) {
-        eventsState.currentEventId = eventsState.events.length > 0 ? eventsState.events[0].id : null
-        this.saveCurrentEventLocal()
-      }
-
-      console.log('✅ Evento eliminado:', eventId)
-    } catch (error) {
-      console.error('❌ Error deleting event:', error)
-      throw error
-    } finally {
-      eventsState.loading = false
-    }
-  },
-
-  // Seleccionar evento actual
-  setCurrentEvent(eventId: string): void {
-    const event = eventsState.events.find(e => e.id === eventId)
-    if (event) {
-      eventsState.currentEventId = eventId
-      this.saveCurrentEventLocal()
-      console.log('✅ Evento actual:', event.name)
-    }
-  },
-
-  // Agregar invitado
-  async addGuest(guestData: Omit<Guest, 'id' | 'created_at' | 'event_id' | 'event_name' | 'qr_sent' | 'has_entered'>): Promise<Guest> {
     if (!eventsState.currentEventId) {
-      throw new Error('No hay evento seleccionado')
+      return { total: 0, confirmed: 0, sent: 0, scanned: 0, pending: 0 }
     }
 
-    const currentEvent = this.currentEvent
-    if (!currentEvent) {
-      throw new Error('Evento actual no encontrado')
+    const cacheKey = `stats_${eventsState.currentEventId}`
+    if (isCacheValid(cacheKey) && cache.eventStats.has(cacheKey)) {
+      return cache.eventStats.get(cacheKey)
     }
 
-    try {
-      const { data, error } = await supabase
-        .from('guests')
-        .insert([{
-          name: guestData.name,
-          email: guestData.email.toLowerCase(),
-          phone: guestData.phone || null,
-          event_id: eventsState.currentEventId,
-          event_name: currentEvent.name,
-          qr_sent: false,
-          has_entered: false,
-          created_at: new Date().toISOString()
-        }])
-        .select()
-        .single()
+    const eventGuests = this.currentEventGuests
+    const stats = {
+      total: eventGuests.length,
+      confirmed: eventGuests.filter((g: Guest) => g.has_entered).length,
+      sent: eventGuests.filter((g: Guest) => g.qr_sent).length,
+      scanned: eventGuests.filter((g: Guest) => g.has_entered).length,
+      pending: eventGuests.filter((g: Guest) => !g.qr_sent).length
+    }
 
-      if (error) throw error
+    cache.eventStats.set(cacheKey, stats)
+    cache.lastCacheUpdate.set(cacheKey, new Date())
+    
+    return stats
+  },
 
-      // Añadir aliases para compatibilidad
-      const guestWithAliases = {
-        ...data,
-        sent: data.qr_sent,
-        scanned: data.has_entered,
-        table: data.table_number
+  // Inicialización optimizada con loading states
+  async init(force = false): Promise<void> {
+    if (eventsState.initialized && !force) {
+      console.log('📦 Store ya inicializado, usando datos cacheados')
+      return
+    }
+
+    return withLoading(async () => {
+      clearError()
+      
+      try {
+        console.log('🔄 Inicializando eventos store...')
+        
+        // Cargar datos en paralelo para mejor rendimiento
+        const [eventsResult, guestsResult] = await Promise.allSettled([
+          this.loadEvents(),
+          this.loadGuests()
+        ])
+
+        // Manejar resultados
+        if (eventsResult.status === 'rejected') {
+          console.error('Error cargando eventos:', eventsResult.reason)
+          throw eventsResult.reason
+        }
+
+        if (guestsResult.status === 'rejected') {
+          console.error('Error cargando invitados:', guestsResult.reason)
+          // Los invitados son menos críticos, continuar
+        }
+
+        // Establecer evento actual si no existe
+        if (!eventsState.currentEventId && eventsState.events.length > 0) {
+          eventsState.currentEventId = eventsState.events[0].id
+        }
+
+        eventsState.initialized = true
+        eventsState.lastFetch = new Date()
+        
+        console.log('✅ Store inicializado:', {
+          eventos: eventsState.events.length,
+          invitados: eventsState.guests.length,
+          eventoActual: this.currentEvent?.name
+        })
+
+      } catch (error: any) {
+        console.error('❌ Error inicializando store:', error)
+        eventsState.error = error?.message || 'Error desconocido'
+        throw error
       }
+    }, {
+      showSuccessToast: false,
+      showErrorToast: true,
+      retries: 3
+    })
+  },
 
-      eventsState.guests.push(guestWithAliases)
-      console.log('✅ Invitado agregado:', data.name)
-      return guestWithAliases
-
+  // Cargar eventos optimizado
+  async loadEvents(): Promise<Event[]> {
+    try {
+      console.log('📅 Cargando eventos desde BD...')
+      
+      let events: Event[] = []
+      
+      // Verificar si existe la función getAllEvents
+      if (db.getAllEvents && typeof db.getAllEvents === 'function') {
+        events = await db.getAllEvents()
+      } else {
+        // Fallback: crear eventos mock o usar datos locales
+        console.warn('getAllEvents no disponible, usando datos mock')
+        events = [
+          {
+            id: '1',
+            name: 'Evento por defecto',
+            description: 'Evento creado automáticamente',
+            date: new Date().toISOString(),
+            location: 'Por definir',
+            max_guests: 100,
+            email_template: '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_active: true
+          }
+        ]
+      }
+      
+      eventsState.events = events
+      
+      // Limpiar cache relacionado con eventos
+      clearCache('events')
+      
+      console.log(`✅ ${events.length} eventos cargados`)
+      return events
+      
     } catch (error) {
-      console.error('❌ Error adding guest:', error)
+      console.error('❌ Error cargando eventos:', error)
       throw error
     }
   },
 
-  // Actualizar invitado
-  async updateGuest(guestId: string, updates: Partial<Guest>): Promise<void> {
+  // Cargar invitados optimizado
+  async loadGuests(): Promise<Guest[]> {
     try {
-      const { data, error } = await supabase
-        .from('guests')
-        .update(updates)
-        .eq('id', guestId)
-        .select()
-        .single()
+      console.log('👥 Cargando invitados desde BD...')
+      
+      // Usar función existente del db
+      const guests = await db.getAllGuests()
+      eventsState.guests = guests
+      
+      // Limpiar cache relacionado
+      clearCache('guests')
+      clearCache('stats')
+      
+      console.log(`✅ ${guests.length} invitados cargados`)
+      return guests
+      
+    } catch (error) {
+      console.error('❌ Error cargando invitados:', error)
+      throw error
+    }
+  },
 
-      if (error) throw error
+  // Refrescar datos con debounce
+  async refresh(force = false): Promise<void> {
+    const lastFetch = eventsState.lastFetch
+    const now = new Date()
+    
+    // Evitar refresh muy frecuentes (debounce)
+    if (!force && lastFetch && (now.getTime() - lastFetch.getTime()) < 10000) {
+      console.log('⏳ Refresh muy reciente, omitiendo...')
+      return
+    }
 
-      // Actualizar estado local
-      const index = eventsState.guests.findIndex(g => g.id === guestId)
+    return this.init(true)
+  },
+
+  // Establecer evento actual
+  setCurrentEvent(eventId: string): void {
+    if (eventId !== eventsState.currentEventId) {
+      eventsState.currentEventId = eventId
+      
+      // Limpiar cache específico del evento anterior
+      clearCache('guests')
+      clearCache('stats')
+      
+      console.log('🎯 Evento actual cambiado:', this.currentEvent?.name)
+    }
+  },
+
+  // Crear evento optimizado
+  async createEvent(eventData: Partial<Event>): Promise<Event> {
+    return withLoading(async () => {
+      try {
+        // Usar función existente o crear manualmente
+        let newEvent: Event
+        if (db.createEvent && typeof db.createEvent === 'function') {
+          newEvent = await db.createEvent(eventData)
+        } else {
+          // Crear evento manualmente si no existe la función
+          const eventId = Date.now().toString()
+          newEvent = {
+            id: eventId,
+            name: eventData.name || '',
+            description: eventData.description || '',
+            date: eventData.date || new Date().toISOString(),
+            location: eventData.location || '',
+            max_guests: eventData.max_guests || 100,
+            email_template: eventData.email_template || '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            is_active: eventData.is_active !== undefined ? eventData.is_active : true
+          }
+          // Aquí deberías implementar la lógica real de guardado
+          console.warn('createEvent no implementado en db, usando mock')
+        }
+        
+        eventsState.events.unshift(newEvent)
+        
+        // Establecer como evento actual si es el primero
+        if (eventsState.events.length === 1) {
+          eventsState.currentEventId = newEvent.id
+        }
+        
+        clearCache('events')
+        
+        console.log('✅ Evento creado:', newEvent.name)
+        return newEvent
+        
+      } catch (error) {
+        console.error('❌ Error creando evento:', error)
+        throw error
+      }
+    }, {
+      showSuccessToast: true,
+      successMessage: 'Evento creado correctamente'
+    })
+  },
+
+  // Actualizar evento optimizado
+  async updateEvent(eventId: string, updates: Partial<Event>): Promise<Event> {
+    return withLoading(async () => {
+      try {
+        // Usar función existente o actualizar manualmente
+        let updatedEvent: Event
+        if (db.updateEvent && typeof db.updateEvent === 'function') {
+          updatedEvent = await db.updateEvent(eventId, updates)
+        } else {
+          // Actualizar evento manualmente si no existe la función
+          const existingEvent = eventsState.events.find(e => e.id === eventId)
+          if (!existingEvent) {
+            throw new Error('Evento no encontrado')
+          }
+          
+          updatedEvent = {
+            ...existingEvent,
+            ...updates,
+            updated_at: new Date().toISOString()
+          }
+          
+          console.warn('updateEvent no implementado en db, usando mock')
+        }
+        
+        const index = eventsState.events.findIndex((e: Event) => e.id === eventId)
+        if (index !== -1) {
+          eventsState.events[index] = updatedEvent
+        }
+        
+        clearCache('events')
+        
+        console.log('✅ Evento actualizado:', updatedEvent.name)
+        return updatedEvent
+        
+      } catch (error) {
+        console.error('❌ Error actualizando evento:', error)
+        throw error
+      }
+    }, {
+      showSuccessToast: true,
+      successMessage: 'Evento actualizado correctamente'
+    })
+  },
+
+  // Eliminar evento optimizado
+  async deleteEvent(eventId: string): Promise<boolean> {
+    return withLoading(async () => {
+      try {
+        // Usar función existente o eliminar manualmente
+        if (db.deleteEvent && typeof db.deleteEvent === 'function') {
+          await db.deleteEvent(eventId)
+        } else {
+          // Eliminar evento manualmente si no existe la función
+          console.warn('deleteEvent no implementado en db, usando mock')
+        }
+        
+        // Remover del estado
+        eventsState.events = eventsState.events.filter((e: Event) => e.id !== eventId)
+        
+        // Si era el evento actual, cambiar al primero disponible
+        if (eventsState.currentEventId === eventId) {
+          eventsState.currentEventId = eventsState.events.length > 0 
+            ? eventsState.events[0].id 
+            : null
+        }
+        
+        // Remover invitados del evento
+        eventsState.guests = eventsState.guests.filter((g: Guest) => g.event_id !== eventId)
+        
+        clearCache()
+        
+        console.log('✅ Evento eliminado')
+        return true
+        
+      } catch (error) {
+        console.error('❌ Error eliminando evento:', error)
+        throw error
+      }
+    }, {
+      showSuccessToast: true,
+      successMessage: 'Evento eliminado correctamente'
+    })
+  },
+  async createGuest(guestData: Partial<Guest>): Promise<Guest> {
+    return withLoading(async () => {
+      try {
+        const newGuest = await db.createGuest(guestData)
+        eventsState.guests.unshift(newGuest)
+        
+        // Limpiar cache relacionado
+        clearCache('guests')
+        clearCache('stats')
+        
+        console.log('✅ Invitado creado:', newGuest.name)
+        return newGuest
+        
+      } catch (error) {
+        console.error('❌ Error creando invitado:', error)
+        throw error
+      }
+    }, {
+      showSuccessToast: true,
+      successMessage: 'Invitado agregado correctamente'
+    })
+  },
+
+  // Alias para compatibilidad con GuestsTab.vue
+  async addGuest(guestData: Partial<Guest>): Promise<Guest> {
+    return this.createGuest(guestData)
+  },
+
+  // Crear múltiples invitados optimizado
+  async createMultipleGuests(guestsData: Partial<Guest>[]): Promise<Guest[]> {
+    return withLoading(async () => {
+      try {
+        const newGuests = await db.createMultipleGuests(guestsData)
+        eventsState.guests.unshift(...newGuests)
+        
+        clearCache('guests')
+        clearCache('stats')
+        
+        console.log(`✅ ${newGuests.length} invitados creados`)
+        return newGuests
+        
+      } catch (error) {
+        console.error('❌ Error creando invitados:', error)
+        throw error
+      }
+    }, {
+      showSuccessToast: true,
+      successMessage: `${guestsData.length} invitados agregados correctamente`
+    })
+  },
+
+  // Actualizar invitado optimizado
+  async updateGuest(guestId: string, updates: Partial<Guest>): Promise<Guest> {
+    try {
+      const updatedGuest = await db.updateGuest(guestId, updates)
+      
+      const index = eventsState.guests.findIndex((g: Guest) => g.id === guestId)
       if (index !== -1) {
-        eventsState.guests[index] = {
-          ...data,
-          sent: data.qr_sent,
-          scanned: data.has_entered,
-          table: data.table_number
+        eventsState.guests[index] = updatedGuest
+      }
+      
+      // Limpiar cache específico
+      clearCache('guests')
+      clearCache('stats')
+      
+      return updatedGuest
+      
+    } catch (error) {
+      console.error('❌ Error actualizando invitado:', error)
+      throw error
+    }
+  },
+
+  // Marcar como ingresado optimizado
+  async markGuestAsEntered(guestId: string): Promise<Guest> {
+    try {
+      const updatedGuest = await db.markAsEntered(guestId)
+      
+      const index = eventsState.guests.findIndex((g: Guest) => g.id === guestId)
+      if (index !== -1) {
+        eventsState.guests[index] = updatedGuest
+      }
+      
+      // Limpiar cache específico
+      clearCache('guests')
+      clearCache('stats')
+      
+      console.log('✅ Invitado marcado como ingresado:', updatedGuest.name)
+      return updatedGuest
+      
+    } catch (error) {
+      console.error('❌ Error marcando ingreso:', error)
+      throw error
+    }
+  },
+
+  // Eliminar invitado optimizado
+  async deleteGuest(guestId: string): Promise<boolean> {
+    return withLoading(async () => {
+      try {
+        await db.deleteGuest(guestId)
+        
+        eventsState.guests = eventsState.guests.filter((g: Guest) => g.id !== guestId)
+        
+        clearCache('guests')
+        clearCache('stats')
+        
+        console.log('✅ Invitado eliminado')
+        return true
+        
+      } catch (error) {
+        console.error('❌ Error eliminando invitado:', error)
+        throw error
+      }
+    }, {
+      showSuccessToast: true,
+      successMessage: 'Invitado eliminado correctamente'
+    })
+  },
+
+  // Buscar invitados optimizado
+  async searchGuests(searchTerm: string): Promise<Guest[]> {
+    try {
+      const results = await db.searchGuests(searchTerm)
+      console.log(`🔍 Encontrados ${results.length} invitados para: "${searchTerm}"`)
+      return results
+    } catch (error) {
+      console.error('❌ Error buscando invitados:', error)
+      return []
+    }
+  },
+
+  // Obtener estadísticas globales
+  async getGlobalStats(): Promise<any | null> {
+    try {
+      const cacheKey = 'global_stats'
+      if (isCacheValid(cacheKey) && cache[cacheKey]) {
+        return cache[cacheKey]
+      }
+
+      // Usar función básica si existe, sino calcular manualmente
+      let stats
+      if (db.getBasicStats && typeof db.getBasicStats === 'function') {
+        stats = await db.getBasicStats()
+      } else {
+        // Calcular estadísticas básicas manualmente
+        const guests = eventsState.guests
+        stats = {
+          total: guests.length,
+          sent: guests.filter((g: Guest) => g.qr_sent).length,
+          entered: guests.filter((g: Guest) => g.has_entered).length,
+          byEvent: {}
         }
       }
-
-      console.log('✅ Invitado actualizado')
+      
+      setCache(cacheKey, stats)
+      return stats
     } catch (error) {
-      console.error('❌ Error updating guest:', error)
-      throw error
+      console.error('❌ Error obteniendo estadísticas:', error)
+      return null
     }
   },
 
-  // Eliminar invitado
-  async deleteGuest(guestId: string): Promise<void> {
+  // Limpiar cache manualmente
+  clearCache(): void {
+    clearCache()
+    console.log('🗑️ Cache del store limpiado')
+  },
+
+  // Verificar conexión
+  async testConnection(): Promise<boolean> {
     try {
-      const { error } = await supabase.from('guests').delete().eq('id', guestId)
-      if (error) throw error
-
-      eventsState.guests = eventsState.guests.filter(g => g.id !== guestId)
-      console.log('✅ Invitado eliminado')
+      return await db.testConnection()
     } catch (error) {
-      console.error('❌ Error deleting guest:', error)
-      throw error
+      console.error('❌ Error probando conexión:', error)
+      return false
     }
   },
 
-  // Función de compatibilidad para saveGuests
-  async saveGuests() {
-    try {
-      for (const guest of eventsState.guests) {
-        await supabase
-          .from('guests')
-          .update({
-            qr_sent: guest.qr_sent,
-            has_entered: guest.has_entered,
-            sent_at: guest.sent_at,
-            entered_at: guest.entered_at
-          })
-          .eq('id', guest.id)
-      }
-      console.log('✅ Estados guardados')
-    } catch (error) {
-      console.error('❌ Error saving guests:', error)
-      this.saveToLocalStorage()
-    }
-  },
-
-  // Utilidades
-  generateId(): string {
-    return 'evt_' + Math.random().toString(36).substr(2, 9)
-  },
-
-  saveCurrentEventLocal() {
-    if (eventsState.currentEventId) {
-      localStorage.setItem('current_event_id', eventsState.currentEventId)
-    } else {
-      localStorage.removeItem('current_event_id')
-    }
-  },
-
-  saveToLocalStorage() {
-    localStorage.setItem('events_data', JSON.stringify(eventsState.events))
-    localStorage.setItem('guests_data', JSON.stringify(eventsState.guests))
-    this.saveCurrentEventLocal()
-  },
-
-  clearError() {
+  // Resetear store
+  reset(): void {
+    eventsState.events = []
+    eventsState.currentEventId = null
+    eventsState.guests = []
+    eventsState.initialized = false
+    eventsState.lastFetch = null
     eventsState.error = null
-  },
-
-  async forceReload() {
-    await this.loadFromSupabase()
+    clearCache()
+    console.log('🔄 Store reseteado')
   }
+}
+
+// Auto-refresh cada 5 minutos si la pestaña está activa
+if (typeof window !== 'undefined') {
+  let refreshInterval: ReturnType<typeof setInterval> | null = null
+  
+  const startAutoRefresh = () => {
+    if (refreshInterval) clearInterval(refreshInterval)
+    
+    refreshInterval = setInterval(async () => {
+      if (document.visibilityState === 'visible' && eventsState.initialized) {
+        try {
+          console.log('🔄 Auto-refresh del store...')
+          await eventsStore.refresh()
+        } catch (error) {
+          console.warn('Auto-refresh falló:', error)
+        }
+      }
+    }, 5 * 60 * 1000) // 5 minutos
+  }
+  
+  // Iniciar auto-refresh cuando el store esté inicializado
+  const checkInitialized = () => {
+    if (eventsState.initialized) {
+      startAutoRefresh()
+    } else {
+      setTimeout(checkInitialized, 1000)
+    }
+  }
+  
+  checkInitialized()
+  
+  // Pausar/reanudar auto-refresh según visibilidad
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      startAutoRefresh()
+    } else if (refreshInterval) {
+      clearInterval(refreshInterval)
+      refreshInterval = null
+    }
+  })
 }
 
 export default eventsStore

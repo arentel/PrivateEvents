@@ -1,293 +1,396 @@
 <template>
   <ion-page>
-    <!-- Header limpio -->
-    <ion-header>
-      <ion-toolbar>
-        <ion-title>Descarga de Entrada</ion-title>
-      </ion-toolbar>
-    </ion-header>
-    
     <ion-content>
-      <!-- Página de bienvenida cuando no hay código o es "home" -->
+      <!-- Vista de Bienvenida -->
       <div v-if="showWelcomePage" class="welcome-container">
         <div class="welcome-card">
           <div class="welcome-header">
-            <h1>Sistema QR Eventos</h1>
-            <p>Gestión de invitados profesional</p>
+            <h1>🎫 Tickets</h1>
+            <p>Descarga tus entradas para eventos</p>
           </div>
-          
           <div class="welcome-content">
             <ion-card>
               <ion-card-content>
-                <h2>¿Tienes un código de descarga?</h2>
-                <p>Si recibiste un email con tu entrada, haz clic en el enlace del email para descargar tu PDF.</p>
-                
-                <div class="manual-code-section">
-                  <ion-item>
-                    <ion-label position="stacked">Código de descarga manual:</ion-label>
-                    <ion-input v-model="manualCode" placeholder="Ingresa tu código aquí"></ion-input>
-                  </ion-item>
-                  
-                  <ion-button @click="checkManualCode" expand="block" :disabled="!manualCode.trim()">
-                    Verificar Código
-                  </ion-button>
-                </div>
+                <h2>¿Cómo descargar tu ticket?</h2>
+                <p>1. Revisa tu email de confirmación</p>
+                <p>2. Haz clic en el enlace de descarga</p>
+                <p>3. Tu ticket se descargará automáticamente</p>
               </ion-card-content>
             </ion-card>
             
             <ion-card>
               <ion-card-content>
-                <h3>¿Eres organizador de eventos?</h3>
-                <p>Accede al panel de administración para gestionar tus eventos e invitados.</p>
-                <ion-button @click="goToAdminLogin" expand="block" fill="outline">
-                  <ion-icon :icon="settingsOutline" slot="start"></ion-icon>
-                  Acceso Administrador
-                </ion-button>
+                <h3>¿No tienes el enlace?</h3>
+                <p>Contacta con el organizador del evento para recibir tu enlace de descarga personalizado.</p>
               </ion-card-content>
             </ion-card>
           </div>
         </div>
       </div>
 
-      <!-- Contenido de descarga cuando hay código válido -->
-      <div v-else class="download-container">
-        <!-- Estado de carga -->
-        <ion-card v-if="loading" class="loading-card">
-          <ion-card-content>
-            <div class="loading-state">
-              <ion-spinner name="crescent"></ion-spinner>
-              <p>Verificando código de descarga...</p>
-            </div>
-          </ion-card-content>
-        </ion-card>
+      <!-- Vista Principal de Descarga -->
+      <div v-else class="ticket-container">
+        <!-- Loading Component Optimizado -->
+        <LoadingComponent
+          :show="loading"
+          type="spinner"
+          :message="loadingMessage"
+          :fullscreen="true"
+          spinner-type="circles"
+          color="primary"
+        />
 
-        <!-- Datos del ticket encontrados -->
-        <ion-card v-else-if="!loading && ticketData && !error" class="ticket-card">
-          <ion-card-header>
-            <ion-card-title>🎫 Descarga tu Entrada</ion-card-title>
-          </ion-card-header>
-          
-          <ion-card-content>
-            <!-- Información del evento -->
-            <div class="event-info">
-              <h1>{{ ticketData.event.name }}</h1>
-              <div class="event-details">
-                <p><ion-icon :icon="personOutline"></ion-icon> <strong>Invitado:</strong> {{ ticketData.guest.name }}</p>
-                <p><ion-icon :icon="calendarOutline"></ion-icon> <strong>Fecha:</strong> {{ formatEventDate(ticketData.event.date) }}</p>
-                <p><ion-icon :icon="locationOutline"></ion-icon> <strong>Lugar:</strong> {{ ticketData.event.location || 'Por confirmar' }}</p>
-                <p><ion-icon :icon="mailOutline"></ion-icon> <strong>Email:</strong> {{ ticketData.guest.email }}</p>
-              </div>
-            </div>
-
-            <!-- Botón de descarga principal -->
-            <div class="download-section">
+        <!-- Estado de Error con Retry -->
+        <div v-if="error && !loading" class="error-container">
+          <div class="error-card">
+            <ion-icon :icon="alertCircleOutline" class="error-icon"></ion-icon>
+            <h2>No se pudo cargar el ticket</h2>
+            <p>{{ error }}</p>
+            
+            <div class="error-actions">
               <ion-button 
-                @click="downloadPDF" 
-                expand="block" 
-                color="primary"
-                size="large"
-                :disabled="downloading"
-                class="download-button"
+                fill="solid" 
+                @click="retryLoad" 
+                :disabled="retrying"
+                class="retry-button"
               >
-                <ion-icon :icon="downloading ? reloadOutline : downloadOutline" slot="start"></ion-icon>
-                {{ downloading ? 'Generando PDF...' : 'Descargar Entrada PDF' }}
+                <ion-icon :icon="refreshOutline" slot="start"></ion-icon>
+                {{ retrying ? 'Reintentando...' : 'Reintentar' }}
               </ion-button>
               
-              <p class="download-note">
-                Tu entrada será descargada en formato PDF con código QR incluido
-              </p>
+              <ion-button 
+                fill="outline" 
+                @click="goToHome"
+                class="home-button"
+              >
+                <ion-icon :icon="homeOutline" slot="start"></ion-icon>
+                Ir al inicio
+              </ion-button>
             </div>
+          </div>
+        </div>
 
-            <!-- Vista previa del QR - MEJORADA PARA VERSE COMPLETO -->
-            <div class="qr-preview" v-if="qrImageUrl">
-              <h3>Vista previa del código QR:</h3>
-              <div class="qr-container-enhanced">
-                <div class="qr-image-wrapper">
-                  <img :src="qrImageUrl" alt="Código QR" />
-                </div>
-                <p class="qr-description">También disponible en el PDF descargable</p>
+        <!-- Ticket Cargado Exitosamente -->
+        <div v-if="ticketData && !loading && !error" class="ticket-success">
+          <!-- Header del Ticket -->
+          <div class="ticket-header">
+            <h1>🎫 Tu Ticket</h1>
+            <p class="ticket-subtitle">{{ ticketData.event.name }}</p>
+            <p v-if="eventStatus" class="event-status" :class="{ 'event-past': isEventPast, 'event-today': eventStatus.includes('Hoy') }">
+              {{ eventStatus }}
+            </p>
+          </div>
+
+          <!-- Información del Ticket -->
+          <div class="ticket-info-card">
+            <div class="ticket-details">
+              <div class="detail-row">
+                <span class="detail-label">Evento:</span>
+                <span class="detail-value">{{ ticketData.event.name }}</span>
               </div>
-            </div>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- Estado de error -->
-        <ion-card v-else-if="error" class="error-card">
-          <ion-card-content>
-            <div class="error-state">
-              <ion-icon :icon="alertCircleOutline" color="danger" size="large"></ion-icon>
-              <h2>Código no válido</h2>
-              <p>{{ error }}</p>
               
-              <div class="error-actions">
-                <ion-button @click="goToHome" fill="outline">
-                  <ion-icon :icon="homeOutline" slot="start"></ion-icon>
-                  Volver al inicio
-                </ion-button>
-                
-                <ion-button @click="retryLoad" color="primary">
-                  <ion-icon :icon="reloadOutline" slot="start"></ion-icon>
-                  Reintentar
-                </ion-button>
+              <div class="detail-row">
+                <span class="detail-label">Fecha del evento:</span>
+                <span class="detail-value">{{ formattedEventDate }}</span>
+              </div>
+              
+              <div class="detail-row" v-if="ticketData.event.location">
+                <span class="detail-label">Ubicación:</span>
+                <span class="detail-value">{{ ticketData.event.location }}</span>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Invitado:</span>
+                <span class="detail-value">{{ ticketData.guest.name }}</span>
+              </div>
+              
+              <div class="detail-row">
+                <span class="detail-label">Email:</span>
+                <span class="detail-value">{{ ticketData.guest.email }}</span>
               </div>
             </div>
-          </ion-card-content>
-        </ion-card>
+          </div>
 
-        <!-- Información de ayuda simplificada -->
-        <ion-card v-if="!loading && !error && ticketData" class="help-card">
-          <ion-card-content>
-            <h3><ion-icon :icon="helpCircleOutline"></ion-icon> ¿Necesitas Ayuda?</h3>
-            <p>Si tienes problemas con la descarga o dudas sobre el evento, contacta directamente con el organizador.</p>
-          </ion-card-content>
-        </ion-card>
+          <!-- QR Code Preview -->
+          <div class="qr-preview-card" v-if="qrImageUrl">
+            <h3>Código QR de Entrada</h3>
+            <div class="qr-image-container">
+              <img :src="qrImageUrl" alt="QR Code" class="qr-image" />
+            </div>
+            <p class="qr-instruction">
+              Presenta este código QR en el evento para ingresar
+            </p>
+          </div>
+
+          <!-- Botones de Acción -->
+          <div class="action-buttons">
+            <ion-button 
+              expand="block" 
+              fill="solid"
+              @click="downloadTicket" 
+              :disabled="downloading"
+              class="download-button"
+            >
+              <ion-icon :icon="downloadOutline" slot="start"></ion-icon>
+              {{ downloading ? 'Descargando...' : 'Descargar Ticket PDF' }}
+            </ion-button>
+
+            <ion-button 
+              expand="block" 
+              fill="outline"
+              @click="shareTicket"
+              class="share-button"
+            >
+              <ion-icon :icon="shareOutline" slot="start"></ion-icon>
+              Compartir
+            </ion-button>
+          </div>
+
+          <!-- Información Adicional -->
+          <div class="additional-info">
+            <ion-card>
+              <ion-card-content>
+                <h4>📱 Instrucciones importantes:</h4>
+                <ul>
+                  <li>Descarga el ticket antes del evento</li>
+                  <li>Presenta el código QR en la entrada</li>
+                  <li>Llega 15 minutos antes del inicio</li>
+                  <li>Guarda este enlace por si necesitas descargar nuevamente</li>
+                </ul>
+              </ion-card-content>
+            </ion-card>
+          </div>
+        </div>
       </div>
     </ion-content>
   </ion-page>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+<script setup>
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   IonPage,
   IonContent,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
-  IonButtons,
-  IonButton,
   IonCard,
-  IonCardHeader,
-  IonCardTitle,
   IonCardContent,
+  IonButton,
   IonIcon,
-  IonSpinner,
-  IonItem,
-  IonLabel,
-  IonInput,
   toastController
 } from '@ionic/vue'
 import {
   downloadOutline,
-  personOutline,
-  calendarOutline,
-  locationOutline,
-  mailOutline,
+  shareOutline,
   alertCircleOutline,
-  homeOutline,
-  reloadOutline,
-  helpCircleOutline,
-  settingsOutline
+  refreshOutline,
+  homeOutline
 } from 'ionicons/icons'
-// @ts-ignore
-import { generateTicketPDF } from '@/services/ticketPDF'
-// @ts-ignore
-import { getTicketByCode } from '@/services/email'
-// @ts-ignore
-import { generateQRImage } from '@/services/qr'
 
+// Importar servicios optimizados
+import { getTicketByCode } from '@/services/email.js'
+import { generateQRImage } from '@/utils/qr-generator.js'
+import { generateTicketPDF } from '@/utils/pdf-generator.js'
+import { useLoading } from '@/composables/useLoading.js'
+import LoadingComponent from '@/components/LoadingComponent.vue'
+
+// Router y route
 const route = useRoute()
 const router = useRouter()
 
-// Estado reactivo
-const loading = ref(false)
-const downloading = ref(false)
-const ticketData = ref<any>(null)
-const error = ref('')
+// Estados del componente
+const ticketData = ref(null)
 const qrImageUrl = ref('')
-const manualCode = ref('')
+const downloading = ref(false)
+const retrying = ref(false)
+
+// Hook de loading optimizado
+const {
+  isLoading: loading,
+  error,
+  withLoading,
+  withTimeout,
+  clearError
+} = useLoading('downloadTicket')
 
 // Computed properties
-const downloadCode = computed(() => {
-  const code = route.params.code as string
-  return code && code !== 'home' ? code : null
+const downloadCode = computed(() => route.params.code)
+const showWelcomePage = computed(() => !downloadCode.value || downloadCode.value === 'home')
+
+const loadingMessage = computed(() => {
+  if (retrying.value) return 'Reintentando conexión...'
+  return 'Cargando tu ticket...'
 })
 
-const showWelcomePage = computed(() => {
-  return !downloadCode.value
-})
-
-// *** FUNCIÓN CORREGIDA PARA FORMATEAR FECHA DEL EVENTO ***
-const formatEventDate = (eventDate: string | number | Date) => {
-  if (!eventDate) return 'Fecha por confirmar'
+const formattedEventDate = computed(() => {
+  if (!ticketData.value?.event?.date) return ''
   
   try {
-    let date: Date
-    
-    // Convertir a Date objeto según el tipo de entrada
-    if (typeof eventDate === 'string') {
-      date = new Date(eventDate)
-    } else if (typeof eventDate === 'number') {
-      date = new Date(eventDate)
-    } else if (eventDate instanceof Date) {
-      date = eventDate
-    } else {
-      return 'Fecha por confirmar'
-    }
+    // Asegurarse de que usamos la fecha del evento programado
+    const eventDate = new Date(ticketData.value.event.date)
     
     // Verificar que la fecha sea válida
-    if (isNaN(date.getTime())) {
-      return 'Fecha por confirmar'
+    if (isNaN(eventDate.getTime())) {
+      console.warn('Fecha del evento inválida:', ticketData.value.event.date)
+      return ticketData.value.event.date
     }
     
-    // Formatear la fecha del evento (no la actual)
-    return date.toLocaleDateString('es-ES', {
+    // Formatear la fecha del evento en español
+    return eventDate.toLocaleDateString('es-ES', {
+      weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'Europe/Madrid' // Timezone español
     })
   } catch (error) {
-    console.warn('Error formateando fecha del evento:', error)
-    return 'Fecha por confirmar'
+    console.error('Error formateando fecha del evento:', error)
+    return ticketData.value.event.date
+  }
+})
+
+// Computed para saber si el evento ya pasó
+const isEventPast = computed(() => {
+  if (!ticketData.value?.event?.date) return false
+  
+  try {
+    const eventDate = new Date(ticketData.value.event.date)
+    const now = new Date()
+    return eventDate < now
+  } catch {
+    return false
+  }
+})
+
+// Computed para mostrar el estado del evento
+const eventStatus = computed(() => {
+  if (!ticketData.value?.event?.date) return ''
+  
+  try {
+    const eventDate = new Date(ticketData.value.event.date)
+    const now = new Date()
+    const diffTime = eventDate - now
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays < 0) {
+      return 'Evento finalizado'
+    } else if (diffDays === 0) {
+      return '¡Hoy es el evento!'
+    } else if (diffDays === 1) {
+      return '¡Mañana es el evento!'
+    } else if (diffDays <= 7) {
+      return `Faltan ${diffDays} días`
+    } else {
+      return `Faltan ${diffDays} días`
+    }
+  } catch {
+    return ''
+  }
+})
+
+// Función optimizada para generar vista previa del QR
+const generateQRPreview = async () => {
+  if (!ticketData.value?.qrCode) return
+  
+  try {
+    const qrImage = generateQRImage(ticketData.value.qrCode, { 
+      size: 400,
+      margin: 2,
+      errorCorrectionLevel: 'H'
+    })
+    qrImageUrl.value = qrImage
+  } catch (error) {
+    console.error('Error generando vista previa del QR:', error)
+    // No es crítico, continuar sin QR preview
   }
 }
 
-// Ir a login de admin
-const goToAdminLogin = () => {
-  router.push('/login')
+// Función principal para cargar datos del ticket (optimizada)
+const loadTicketData = async () => {
+  if (!downloadCode.value) return
+
+  await withLoading(async () => {
+    clearError()
+    ticketData.value = null
+    qrImageUrl.value = ''
+    
+    console.log('🔍 [DB] Buscando ticket en base de datos:', downloadCode.value)
+    
+    // Usar timeout para evitar bloqueos
+    const data = await withTimeout(
+      () => getTicketByCode(downloadCode.value),
+      15000 // 15 segundos timeout
+    )
+    
+    if (!data) {
+      throw new Error('Código no encontrado, inválido o expirado. Verifica que el enlace del email sea correcto.')
+    }
+    
+    console.log('✅ Ticket encontrado en BD:', data.guest.name, '-', data.event.name)
+    console.log('📅 Fecha del evento programado:', data.event.date)
+    console.log('🏢 Ubicación del evento:', data.event.location || 'No especificada')
+    
+    ticketData.value = data
+    
+    // Generar vista previa del QR (no bloquear si falla)
+    try {
+      await generateQRPreview()
+    } catch (error) {
+      console.warn('No se pudo generar preview del QR:', error)
+    }
+    
+  }, {
+    showSuccessToast: false,
+    showErrorToast: true,
+    retries: 3,
+    retryDelay: 2000
+  })
 }
 
-// Verificar código manual
-const checkManualCode = async () => {
-  if (!manualCode.value.trim()) return
-  
-  // Redirigir a la URL de descarga con el código manual
-  router.push(`/download-ticket/${manualCode.value.trim()}`)
-}
-
-// Descargar PDF
-const downloadPDF = async () => {
+// Función de descarga optimizada
+const downloadTicket = async () => {
   if (!ticketData.value) return
-  
+
   downloading.value = true
   
   try {
-    console.log('📥 Iniciando descarga de PDF para:', ticketData.value.guest.name)
+    console.log('📱 Generando PDF del ticket...')
     
-    await generateTicketPDF(
-      ticketData.value.guest, 
-      ticketData.value.event,
-      null // Sin logo por defecto
+    const pdfBlob = await withTimeout(
+      () => generateTicketPDF(ticketData.value),
+      30000 // 30 segundos para generar PDF
     )
     
+    // Crear URL de descarga
+    const url = URL.createObjectURL(pdfBlob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `ticket-${ticketData.value.guest.name.replace(/\s+/g, '-')}-${ticketData.value.event.name.replace(/\s+/g, '-')}.pdf`
+    
+    // Simular click para descargar
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    
+    // Limpiar URL
+    URL.revokeObjectURL(url)
+    
+    console.log('✅ Ticket descargado exitosamente')
+    
     const toast = await toastController.create({
-      message: '✅ Entrada descargada exitosamente',
+      message: '✅ Ticket descargado correctamente',
       duration: 3000,
       color: 'success',
       position: 'top'
     })
     await toast.present()
     
-    console.log('✅ PDF descargado exitosamente')
-    
-  } catch (err: any) {
-    console.error('❌ Error descargando PDF:', err)
+  } catch (error) {
+    console.error('❌ Error descargando ticket:', error)
     
     const toast = await toastController.create({
-      message: `Error al generar el PDF: ${err.message || 'Error desconocido'}`,
+      message: 'Error al descargar el ticket. Intenta de nuevo.',
       duration: 4000,
       color: 'danger',
       position: 'top'
@@ -298,97 +401,89 @@ const downloadPDF = async () => {
   }
 }
 
-// *** FUNCIÓN MEJORADA PARA GENERAR VISTA PREVIA DEL QR - MÁS GRANDE ***
-const generateQRPreview = async () => {
-  if (!ticketData.value || !ticketData.value.qrCode) return
-  
-  try {
-    // Generar QR más grande para vista previa completa
-    const qrImage = generateQRImage(ticketData.value.qrCode, { 
-      size: 400, // Tamaño más grande
-      margin: 2,
-      errorCorrectionLevel: 'H'
-    })
-    qrImageUrl.value = qrImage
-  } catch (error) {
-    console.error('Error generando vista previa del QR:', error)
-  }
-}
+// Función para compartir
+const shareTicket = async () => {
+  if (!ticketData.value) return
 
-// Cargar datos del ticket desde la base de datos
-const loadTicketData = async () => {
-  if (!downloadCode.value) return
-  
-  loading.value = true
-  error.value = ''
-  ticketData.value = null
-  qrImageUrl.value = ''
-  
-  console.log('🔍 [DB] Buscando ticket en base de datos:', downloadCode.value)
-  
+  const shareData = {
+    title: `Ticket - ${ticketData.value.event.name}`,
+    text: `Mi ticket para ${ticketData.value.event.name}`,
+    url: window.location.href
+  }
+
   try {
-    // Pequeño delay para mejor UX visual
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    // Llamada asíncrona a la base de datos
-    const data = await getTicketByCode(downloadCode.value)
-    
-    if (!data) {
-      error.value = 'Código no encontrado, inválido o expirado. Verifica que el enlace del email sea correcto.'
-      console.log('❌ Ticket no encontrado en BD')
-      return
+    if (navigator.share) {
+      await navigator.share(shareData)
+    } else {
+      // Fallback: copiar al clipboard
+      await navigator.clipboard.writeText(window.location.href)
+      
+      const toast = await toastController.create({
+        message: '📋 Enlace copiado al portapapeles',
+        duration: 2000,
+        color: 'success',
+        position: 'top'
+      })
+      await toast.present()
     }
-    
-    console.log('✅ Ticket encontrado en BD:', data.guest.name, '-', data.event.name)
-    console.log('📅 Fecha del evento:', data.event.date)
-    
-    ticketData.value = data
-    
-    // Generar vista previa del QR
-    await generateQRPreview()
-    
-  } catch (err: any) {
-    console.error('❌ Error cargando ticket desde BD:', err)
-    error.value = 'Error de conexión con el servidor. Por favor, intenta de nuevo.'
-  } finally {
-    loading.value = false
+  } catch (error) {
+    console.error('Error compartiendo:', error)
   }
 }
 
-// Reintentar carga
+// Función de retry con mejor UX
 const retryLoad = async () => {
-  await loadTicketData()
+  retrying.value = true
+  clearError()
+  
+  try {
+    await loadTicketData()
+  } finally {
+    retrying.value = false
+  }
 }
 
-// Ir al inicio (página de bienvenida)
+// Ir al inicio
 const goToHome = () => {
   router.push('/download-ticket/home')
 }
 
-// Inicializar
+// Inicialización optimizada
 onMounted(async () => {
-  console.log('🏁 Inicializando DownloadTicket con base de datos...')
-  console.log('📄 Parámetro código:', route.params.code)
+  console.log('🎫 Inicializando DownloadTicket optimizado...')
+  console.log('🔄 Parámetro código:', route.params.code)
   console.log('🏠 Mostrar bienvenida:', showWelcomePage.value)
   
   // Solo cargar datos si hay código válido
-  if (downloadCode.value) {
+  if (downloadCode.value && downloadCode.value !== 'home') {
     await loadTicketData()
   }
 })
 
-// Watcher para detectar cambios en la ruta
-import { watch } from 'vue'
-watch(() => route.params.code, async (newCode) => {
-  console.log('🔄 Código cambió:', newCode)
-  if (newCode && newCode !== 'home') {
-    await loadTicketData()
-  }
-})
+// Watcher optimizado para cambios de ruta
+watch(
+  () => route.params.code, 
+  async (newCode, oldCode) => {
+    if (newCode !== oldCode) {
+      console.log('🔄 Código cambió:', newCode)
+      if (newCode && newCode !== 'home') {
+        await loadTicketData()
+      }
+    }
+  },
+  { immediate: false }
+)
 </script>
 
 <style scoped>
-/* Estilos para la página de bienvenida */
+/* Contenedor principal optimizado */
+.ticket-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative;
+}
+
+/* Vista de bienvenida mejorada */
 .welcome-container {
   display: flex;
   justify-content: center;
@@ -405,6 +500,7 @@ watch(() => route.params.code, async (newCode) => {
   border-radius: 16px;
   box-shadow: 0 20px 40px rgba(0,0,0,0.1);
   overflow: hidden;
+  animation: slideUp 0.5s ease-out;
 }
 
 .welcome-header {
@@ -430,255 +526,733 @@ watch(() => route.params.code, async (newCode) => {
   padding: 20px;
 }
 
-.welcome-content ion-card {
-  margin: 16px 0;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+/* Estados de error optimizados */
+.error-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  padding: 20px;
 }
 
-.welcome-content h2 {
-  color: var(--ion-color-primary);
-  font-size: 1.3rem;
-  margin-bottom: 12px;
-}
-
-.welcome-content h3 {
-  color: var(--ion-color-primary);
-  font-size: 1.2rem;
-  margin-bottom: 8px;
-}
-
-.manual-code-section {
-  margin-top: 20px;
-}
-
-.manual-code-section ion-button {
-  margin-top: 16px;
-}
-
-/* Estilos para el contenedor de descarga */
-.download-container {
-  padding: 16px;
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.loading-card,
 .error-card {
-  margin-bottom: 16px;
-}
-
-.loading-state,
-.error-state {
+  background: white;
+  border-radius: 16px;
+  padding: 40px;
   text-align: center;
-  padding: 40px 20px;
+  max-width: 400px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+  animation: slideUp 0.5s ease-out;
 }
 
-.loading-state ion-spinner {
-  margin-bottom: 16px;
-}
-
-.loading-state p,
-.error-state p {
-  color: var(--ion-color-medium);
-  font-size: 1rem;
-}
-
-.error-state ion-icon {
+.error-icon {
+  font-size: 4rem;
+  color: #e74c3c;
   margin-bottom: 20px;
 }
 
-.error-state h2 {
-  color: var(--ion-color-danger);
+.error-card h2 {
+  color: #2c3e50;
   margin-bottom: 12px;
+  font-size: 1.5rem;
+}
+
+.error-card p {
+  color: #7f8c8d;
+  margin-bottom: 24px;
+  line-height: 1.5;
 }
 
 .error-actions {
   display: flex;
+  flex-direction: column;
   gap: 12px;
-  justify-content: center;
-  margin-top: 24px;
 }
 
-.ticket-card {
-  margin-bottom: 16px;
+.retry-button {
+  --background: #3498db;
+  --color: white;
 }
 
-.event-info {
+.home-button {
+  --border-color: #bdc3c7;
+  --color: #7f8c8d;
+}
+
+/* Ticket exitoso optimizado */
+.ticket-success {
+  padding: 20px;
+  max-width: 600px;
+  margin: 0 auto;
+  animation: slideUp 0.5s ease-out;
+}
+
+.ticket-header {
+  text-align: center;
+  color: white;
   margin-bottom: 24px;
 }
 
-.event-info h1 {
-  color: var(--ion-color-primary);
-  margin-bottom: 16px;
-  font-size: 1.8rem;
-  text-align: center;
+.ticket-header h1 {
+  font-size: 2.5rem;
+  margin: 0 0 8px 0;
+  font-weight: bold;
 }
 
-.event-details {
-  background: var(--ion-color-light);
-  padding: 16px;
-  border-radius: 8px;
-  border-left: 4px solid var(--ion-color-primary);
-}
-
-.event-details p {
-  margin: 8px 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 1rem;
-}
-
-.event-details ion-icon {
-  color: var(--ion-color-primary);
-  min-width: 20px;
-}
-
-.download-section {
-  margin: 24px 0;
-  text-align: center;
-}
-
-.download-button {
-  height: 56px;
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin-bottom: 12px;
-}
-
-.download-note {
-  color: var(--ion-color-medium);
-  font-size: 0.9rem;
-  margin: 0;
-  font-style: italic;
-}
-
-/* *** ESTILOS MEJORADOS PARA QR COMPLETO Y VISIBLE *** */
-.qr-preview {
-  margin-top: 24px;
-  text-align: center;
-}
-
-.qr-preview h3 {
-  color: var(--ion-color-dark);
-  margin-bottom: 20px;
+.ticket-subtitle {
   font-size: 1.2rem;
+  opacity: 0.9;
+  margin: 0 0 8px 0;
 }
 
-.qr-container-enhanced {
-  background: #ffffff;
-  padding: 24px;
-  border-radius: 16px;
-  border: 2px solid var(--ion-color-primary);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+.event-status {
+  font-size: 1rem;
+  margin: 0;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
   display: inline-block;
-  max-width: 100%;
+  font-weight: 600;
 }
 
-.qr-image-wrapper {
-  background: #ffffff;
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid #e0e0e0;
+.event-status.event-today {
+  background: #f39c12;
+  color: white;
+  animation: subtle-pulse 2s infinite;
+}
+
+.event-status.event-past {
+  background: #95a5a6;
+  color: white;
+}
+
+.ticket-info-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+}
+
+.ticket-details {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ecf0f1;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #2c3e50;
+  min-width: 80px;
+}
+
+.detail-value {
+  color: #34495e;
+  text-align: right;
+  flex: 1;
+  margin-left: 16px;
+}
+
+/* QR Preview optimizado */
+.qr-preview-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 20px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+}
+
+.qr-preview-card h3 {
+  color: #2c3e50;
   margin-bottom: 16px;
+  font-size: 1.3rem;
+}
+
+.qr-image-container {
   display: flex;
   justify-content: center;
-  align-items: center;
+  margin-bottom: 16px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 12px;
 }
 
-.qr-image-wrapper img {
-  width: 100%;
+.qr-image {
+  max-width: 200px;
   height: auto;
-  max-width: 280px;
-  min-width: 200px;
   border-radius: 8px;
-  /* Asegurar que la imagen se vea completa */
-  object-fit: contain;
-  display: block;
 }
 
-.qr-description {
-  margin: 0;
-  color: var(--ion-color-medium);
+.qr-instruction {
+  color: #7f8c8d;
   font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.help-card {
-  margin-top: 16px;
-  background: var(--ion-color-light-tint);
-}
-
-.help-card h3 {
-  color: var(--ion-color-dark);
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.help-card p {
   margin: 0;
-  color: var(--ion-color-dark);
   line-height: 1.4;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .welcome-container {
-    padding: 16px;
+/* Botones de acción optimizados */
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.download-button {
+  --background: linear-gradient(135deg, #27ae60, #2ecc71);
+  --border-radius: 12px;
+  height: 52px;
+  font-weight: 600;
+}
+
+.share-button {
+  --border-color: white;
+  --color: white;
+  --border-radius: 12px;
+  height: 48px;
+}
+
+/* Información adicional */
+.additional-info {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+}
+
+.additional-info h4 {
+  color: #2c3e50;
+  margin-bottom: 12px;
+  font-size: 1.1rem;
+}
+
+.additional-info ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #34495e;
+}
+
+.additional-info li {
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+/* Animaciones */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
   }
-  
-  .welcome-header {
-    padding: 30px 16px;
-  }
-  
-  .welcome-header h1 {
-    font-size: 1.6rem;
-  }
-  
-  .welcome-content {
-    padding: 16px;
-  }
-  
-  .download-container {
-    padding: 12px;
-  }
-  
-  .event-info h1 {
-    font-size: 1.5rem;
-  }
-  
-  .event-details p {
-    font-size: 0.9rem;
-  }
-  
-  .error-actions {
-    flex-direction: column;
-    align-items: center;
-  }
-  
-  /* QR responsive mejorado */
-  .qr-container-enhanced {
-    padding: 16px;
-    margin: 0 auto;
-  }
-  
-  .qr-image-wrapper img {
-    max-width: 240px;
-    min-width: 180px;
-  }
-  
-  .qr-preview h3 {
-    font-size: 1.1rem;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-/* Asegurar alta calidad del QR en pantallas retina */
+/* Responsive mejorado */
+@media (max-width: 576px) {
+  .ticket-success {
+    padding: 16px;
+  }
+  
+  .ticket-header h1 {
+    font-size: 2rem;
+  }
+  
+  .ticket-subtitle {
+    font-size: 1rem;
+  }
+  
+  .ticket-info-card,
+  .qr-preview-card {
+    padding: 20px;
+  }
+  
+  .detail-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .detail-value {
+    text-align: left;
+    margin-left: 0;
+  }
+  
+  .qr-image {
+    max-width: 150px;
+  }
+}
+
+/* Estados de loading */
+.ticket-container:has(.loading-overlay) {
+  overflow: hidden;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .welcome-card,
+  .error-card,
+  .ticket-info-card,
+  .qr-preview-card,
+  .additional-info {
+    background: #2c3e50;
+    color: #ecf0f1;
+  }
+  
+  .detail-row {
+    border-bottom-color: #34495e;
+  }
+  
+  .detail-label {
+    color: #ecf0f1;
+  }
+  
+  .detail-value {
+    color: #bdc3c7;
+  }
+  
+  .qr-image-container {
+    background: #34495e;
+  }
+  
+  .qr-instruction {
+    color: #95a5a6;
+  }
+  
+  .additional-info h4 {
+    color: #ecf0f1;
+  }
+  
+  .additional-info li {
+    color: #bdc3c7;
+  }
+  
+  .error-card h2 {
+    color: #ecf0f1;
+  }
+  
+  .error-card p {
+    color: #95a5a6;
+  }
+  
+  .ticket-header h1,
+  .ticket-subtitle {
+    color: #ecf0f1;
+  }
+  
+  .qr-preview-card h3 {
+    color: #ecf0f1;
+  }
+  
+  .welcome-content h2,
+  .welcome-content h3 {
+    color: #3498db;
+  }
+  
+  /* Ajustar botones para dark mode */
+  .home-button {
+    --border-color: #7f8c8d;
+    --color: #bdc3c7;
+  }
+  
+  .share-button {
+    --border-color: rgba(255, 255, 255, 0.3);
+    --color: rgba(255, 255, 255, 0.9);
+  }
+  
+  /* Gradiente de fondo para dark mode */
+  .ticket-container,
+  .welcome-container {
+    background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+  }
+}
+
+/* Estados hover mejorados */
+.download-button:hover {
+  --background: linear-gradient(135deg, #229954, #27ae60);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(39, 174, 96, 0.3);
+}
+
+.share-button:hover {
+  --background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.retry-button:hover {
+  --background: #2980b9;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(52, 152, 219, 0.3);
+}
+
+.home-button:hover {
+  --background: rgba(189, 195, 199, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Transiciones suaves */
+.download-button,
+.share-button,
+.retry-button,
+.home-button {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ticket-info-card,
+.qr-preview-card,
+.additional-info,
+.error-card,
+.welcome-card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.ticket-info-card:hover,
+.qr-preview-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+}
+
+/* Estados de carga para botones */
+.download-button[disabled] {
+  --background: #95a5a6;
+  cursor: not-allowed;
+  transform: none;
+  opacity: 0.6;
+}
+
+.retry-button[disabled] {
+  --background: #95a5a6;
+  cursor: not-allowed;
+  transform: none;
+  opacity: 0.6;
+}
+
+/* Mejoras de accesibilidad */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .ticket-info-card:hover,
+  .qr-preview-card:hover {
+    transform: none;
+  }
+  
+  .download-button:hover,
+  .share-button:hover,
+  .retry-button:hover,
+  .home-button:hover {
+    transform: none;
+  }
+}
+
+/* Focus visible para accesibilidad */
+.download-button:focus-visible,
+.share-button:focus-visible,
+.retry-button:focus-visible,
+.home-button:focus-visible {
+  outline: 2px solid var(--ion-color-primary);
+  outline-offset: 2px;
+}
+
+/* Optimizaciones para pantallas pequeñas */
+@media (max-width: 480px) {
+  .welcome-container {
+    padding: 12px;
+  }
+  
+  .welcome-header {
+    padding: 32px 16px;
+  }
+  
+  .welcome-header h1 {
+    font-size: 1.8rem;
+  }
+  
+  .error-container {
+    padding: 16px;
+  }
+  
+  .error-card {
+    padding: 32px 20px;
+  }
+  
+  .action-buttons {
+    gap: 16px;
+  }
+  
+  .download-button,
+  .share-button {
+    height: 56px;
+    font-size: 1rem;
+  }
+  
+  .error-actions {
+    gap: 16px;
+  }
+  
+  .ticket-header h1 {
+    font-size: 2rem;
+  }
+  
+  .ticket-subtitle {
+    font-size: 1rem;
+  }
+}
+
+/* Optimizaciones para tablets */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .ticket-success {
+    max-width: 700px;
+  }
+  
+  .welcome-card {
+    max-width: 600px;
+  }
+  
+  .error-card {
+    max-width: 500px;
+  }
+  
+  .qr-image {
+    max-width: 250px;
+  }
+}
+
+/* Estados de conexión visual */
+.ticket-container.offline {
+  filter: grayscale(0.3);
+}
+
+.ticket-container.offline::before {
+  content: "Sin conexión";
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #e74c3c;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  z-index: 1000;
+  animation: slideInRight 0.3s ease;
+  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Indicador de carga en background */
+.loading-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  z-index: 9998;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (prefers-color-scheme: dark) {
+  .loading-backdrop {
+    background: rgba(44, 62, 80, 0.95);
+  }
+  
+  .ticket-container.offline::before {
+    background: #c0392b;
+    box-shadow: 0 4px 12px rgba(192, 57, 43, 0.4);
+  }
+}
+
+/* Pulso sutil en elementos importantes */
+@keyframes subtle-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.download-button.processing {
+  animation: subtle-pulse 2s infinite;
+}
+
+/* Mejoras en los estados de loading del componente */
+.ticket-container .loading-overlay {
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(10px);
+}
+
+@media (prefers-color-scheme: dark) {
+  .ticket-container .loading-overlay {
+    background: rgba(44, 62, 80, 0.98);
+  }
+}
+
+/* Estados para impresión */
+@media print {
+  .ticket-container {
+    background: white !important;
+  }
+  
+  .action-buttons,
+  .additional-info {
+    display: none;
+  }
+  
+  .ticket-success {
+    padding: 0;
+    background: white;
+  }
+  
+  .ticket-info-card,
+  .qr-preview-card {
+    box-shadow: none;
+    border: 1px solid #ddd;
+  }
+}
+
+/* Scroll suave en navegadores que lo soporten */
+@supports (scroll-behavior: smooth) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Efectos adicionales para mejor UX */
+.welcome-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+}
+
+.error-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+}
+
+/* Indicadores de estado visual */
+.ticket-container.loading {
+  pointer-events: none;
+}
+
+.ticket-container.error {
+  filter: hue-rotate(10deg);
+}
+
+/* Optimizaciones de performance */
+.ticket-info-card,
+.qr-preview-card,
+.additional-info,
+.welcome-card,
+.error-card {
+  will-change: transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* Estados de enfoque mejorados para navegación por teclado */
+.welcome-card:focus-within,
+.error-card:focus-within,
+.ticket-info-card:focus-within {
+  outline: 2px solid var(--ion-color-primary);
+  outline-offset: 4px;
+}
+
+/* Mejoras para lectores de pantalla */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Indicadores de progreso sutiles */
+.ticket-container.loading::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    var(--ion-color-primary) 50%, 
+    transparent 100%);
+  animation: loading-bar 2s ease-in-out infinite;
+  z-index: 10000;
+}
+
+@keyframes loading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Estilos para dispositivos de alta densidad */
 @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
-  .qr-image-wrapper img {
+  .qr-image {
     image-rendering: -webkit-optimize-contrast;
     image-rendering: crisp-edges;
+  }
+}
+
+/* Mejoras de contraste para usuarios con problemas de visión */
+@media (prefers-contrast: high) {
+  .detail-row {
+    border-bottom-width: 2px;
+  }
+  
+  .download-button,
+  .retry-button {
+    --background: #000;
+    --color: #fff;
+    border: 2px solid #000;
+  }
+  
+  .share-button,
+  .home-button {
+    --border-width: 2px;
+    --border-color: #000;
+    --color: #000;
   }
 }
 </style>
