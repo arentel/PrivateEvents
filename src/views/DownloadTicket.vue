@@ -275,6 +275,7 @@ const loadingMessage = computed(() => {
   return 'Cargando tu ticket...'
 })
 
+// ✅ CORRECCIÓN DE FECHA - Sin timeZone para evitar problemas de zona horaria
 const formattedEventDate = computed(() => {
   if (!ticketData.value?.event?.date) return ''
   
@@ -286,14 +287,14 @@ const formattedEventDate = computed(() => {
       return ticketData.value.event.date
     }
     
+    // Removido timeZone: 'Europe/Madrid' para evitar conversiones incorrectas
     return eventDate.toLocaleDateString('es-ES', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'Europe/Madrid'
+      minute: '2-digit'
     })
   } catch (error) {
     console.error('Error formateando fecha del evento:', error)
@@ -358,8 +359,6 @@ const generateQRPreview = async () => {
 }
 
 // Función principal para cargar datos del ticket
-// FUNCIÓN loadTicketData CORREGIDA - Reemplaza esta función en tu DownloadTicket.vue
-
 const loadTicketData = async () => {
   if (!downloadCode.value) return
 
@@ -371,11 +370,11 @@ const loadTicketData = async () => {
   try {
     console.log('🔍 Buscando ticket por código:', downloadCode.value)
     
-    // ✅ CORRECCIÓN: Buscar en download_tickets por download_code
+    // Buscar en download_tickets por download_code
     const { data: ticketRecord, error: ticketError } = await supabase
       .from('download_tickets')
       .select('*')
-      .eq('download_code', downloadCode.value) // Usar download_code que es el campo correcto
+      .eq('download_code', downloadCode.value)
       .single()
     
     if (ticketError) {
@@ -478,7 +477,7 @@ const loadTicketData = async () => {
   }
 }
 
-// ✅ FUNCIÓN ADICIONAL: Marcar ticket como descargado
+// Función para marcar ticket como descargado
 const markTicketAsDownloaded = async () => {
   if (!ticketData.value?.downloadCode) return
   
@@ -497,7 +496,7 @@ const markTicketAsDownloaded = async () => {
   }
 }
 
-// ✅ FUNCIÓN downloadTicket MEJORADA - También reemplaza esta
+// Función de descarga mejorada
 const downloadTicket = async () => {
   if (!ticketData.value) return
 
