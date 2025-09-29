@@ -57,6 +57,24 @@
 
       <!-- Vista Principal de Descarga -->
       <div v-else class="download-container">
+        <!-- Alerta de Google App -->
+        <div v-if="isGoogleApp() && ticketData" class="google-app-alert">
+          <div class="alert-icon">⚠️</div>
+          <div class="alert-content">
+            <h3>Navegador no compatible</h3>
+            <p>Debido a restricciones de la app de Google, no puedes descargar el PDF aquí.</p>
+            <p><strong>Solución:</strong> Copia el enlace y ábrelo en Chrome o Safari.</p>
+            <ion-button 
+              expand="block" 
+              @click="copyLinkToClipboard"
+              class="copy-link-btn"
+            >
+              <ion-icon :icon="copyOutline" slot="start"></ion-icon>
+              Copiar enlace
+            </ion-button>
+          </div>
+        </div>
+
         <!-- Loading -->
         <div v-if="loading" class="loading-section">
           <div class="section-header">
@@ -152,8 +170,23 @@
             </div>
           </div>
 
+          <!-- QR Code Section (visible en Google App) -->
+          <div v-if="isGoogleApp() && ticketData.qrCode" class="qr-section">
+            <div class="section-header">
+              <h3>Tu Código QR</h3>
+            </div>
+            
+            <div class="qr-content">
+              <p class="qr-description">Usa este código QR para acceder al evento:</p>
+              <div class="qr-image-container">
+                <canvas ref="qrCanvas" class="qr-canvas"></canvas>
+              </div>
+              <p class="qr-note">Guarda una captura de pantalla de este QR</p>
+            </div>
+          </div>
+
           <!-- Acciones de Descarga -->
-          <div class="actions-section">
+          <div class="actions-section" v-if="!isGoogleApp()">
             <div class="section-header">
               <h3>Descargar Ticket</h3>
             </div>
@@ -169,22 +202,9 @@
                 {{ downloading ? 'Generando PDF...' : 'Descargar Ticket PDF' }}
               </ion-button>
               
-              <!-- Botón para abrir en navegador (Google App) -->
-              <ion-button 
-                v-if="isGoogleApp()"
-                fill="solid"
-                expand="block"
-                @click="openInBrowser"
-                class="browser-btn"
-                color="warning"
-              >
-                <ion-icon :icon="globeOutline" slot="start"></ion-icon>
-                Abrir en Chrome
-              </ion-button>
-              
               <!-- Botón adicional para Android -->
               <ion-button 
-                v-if="isAndroid() && !isGoogleApp()"
+                v-if="isAndroid()"
                 fill="outline"
                 expand="block"
                 @click="openDownloadsFolder"
@@ -203,7 +223,7 @@
             </div>
             
             <div class="instructions-content">
-              <div class="instruction-item">
+              <div class="instruction-item" v-if="!isGoogleApp()">
                 <ion-icon :icon="downloadOutline" class="instruction-icon"></ion-icon>
                 <span>Descarga el ticket antes del evento</span>
               </div>
@@ -216,9 +236,14 @@
                 <span>Guarda este enlace para futuras descargas</span>
               </div>
               <!-- Instrucción específica para móvil -->
-              <div v-if="isMobile()" class="instruction-item mobile-tip">
+              <div v-if="isMobile() && !isGoogleApp()" class="instruction-item mobile-tip">
                 <ion-icon :icon="checkmarkCircleOutline" class="instruction-icon"></ion-icon>
                 <span>Después de descargar, busca en tu carpeta de Descargas</span>
+              </div>
+              <!-- Instrucción para Google App -->
+              <div v-if="isGoogleApp()" class="instruction-item google-tip">
+                <ion-icon :icon="globeOutline" class="instruction-icon"></ion-icon>
+                <span>Copia el enlace y ábrelo en Chrome o Safari para descargar el PDF</span>
               </div>
             </div>
           </div>
@@ -229,7 +254,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   IonPage,
@@ -250,8 +275,10 @@ import {
   bookmarkOutline,
   checkmarkCircleOutline,
   folderOpenOutline,
-  globeOutline
+  globeOutline,
+  copyOutline
 } from 'ionicons/icons'
+import QRious from 'qrious'
 
 // Importaciones corregidas
 import { supabase } from '@/services/supabase.js'
@@ -266,6 +293,7 @@ const downloading = ref(false)
 const retrying = ref(false)
 const loading = ref(false)
 const error = ref(null)
+const qrCanvas = ref(null)
 
 // Computed properties
 const downloadCode = computed(() => route.params.code)
@@ -356,66 +384,45 @@ const isGoogleApp = () => {
   return ua.includes('googleapp') || ua.includes('gsa/')
 }
 
-// Función para abrir en navegador externo
-const openInBrowser = async () => {
-  const currentUrl = window.location.href
+// Función para generar QR en canvas
+const generateQRInCanvas = async () => {
+  if (!ticketData.value?.qrCode || !qrCanvas.value) return
+  
+  await nextTick()
   
   try {
-    // Copiar al portapapeles
-    await navigator.clipboard.writeText(currentUrl)
-    
-    const alert = await alertController.create({
-      header: 'Abrir en Safari/Chrome',
-      message: 'Enlace copiado. Abre Safari o Chrome y pega el enlace en la barra de direcciones.',
-      buttons: [
-        {
-          text: 'Entendido',
-          role: 'cancel'
-        },
-        {
-          text: 'Abrir Safari',
-          handler: () => {
-            // En iOS, intentar abrir en Safari
-            if (isIOS()) {
-              window.open(currentUrl, '_blank')
-            } else if (isAndroid()) {
-              // En Android, usar Intent
-              window.location.href = `intent://${currentUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`
-            }
-          }
-        }
-      ]
+    new QRious({
+      element: qrCanvas.value,
+      value: ticketData.value.qrCode,
+      size: 300,
+      level: 'H',
+      background: 'white',
+      foreground: 'black'
     })
-    
-    await alert.present()
-    
-  } catch (err) {
-    // Si falla copiar
-    const alert = await alertController.create({
-      header: 'Abre en tu navegador',
-      message: 'Por favor, copia este enlace y ábrelo en Safari o Chrome para descargar el ticket.',
-      buttons: ['OK']
-    })
-    await alert.present()
+    console.log('✅ QR generado en canvas')
+  } catch (error) {
+    console.error('Error generando QR en canvas:', error)
   }
 }
 
-// Función auxiliar para copiar al portapapeles
-const copyToClipboard = async (text) => {
+// Función para copiar enlace al portapapeles
+const copyLinkToClipboard = async () => {
+  const currentUrl = window.location.href
+  
   try {
-    await navigator.clipboard.writeText(text)
+    await navigator.clipboard.writeText(currentUrl)
+    
     const toast = await toastController.create({
-      message: '📋 Enlace copiado. Pégalo en Chrome para continuar',
-      duration: 4000,
-      color: 'primary',
+      message: '✅ Enlace copiado. Ábrelo en Chrome o Safari',
+      duration: 3000,
+      color: 'success',
       position: 'bottom'
     })
     await toast.present()
   } catch (err) {
-    // Si falla copiar, mostrar el enlace
     const alert = await alertController.create({
       header: 'Copia este enlace',
-      message: `Copia y pega este enlace en Chrome:<br><br><small>${text}</small>`,
+      message: currentUrl,
       buttons: ['OK']
     })
     await alert.present()
@@ -433,7 +440,6 @@ const loadTicketData = async () => {
   try {
     console.log('🔍 Buscando ticket por código:', downloadCode.value)
     
-    // Buscar en download_tickets por download_code
     const { data: ticketRecord, error: ticketError } = await supabase
       .from('download_tickets')
       .select('*')
@@ -464,7 +470,6 @@ const loadTicketData = async () => {
     console.log('✅ Ticket válido encontrado:', ticketRecord.event_name)
     console.log('🔍 QR almacenado:', ticketRecord.qr_code ? 'Presente' : 'Ausente')
     
-    // Buscar datos completos del invitado
     let guestData = {
       id: ticketRecord.guest_id,
       name: ticketRecord.guest_name || 'Invitado',
@@ -487,7 +492,6 @@ const loadTicketData = async () => {
       }
     }
     
-    // Buscar datos completos del evento
     let eventData = {
       id: ticketRecord.event_id,
       name: ticketRecord.event_name || 'Evento',
@@ -511,7 +515,6 @@ const loadTicketData = async () => {
       }
     }
     
-    // CORRECCIÓN CRÍTICA: Incluir el QR almacenado en la estructura de datos
     ticketData.value = {
       guest: guestData,
       event: eventData,
@@ -526,6 +529,12 @@ const loadTicketData = async () => {
       codigo: ticketRecord.download_code,
       tieneQR: !!ticketRecord.qr_code
     })
+    
+    // Si es Google App, generar QR en canvas
+    if (isGoogleApp() && ticketRecord.qr_code) {
+      await nextTick()
+      await generateQRInCanvas()
+    }
     
   } catch (err) {
     console.error('❌ Error cargando ticket:', err)
@@ -560,78 +569,25 @@ const showDownloadInstructions = async () => {
   let header = 'PDF Descargado'
   
   if (isAndroid()) {
-    message = `
-      <div style="text-align: left; line-height: 1.5;">
-        <p><strong>📱 En Android:</strong></p>
-        <p>1. Busca la notificación de descarga en la barra superior</p>
-        <p>2. O ve a <strong>Descargas</strong> en tu navegador (menú ⋮)</p>
-        <p>3. O abre la app <strong>Archivos</strong> > <strong>Descargas</strong></p>
-        <p>4. Busca el archivo: <strong>${ticketData.value.guest.name}_ticket.pdf</strong></p>
-      </div>
-    `
+    message = '1. Busca la notificación de descarga en la barra superior\n2. O ve a Descargas en tu navegador (menú ⋮)\n3. O abre la app Archivos > Descargas'
   } else if (isIOS()) {
-    message = `
-      <div style="text-align: left; line-height: 1.5;">
-        <p><strong>📱 En iPhone/iPad:</strong></p>
-        <p>1. El PDF se abrirá automáticamente en Safari</p>
-        <p>2. Toca el botón <strong>Compartir</strong> (⬆️)</p>
-        <p>3. Selecciona <strong>"Guardar en Archivos"</strong></p>
-        <p>4. O <strong>"Añadir a Fotos"</strong> para guardarlo en la galería</p>
-      </div>
-    `
+    message = '1. El PDF se abrirá automáticamente en Safari\n2. Toca el botón Compartir (⬆️)\n3. Selecciona "Guardar en Archivos"'
   } else {
-    message = `
-      <div style="text-align: left; line-height: 1.5;">
-        <p><strong>💻 En tu navegador:</strong></p>
-        <p>1. El archivo se ha descargado en tu carpeta de <strong>Descargas</strong></p>
-        <p>2. Nombre del archivo: <strong>${ticketData.value.guest.name}_ticket.pdf</strong></p>
-        <p>3. Puedes abrirlo desde allí o guardarlo donde prefieras</p>
-      </div>
-    `
+    message = 'El archivo se ha descargado en tu carpeta de Descargas'
   }
 
   const alert = await alertController.create({
     header: header,
     message: message,
-    buttons: [
-      {
-        text: 'Entendido',
-        role: 'confirm',
-        handler: () => {
-          console.log('Usuario confirmó instrucciones')
-        }
-      }
-    ]
+    buttons: ['Entendido']
   })
 
   await alert.present()
 }
 
-// FUNCIÓN MEJORADA: Usar el QR almacenado en la base de datos
+// FUNCIÓN MEJORADA: Descargar ticket
 const downloadTicket = async () => {
   if (!ticketData.value) return
-
-  // Detectar si está en la app de Google
-  if (isGoogleApp()) {
-    const alert = await alertController.create({
-      header: 'Abrir en navegador',
-      message: 'Para descargar el PDF, necesitas abrir este enlace en Chrome o tu navegador predeterminado.',
-      buttons: [
-        {
-          text: 'Cancelar',
-          role: 'cancel'
-        },
-        {
-          text: 'Abrir en Chrome',
-          handler: () => {
-            openInBrowser()
-          }
-        }
-      ]
-    })
-    await alert.present()
-    return
-  }
 
   downloading.value = true
   
@@ -653,8 +609,6 @@ const downloadTicket = async () => {
         timestamp: new Date().toISOString(),
         version: '2.0'
       })
-    } else {
-      console.log('✅ Usando QR almacenado en la base de datos')
     }
     
     const success = await generateTicketPDF(
@@ -741,6 +695,17 @@ watch(
   },
   { immediate: false }
 )
+
+// Watch para regenerar QR si cambian los datos
+watch(
+  () => ticketData.value?.qrCode,
+  async (newQR) => {
+    if (newQR && isGoogleApp()) {
+      await nextTick()
+      await generateQRInCanvas()
+    }
+  }
+)
 </script>
 
 <style scoped>
@@ -767,6 +732,115 @@ watch(
   margin: 0;
   color: #6b7280;
   font-size: 1rem;
+}
+
+/* Alerta de Google App */
+.google-app-alert {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.alert-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.alert-content {
+  flex: 1;
+}
+
+.alert-content h3 {
+  margin: 0 0 8px 0;
+  color: #78350f;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.alert-content p {
+  margin: 0 0 8px 0;
+  color: #92400e;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.alert-content p:last-of-type {
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+
+.copy-link-btn {
+  --background: #ffffff;
+  --color: #f59e0b;
+  --border-radius: 8px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+.copy-link-btn:hover {
+  --background: #fef3c7;
+}
+
+/* Sección QR */
+.qr-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.qr-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.qr-description {
+  margin: 0;
+  color: #4b5563;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.qr-image-container {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.qr-canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.qr-note {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+  font-style: italic;
 }
 
 /* Secciones */
@@ -990,6 +1064,11 @@ watch(
   background: #f0f9ff;
 }
 
+.instruction-item.google-tip {
+  border-left-color: #f59e0b;
+  background: #fffbeb;
+}
+
 .instruction-number {
   width: 32px;
   height: 32px;
@@ -1106,6 +1185,15 @@ watch(
     padding: 16px;
   }
   
+  .google-app-alert {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .alert-icon {
+    font-size: 2.5rem;
+  }
+  
   .stat-item {
     flex-direction: column;
     align-items: flex-start;
@@ -1124,7 +1212,8 @@ watch(
   .event-info-section,
   .guest-info-section,
   .actions-section,
-  .instructions-section {
+  .instructions-section,
+  .qr-section {
     padding: 16px;
   }
   
@@ -1150,6 +1239,10 @@ watch(
     align-items: stretch;
     text-align: center;
   }
+  
+  .qr-canvas {
+    max-width: 250px;
+  }
 }
 
 /* Estados disabled */
@@ -1174,7 +1267,8 @@ watch(
 .retry-btn,
 .home-btn,
 .contact-btn,
-.downloads-btn {
+.downloads-btn,
+.copy-link-btn {
   transition: all 0.2s ease;
 }
 
@@ -1227,6 +1321,10 @@ ion-spinner {
     width: 40px;
     height: 40px;
     font-size: 1rem;
+  }
+  
+  .qr-canvas {
+    max-width: 220px;
   }
 }
 </style>
