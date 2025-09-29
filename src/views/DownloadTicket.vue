@@ -170,18 +170,33 @@
             </div>
           </div>
 
-          <!-- QR Code Section (visible en Google App) -->
-          <div v-if="isGoogleApp() && ticketData.qrCode" class="qr-section">
+          <!-- Sección QR (siempre visible) -->
+          <div v-if="ticketData.qrCode" class="qr-section">
             <div class="section-header">
               <h3>Tu Código QR</h3>
             </div>
             
             <div class="qr-content">
-              <p class="qr-description">Usa este código QR para acceder al evento:</p>
-              <div class="qr-image-container">
+              <p class="qr-description">Presenta este código en el evento:</p>
+              
+              <div class="qr-image-container" :class="{ 'qr-revealed': qrRevealed }">
                 <canvas ref="qrCanvas" class="qr-canvas"></canvas>
+                
+                <!-- Overlay con botón para revelar -->
+                <div v-if="!qrRevealed" class="qr-overlay" @click="revealQR">
+                  <div class="reveal-button">
+                    <ion-icon :icon="eyeOutline" class="eye-icon"></ion-icon>
+                    <span>Mostrar QR</span>
+                  </div>
+                </div>
               </div>
-              <p class="qr-note">Guarda una captura de pantalla de este QR</p>
+              
+              <p class="qr-note" v-if="qrRevealed">
+                Guarda una captura de pantalla o descarga el PDF
+              </p>
+              <p class="qr-note" v-else>
+                Haz clic en el ícono para ver tu código QR
+              </p>
             </div>
           </div>
 
@@ -276,7 +291,8 @@ import {
   checkmarkCircleOutline,
   folderOpenOutline,
   globeOutline,
-  copyOutline
+  copyOutline,
+  eyeOutline
 } from 'ionicons/icons'
 
 // Importaciones corregidas
@@ -293,6 +309,7 @@ const retrying = ref(false)
 const loading = ref(false)
 const error = ref(null)
 const qrCanvas = ref(null)
+const qrRevealed = ref(false)
 
 // Computed properties
 const downloadCode = computed(() => route.params.code)
@@ -385,7 +402,10 @@ const isGoogleApp = () => {
 
 // Función para generar QR en canvas
 const generateQRInCanvas = async () => {
-  if (!ticketData.value?.qrCode || !qrCanvas.value) return
+  if (!ticketData.value?.qrCode || !qrCanvas.value) {
+    console.warn('No hay datos de QR o canvas no está disponible')
+    return
+  }
   
   await nextTick()
   
@@ -405,6 +425,19 @@ const generateQRInCanvas = async () => {
   } catch (error) {
     console.error('Error generando QR en canvas:', error)
   }
+}
+
+// Función para revelar el QR
+const revealQR = () => {
+  qrRevealed.value = true
+  
+  const toast = toastController.create({
+    message: '👁️ Código QR visible',
+    duration: 2000,
+    color: 'primary',
+    position: 'bottom'
+  })
+  toast.then(t => t.present())
 }
 
 // Función para copiar enlace al portapapeles
@@ -438,6 +471,7 @@ const loadTicketData = async () => {
   loading.value = true
   error.value = null
   ticketData.value = null
+  qrRevealed.value = false
   
   try {
     console.log('🔍 Buscando ticket por código:', downloadCode.value)
@@ -532,8 +566,8 @@ const loadTicketData = async () => {
       tieneQR: !!ticketRecord.qr_code
     })
     
-    // Si es Google App, generar QR en canvas
-    if (isGoogleApp() && ticketRecord.qr_code) {
+    // Generar QR en canvas automáticamente
+    if (ticketRecord.qr_code) {
       await nextTick()
       await generateQRInCanvas()
     }
@@ -702,7 +736,7 @@ watch(
 watch(
   () => ticketData.value?.qrCode,
   async (newQR) => {
-    if (newQR && isGoogleApp()) {
+    if (newQR) {
       await nextTick()
       await generateQRInCanvas()
     }
@@ -800,7 +834,7 @@ watch(
   --background: #fef3c7;
 }
 
-/* Sección QR */
+/* Sección QR con efecto blur */
 .qr-section {
   background: white;
   border-radius: 12px;
@@ -825,17 +859,83 @@ watch(
 }
 
 .qr-image-container {
+  position: relative;
   background: white;
   padding: 20px;
   border-radius: 12px;
   border: 2px solid #e5e7eb;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
 }
 
 .qr-canvas {
   display: block;
   max-width: 100%;
   height: auto;
+  transition: filter 0.4s ease;
+  filter: blur(15px);
+}
+
+.qr-image-container.qr-revealed .qr-canvas {
+  filter: blur(0px);
+}
+
+/* Overlay con botón para revelar */
+.qr-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(2px);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-radius: 12px;
+}
+
+.qr-overlay:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.reveal-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 30px;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  border-radius: 12px;
+  color: white;
+  box-shadow: 0 4px 12px rgba(13, 27, 42, 0.4);
+  transition: all 0.3s ease;
+}
+
+.qr-overlay:hover .reveal-button {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(13, 27, 42, 0.5);
+}
+
+.eye-icon {
+  font-size: 2rem;
+  animation: blink 2s infinite;
+}
+
+@keyframes blink {
+  0%, 90%, 100% {
+    opacity: 1;
+  }
+  95% {
+    opacity: 0.3;
+  }
+}
+
+.reveal-button span {
+  font-weight: 600;
+  font-size: 1rem;
 }
 
 .qr-note {
@@ -1244,6 +1344,14 @@ watch(
   
   .qr-canvas {
     max-width: 250px;
+  }
+  
+  .reveal-button {
+    padding: 16px 24px;
+  }
+  
+  .eye-icon {
+    font-size: 1.5rem;
   }
 }
 
