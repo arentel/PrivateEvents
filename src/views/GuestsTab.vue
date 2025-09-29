@@ -1,16 +1,5 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar>
-        <ion-title>Lista de Invitados</ion-title>
-        <ion-buttons slot="end">
-          <ion-button @click="refreshData">
-            <ion-icon :icon="refreshOutline"></ion-icon>
-          </ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
-
     <ion-content :fullscreen="true" class="guests-content">
       <div class="guests-container">
         
@@ -20,6 +9,13 @@
             <h1>Gestión de Invitados</h1>
             <p>Administra la lista de invitados para tus eventos</p>
           </div>
+          <ion-button 
+            fill="clear"
+            @click="refreshData"
+            class="refresh-btn"
+          >
+            <ion-icon :icon="refreshOutline"></ion-icon>
+          </ion-button>
         </div>
 
         <!-- Selector de Evento -->
@@ -30,6 +26,7 @@
               fill="outline" 
               size="small"
               @click="showEventModal = true"
+              class="change-event-btn"
             >
               <ion-icon :icon="calendarOutline" slot="start"></ion-icon>
               Cambiar Evento
@@ -114,21 +111,21 @@
           <div class="action-buttons">
             <ion-button 
               expand="block"
-              @click="showAddGuestModal = true"
-              class="add-guest-btn"
+              @click="showBulkAddModal = true"
+              class="bulk-add-btn"
             >
-              <ion-icon :icon="addOutline" slot="start"></ion-icon>
-              Añadir Invitado
+              <ion-icon :icon="peopleOutline" slot="start"></ion-icon>
+              Añadir Lista de Invitados
             </ion-button>
 
             <ion-button 
               expand="block"
               fill="outline"
-              @click="showImportModal = true"
-              class="import-btn"
+              @click="showAddGuestModal = true"
+              class="add-single-btn"
             >
-              <ion-icon :icon="cloudUploadOutline" slot="start"></ion-icon>
-              Importar CSV
+              <ion-icon :icon="addOutline" slot="start"></ion-icon>
+              Añadir 1 Invitado
             </ion-button>
           </div>
         </div>
@@ -282,224 +279,292 @@
             Comienza añadiendo invitados a tu evento
           </p>
           <ion-button 
-            @click="showAddGuestModal = true"
+            @click="showBulkAddModal = true"
             class="add-first-guest-btn"
           >
-            <ion-icon :icon="addOutline" slot="start"></ion-icon>
-            Añadir Primer Invitado
+            <ion-icon :icon="peopleOutline" slot="start"></ion-icon>
+            Añadir Invitados
           </ion-button>
         </div>
 
       </div>
-    </ion-content>
 
-    <!-- Modal: Seleccionar Evento -->
-    <ion-modal :is-open="showEventModal" @did-dismiss="showEventModal = false">
-      <ion-header>
-        <ion-toolbar>
-          <ion-title>Seleccionar Evento</ion-title>
-          <ion-buttons slot="end">
-            <ion-button @click="showEventModal = false">
+      <!-- ========================================
+           MODALES CON DISEÑO MEJORADO
+           ======================================== -->
+
+      <!-- Modal: Seleccionar Evento -->
+      <div v-if="showEventModal" class="custom-modal-overlay" @click="showEventModal = false">
+        <div class="custom-modal" @click.stop>
+          <div class="custom-modal-header">
+            <h2>Seleccionar Evento</h2>
+            <button class="close-modal-btn" @click="showEventModal = false">
               <ion-icon :icon="closeOutline"></ion-icon>
-            </ion-button>
-          </ion-buttons>
-        </ion-toolbar>
-      </ion-header>
-      
-      <ion-content>
-        <div class="modal-content">
-          <ion-list>
-            <ion-item 
-              v-for="event in events" 
-              :key="event.id"
-              button
-              @click="selectEvent(event)"
-              :class="{ 'selected-item': selectedEvent?.id === event.id }"
-            >
-              <ion-icon :icon="calendarOutline" slot="start"></ion-icon>
-              <ion-label>
-                <h3>{{ event.name }}</h3>
-                <p>{{ formatDate(event.date) }}</p>
-              </ion-label>
-              <ion-icon 
-                v-if="selectedEvent?.id === event.id"
-                :icon="checkmarkCircleOutline" 
-                slot="end"
-                color="success"
-              ></ion-icon>
-            </ion-item>
-          </ion-list>
-        </div>
-      </ion-content>
-    </ion-modal>
-
-    <!-- Modal: Añadir/Editar Invitado -->
-    <ion-modal :is-open="showAddGuestModal" @did-dismiss="closeGuestModal">
-      <ion-header>
-        <ion-toolbar>
-          <ion-title>{{ editingGuest ? 'Editar' : 'Añadir' }} Invitado</ion-title>
-          <ion-buttons slot="end">
-            <ion-button @click="closeGuestModal">
-              <ion-icon :icon="closeOutline"></ion-icon>
-            </ion-button>
-          </ion-buttons>
-        </ion-toolbar>
-      </ion-header>
-      
-      <ion-content>
-        <div class="modal-content">
-          <form @submit.prevent="saveGuest" class="guest-form">
-            <ion-item>
-              <ion-label position="stacked">Nombre completo *</ion-label>
-              <ion-input
-                v-model="guestForm.name"
-                placeholder="Juan Pérez"
-                required
-              ></ion-input>
-            </ion-item>
-
-            <ion-item>
-              <ion-label position="stacked">Email *</ion-label>
-              <ion-input
-                v-model="guestForm.email"
-                type="email"
-                placeholder="juan@ejemplo.com"
-                required
-              ></ion-input>
-            </ion-item>
-
-            <ion-item>
-              <ion-label position="stacked">Teléfono</ion-label>
-              <ion-input
-                v-model="guestForm.phone"
-                type="tel"
-                placeholder="+34 600 000 000"
-              ></ion-input>
-            </ion-item>
-
-            <ion-item>
-              <ion-label position="stacked">Número de mesa</ion-label>
-              <ion-input
-                v-model="guestForm.table_number"
-                type="number"
-                placeholder="1"
-              ></ion-input>
-            </ion-item>
-
-            <div class="form-actions">
-              <ion-button 
-                expand="block"
-                type="submit"
-                :disabled="saving"
-                class="save-btn"
+            </button>
+          </div>
+          
+          <div class="custom-modal-content">
+            <div class="events-list">
+              <div 
+                v-for="event in events" 
+                :key="event.id"
+                class="event-option"
+                :class="{ 'selected': selectedEvent?.id === event.id }"
+                @click="selectEvent(event)"
               >
-                <ion-spinner v-if="saving" name="crescent"></ion-spinner>
-                <ion-icon v-else :icon="checkmarkOutline" slot="start"></ion-icon>
-                {{ saving ? 'Guardando...' : 'Guardar' }}
-              </ion-button>
+                <div class="event-option-icon">
+                  <ion-icon :icon="calendarOutline"></ion-icon>
+                </div>
+                <div class="event-option-info">
+                  <h4>{{ event.name }}</h4>
+                  <p>{{ formatDate(event.date) }}</p>
+                </div>
+                <ion-icon 
+                  v-if="selectedEvent?.id === event.id"
+                  :icon="checkmarkCircleOutline" 
+                  class="check-icon"
+                  color="success"
+                ></ion-icon>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-              <ion-button 
-                expand="block"
-                fill="outline"
-                @click="closeGuestModal"
-                :disabled="saving"
+      <!-- Modal: Añadir Lista de Invitados -->
+      <div v-if="showBulkAddModal" class="custom-modal-overlay" @click="closeBulkAddModal">
+        <div class="custom-modal large-modal" @click.stop>
+          <div class="custom-modal-header">
+            <h2>Añadir Lista de Invitados</h2>
+            <button class="close-modal-btn" @click="closeBulkAddModal">
+              <ion-icon :icon="closeOutline"></ion-icon>
+            </button>
+          </div>
+          
+          <div class="custom-modal-content">
+            <div class="bulk-instructions">
+              <h3>📝 Formato</h3>
+              <p>Escribe un invitado por línea. Formato:</p>
+              <div class="format-example">
+                <code>Nombre, email@ejemplo.com</code>
+                <span class="format-or">o</span>
+                <code>Nombre, email@ejemplo.com, +34600000000</code>
+              </div>
+              <p class="format-note">El teléfono es opcional</p>
+            </div>
+
+            <div class="textarea-container">
+              <label>Lista de Invitados</label>
+              <textarea
+                v-model="bulkGuestsText"
+                placeholder="Juan Pérez, juan@ejemplo.com&#10;María García, maria@ejemplo.com, +34600111222&#10;Pedro López, pedro@ejemplo.com"
+                rows="12"
+                class="bulk-textarea"
+              ></textarea>
+            </div>
+
+            <div class="bulk-preview" v-if="parsedBulkGuests.length > 0">
+              <h4>✅ Vista previa: {{ parsedBulkGuests.length }} invitados</h4>
+              <div class="preview-list">
+                <div v-for="(guest, index) in parsedBulkGuests.slice(0, 5)" :key="index" class="preview-item">
+                  <ion-icon :icon="checkmarkCircleOutline" color="success"></ion-icon>
+                  <div class="preview-info">
+                    <strong>{{ guest.name }}</strong>
+                    <span>{{ guest.email }}</span>
+                    <span v-if="guest.phone" class="preview-phone">{{ guest.phone }}</span>
+                  </div>
+                </div>
+                <p v-if="parsedBulkGuests.length > 5" class="preview-more">
+                  ... y {{ parsedBulkGuests.length - 5 }} más
+                </p>
+              </div>
+            </div>
+
+            <div class="modal-actions">
+              <button 
+                class="primary-action-btn"
+                @click="saveBulkGuests"
+                :disabled="savingBulk || parsedBulkGuests.length === 0"
+              >
+                <ion-spinner v-if="savingBulk" name="crescent"></ion-spinner>
+                <ion-icon v-else :icon="checkmarkOutline"></ion-icon>
+                <span>{{ savingBulk ? 'Guardando...' : `Guardar ${parsedBulkGuests.length} Invitados` }}</span>
+              </button>
+
+              <button 
+                class="secondary-action-btn"
+                @click="closeBulkAddModal"
+                :disabled="savingBulk"
               >
                 Cancelar
-              </ion-button>
+              </button>
             </div>
-          </form>
+          </div>
         </div>
-      </ion-content>
-    </ion-modal>
+      </div>
 
-    <!-- Modal: Detalle del Invitado -->
-    <ion-modal :is-open="showDetailModal" @did-dismiss="showDetailModal = false">
-      <ion-header>
-        <ion-toolbar>
-          <ion-title>Detalle del Invitado</ion-title>
-          <ion-buttons slot="end">
-            <ion-button @click="showDetailModal = false">
+      <!-- Modal: Añadir/Editar 1 Invitado -->
+      <div v-if="showAddGuestModal" class="custom-modal-overlay" @click="closeGuestModal">
+        <div class="custom-modal" @click.stop>
+          <div class="custom-modal-header">
+            <h2>{{ editingGuest ? 'Editar' : 'Añadir' }} Invitado</h2>
+            <button class="close-modal-btn" @click="closeGuestModal">
               <ion-icon :icon="closeOutline"></ion-icon>
-            </ion-button>
-          </ion-buttons>
-        </ion-toolbar>
-      </ion-header>
-      
-      <ion-content v-if="selectedGuestDetail">
-        <div class="modal-content guest-detail">
-          <div class="detail-header">
-            <div class="detail-avatar">
-              {{ selectedGuestDetail.name.charAt(0).toUpperCase() }}
-            </div>
-            <div class="detail-info">
-              <h2>{{ selectedGuestDetail.name }}</h2>
-              <ion-badge 
-                :color="selectedGuestDetail.has_entered ? 'success' : selectedGuestDetail.qr_sent ? 'warning' : 'medium'"
-              >
-                {{ selectedGuestDetail.has_entered ? 'ASISTIÓ' : selectedGuestDetail.qr_sent ? 'QR ENVIADO' : 'PENDIENTE' }}
-              </ion-badge>
-            </div>
+            </button>
           </div>
+          
+          <div class="custom-modal-content">
+            <form @submit.prevent="saveGuest" class="guest-form">
+              <div class="form-group">
+                <label>Nombre completo *</label>
+                <input
+                  v-model="guestForm.name"
+                  type="text"
+                  placeholder="Juan Pérez"
+                  required
+                  class="form-input"
+                />
+              </div>
 
-          <div class="detail-sections">
-            <div class="detail-section">
-              <h3>Información de Contacto</h3>
-              <div class="detail-item">
-                <ion-icon :icon="mailOutline"></ion-icon>
-                <span>{{ selectedGuestDetail.email }}</span>
+              <div class="form-group">
+                <label>Email *</label>
+                <input
+                  v-model="guestForm.email"
+                  type="email"
+                  placeholder="juan@ejemplo.com"
+                  required
+                  class="form-input"
+                />
               </div>
-              <div class="detail-item" v-if="selectedGuestDetail.phone">
-                <ion-icon :icon="callOutline"></ion-icon>
-                <span>{{ selectedGuestDetail.phone }}</span>
-              </div>
-              <div class="detail-item" v-if="selectedGuestDetail.table_number">
-                <ion-icon :icon="restaurantOutline"></ion-icon>
-                <span>Mesa {{ selectedGuestDetail.table_number }}</span>
-              </div>
-            </div>
 
-            <div class="detail-section" v-if="selectedGuestDetail.qr_sent || selectedGuestDetail.has_entered">
-              <h3>Estado del Ticket</h3>
-              <div class="detail-item" v-if="selectedGuestDetail.sent_at">
-                <ion-icon :icon="mailOutline"></ion-icon>
-                <div>
-                  <strong>QR Enviado:</strong>
-                  <span>{{ formatDateTime(selectedGuestDetail.sent_at) }}</span>
-                </div>
+              <div class="form-group">
+                <label>Teléfono</label>
+                <input
+                  v-model="guestForm.phone"
+                  type="tel"
+                  placeholder="+34 600 000 000"
+                  class="form-input"
+                />
               </div>
-              <div class="detail-item" v-if="selectedGuestDetail.entered_at">
-                <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
-                <div>
-                  <strong>Asistió al evento:</strong>
-                  <span>{{ formatDateTime(selectedGuestDetail.entered_at) }}</span>
-                </div>
+
+              <div class="form-group">
+                <label>Número de mesa</label>
+                <input
+                  v-model="guestForm.table_number"
+                  type="number"
+                  placeholder="1"
+                  class="form-input"
+                />
               </div>
-            </div>
-          </div>
 
-          <div class="detail-actions">
-            <ion-button 
-              expand="block"
-              @click="editGuest(selectedGuestDetail)"
-            >
-              <ion-icon :icon="createOutline" slot="start"></ion-icon>
-              Editar Invitado
-            </ion-button>
+              <div class="modal-actions">
+                <button 
+                  type="submit"
+                  class="primary-action-btn"
+                  :disabled="saving"
+                >
+                  <ion-spinner v-if="saving" name="crescent"></ion-spinner>
+                  <ion-icon v-else :icon="checkmarkOutline"></ion-icon>
+                  <span>{{ saving ? 'Guardando...' : 'Guardar' }}</span>
+                </button>
 
-            <ion-button 
-              expand="block"
-              fill="outline"
-              color="danger"
-              @click="confirmDeleteGuest(selectedGuestDetail)"
-            >
-              <ion-icon :icon="trashOutline" slot="start"></ion-icon>
-              Eliminar Invitado
-            </ion-button>
+                <button 
+                  type="button"
+                  class="secondary-action-btn"
+                  @click="closeGuestModal"
+                  :disabled="saving"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
-      </ion-content>
-    </ion-modal>
+      </div>
 
+      <!-- Modal: Detalle del Invitado -->
+      <div v-if="showDetailModal && selectedGuestDetail" class="custom-modal-overlay" @click="showDetailModal = false">
+        <div class="custom-modal" @click.stop>
+          <div class="custom-modal-header">
+            <h2>Detalle del Invitado</h2>
+            <button class="close-modal-btn" @click="showDetailModal = false">
+              <ion-icon :icon="closeOutline"></ion-icon>
+            </button>
+          </div>
+          
+          <div class="custom-modal-content guest-detail">
+            <div class="detail-header">
+              <div class="detail-avatar">
+                {{ selectedGuestDetail.name.charAt(0).toUpperCase() }}
+              </div>
+              <div class="detail-info">
+                <h3>{{ selectedGuestDetail.name }}</h3>
+                <ion-badge 
+                  :color="selectedGuestDetail.has_entered ? 'success' : selectedGuestDetail.qr_sent ? 'warning' : 'medium'"
+                >
+                  {{ selectedGuestDetail.has_entered ? 'ASISTIÓ' : selectedGuestDetail.qr_sent ? 'QR ENVIADO' : 'PENDIENTE' }}
+                </ion-badge>
+              </div>
+            </div>
+
+            <div class="detail-sections">
+              <div class="detail-section">
+                <h4>Información de Contacto</h4>
+                <div class="detail-item">
+                  <ion-icon :icon="mailOutline"></ion-icon>
+                  <span>{{ selectedGuestDetail.email }}</span>
+                </div>
+                <div class="detail-item" v-if="selectedGuestDetail.phone">
+                  <ion-icon :icon="callOutline"></ion-icon>
+                  <span>{{ selectedGuestDetail.phone }}</span>
+                </div>
+                <div class="detail-item" v-if="selectedGuestDetail.table_number">
+                  <ion-icon :icon="restaurantOutline"></ion-icon>
+                  <span>Mesa {{ selectedGuestDetail.table_number }}</span>
+                </div>
+              </div>
+
+              <div class="detail-section" v-if="selectedGuestDetail.qr_sent || selectedGuestDetail.has_entered">
+                <h4>Estado del Ticket</h4>
+                <div class="detail-item" v-if="selectedGuestDetail.sent_at">
+                  <ion-icon :icon="mailOutline"></ion-icon>
+                  <div>
+                    <strong>QR Enviado:</strong>
+                    <span>{{ formatDateTime(selectedGuestDetail.sent_at) }}</span>
+                  </div>
+                </div>
+                <div class="detail-item" v-if="selectedGuestDetail.entered_at">
+                  <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
+                  <div>
+                    <strong>Asistió al evento:</strong>
+                    <span>{{ formatDateTime(selectedGuestDetail.entered_at) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-actions">
+              <button 
+                class="primary-action-btn"
+                @click="editGuest(selectedGuestDetail)"
+              >
+                <ion-icon :icon="createOutline"></ion-icon>
+                <span>Editar Invitado</span>
+              </button>
+
+              <button 
+                class="danger-action-btn"
+                @click="confirmDeleteGuest(selectedGuestDetail)"
+              >
+                <ion-icon :icon="trashOutline"></ion-icon>
+                <span>Eliminar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </ion-content>
   </ion-page>
 </template>
 
@@ -507,21 +572,13 @@
 import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import {
   IonPage,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
   IonContent,
   IonButton,
-  IonButtons,
   IonIcon,
   IonSearchbar,
   IonBadge,
   IonChip,
   IonLabel,
-  IonItem,
-  IonInput,
-  IonList,
-  IonModal,
   IonSpinner,
   alertController,
   toastController
@@ -540,7 +597,6 @@ import {
   calendarOutline,
   locationOutline,
   closeOutline,
-  cloudUploadOutline,
   checkmarkOutline,
   chevronBackOutline,
   chevronForwardOutline
@@ -563,6 +619,7 @@ const { vibrate } = useHaptics()
 // ========================================
 const loading = ref(true)
 const saving = ref(false)
+const savingBulk = ref(false)
 const guests = ref<any[]>([])
 const searchTerm = ref('')
 const filterStatus = ref<'all' | 'sent' | 'attended' | 'pending'>('all')
@@ -572,20 +629,23 @@ const itemsPerPage = 20
 // Modales
 const showEventModal = ref(false)
 const showAddGuestModal = ref(false)
-const showImportModal = ref(false)
+const showBulkAddModal = ref(false)
 const showDetailModal = ref(false)
 
 // Invitado seleccionado
 const selectedGuestDetail = ref<any>(null)
 const editingGuest = ref<any>(null)
 
-// Formulario de invitado
+// Formulario de invitado único
 const guestForm = ref({
   name: '',
   email: '',
   phone: '',
   table_number: null as number | null
 })
+
+// Formulario de invitados múltiples
+const bulkGuestsText = ref('')
 
 // ========================================
 // COMPUTED PROPERTIES
@@ -601,6 +661,27 @@ const stats = computed(() => {
   const pending = total - sent
 
   return { total, sent, attended, pending }
+})
+
+// Parsear invitados desde el texto
+const parsedBulkGuests = computed(() => {
+  if (!bulkGuestsText.value.trim()) return []
+  
+  const lines = bulkGuestsText.value.split('\n').filter(line => line.trim())
+  const guests: any[] = []
+  
+  lines.forEach(line => {
+    const parts = line.split(',').map(p => p.trim())
+    if (parts.length >= 2) {
+      guests.push({
+        name: parts[0],
+        email: parts[1],
+        phone: parts[2] || null
+      })
+    }
+  })
+  
+  return guests
 })
 
 // Filtrar invitados por búsqueda y estado
@@ -705,7 +786,7 @@ const selectEvent = async (event: any) => {
 }
 
 // ========================================
-// FUNCIONES DE INVITADOS
+// FUNCIONES DE INVITADOS ÚNICOS
 // ========================================
 const openGuestDetail = async (guest: any) => {
   selectedGuestDetail.value = guest
@@ -801,6 +882,70 @@ const saveGuest = async () => {
   }
 }
 
+// ========================================
+// FUNCIONES DE INVITADOS MÚLTIPLES
+// ========================================
+const closeBulkAddModal = () => {
+  showBulkAddModal.value = false
+  bulkGuestsText.value = ''
+}
+
+const saveBulkGuests = async () => {
+  if (!selectedEvent.value) {
+    showToast('Selecciona un evento primero', 'warning')
+    await vibrate('warning')
+    return
+  }
+
+  if (parsedBulkGuests.value.length === 0) {
+    showToast('No hay invitados válidos para añadir', 'warning')
+    await vibrate('warning')
+    return
+  }
+
+  savingBulk.value = true
+  await vibrate('light')
+
+  try {
+    const guestsData = parsedBulkGuests.value.map(guest => ({
+      name: guest.name.trim(),
+      email: guest.email.trim().toLowerCase(),
+      phone: guest.phone?.trim() || null,
+      event_id: selectedEvent.value!.id,
+      event_name: selectedEvent.value!.name,
+      qr_sent: false,
+      has_entered: false
+    }))
+
+    const { error } = await supabase
+      .from('guests')
+      .insert(guestsData)
+
+    if (error) {
+      if (error.code === '23505') {
+        throw new Error('Algunos emails ya están registrados en este evento')
+      }
+      throw error
+    }
+
+    await vibrate('success')
+    showToast(`${guestsData.length} invitados añadidos correctamente`, 'success')
+    
+    closeBulkAddModal()
+    await loadGuests()
+
+  } catch (error: any) {
+    console.error('Error guardando invitados:', error)
+    await vibrate('error')
+    showToast(error.message || 'Error al guardar invitados', 'danger')
+  } finally {
+    savingBulk.value = false
+  }
+}
+
+// ========================================
+// ELIMINAR INVITADO
+// ========================================
 const confirmDeleteGuest = async (guest: any) => {
   await vibrate('warning')
   
@@ -951,11 +1096,21 @@ onActivated(async () => {
 }
 
 /* ========================================
-   HEADER
+   HEADER SIN ION-HEADER
    ======================================== */
 .page-header {
-  text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 32px;
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.header-content {
+  flex: 1;
 }
 
 .header-content h1 {
@@ -969,6 +1124,12 @@ onActivated(async () => {
   margin: 0;
   color: #6b7280;
   font-size: 1rem;
+}
+
+.refresh-btn {
+  --color: #667eea;
+  --padding-start: 12px;
+  --padding-end: 12px;
 }
 
 /* ========================================
@@ -994,6 +1155,14 @@ onActivated(async () => {
   color: #1f2937;
   font-size: 1.2rem;
   font-weight: 600;
+}
+
+.change-event-btn {
+  --border-radius: 8px;
+  font-weight: 600;
+  --border-width: 2px;
+  --border-color: #667eea;
+  --color: #667eea;
 }
 
 .current-event-card {
@@ -1176,14 +1345,14 @@ onActivated(async () => {
   gap: 12px;
 }
 
-.add-guest-btn {
+.bulk-add-btn {
   --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
   --border-radius: 8px;
   font-weight: 600;
   height: 48px;
 }
 
-.import-btn {
+.add-single-btn {
   --border-radius: 8px;
   font-weight: 600;
   height: 48px;
@@ -1395,56 +1564,365 @@ onActivated(async () => {
 }
 
 /* ========================================
-   MODALES
+   MODALES PERSONALIZADOS (SIN ION-MODAL)
    ======================================== */
-.modal-content {
+.custom-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
   padding: 20px;
+  animation: fadeIn 0.2s ease-out;
 }
 
-.selected-item {
-  --background: rgba(102, 126, 234, 0.1);
-  --color: #667eea;
-}
-
-/* Formulario de invitado */
-.guest-form {
+.custom-modal {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  animation: slideUp 0.3s ease-out;
 }
 
-.guest-form ion-item {
-  --background: #f8f9fa;
-  --border-radius: 8px;
-  --border-color: #e5e7eb;
-  --padding-start: 16px;
-  --inner-padding-end: 16px;
-  margin-bottom: 0;
+.custom-modal.large-modal {
+  max-width: 700px;
 }
 
-.guest-form ion-label {
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.custom-modal-header {
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  color: white;
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.custom-modal-header h2 {
+  margin: 0;
+  font-size: 1.3rem;
   font-weight: 600;
-  color: #1f2937;
-  margin-bottom: 8px;
 }
 
-.form-actions {
+.close-modal-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.close-modal-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.custom-modal-content {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* ========================================
+   LISTA DE EVENTOS EN MODAL
+   ======================================== */
+.events-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 24px;
 }
 
-.save-btn {
-  --background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  --border-radius: 8px;
-  font-weight: 600;
+.event-option {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.event-option:hover {
+  background: #f1f3f4;
+  border-color: #667eea;
+  transform: translateX(4px);
+}
+
+.event-option.selected {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border-color: #667eea;
+}
+
+.event-option-icon {
+  width: 48px;
   height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
 }
 
-/* Detalle del invitado */
+.event-option-info {
+  flex: 1;
+}
+
+.event-option-info h4 {
+  margin: 0 0 4px 0;
+  color: #1f2937;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.event-option-info p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.check-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+/* ========================================
+   FORMULARIO DE INVITADOS MÚLTIPLES
+   ======================================== */
+.bulk-instructions {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 2px solid #667eea;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.bulk-instructions h3 {
+  margin: 0 0 12px 0;
+  color: #1f2937;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.bulk-instructions p {
+  margin: 8px 0;
+  color: #4b5563;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.format-example {
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  margin: 12px 0;
+}
+
+.format-example code {
+  display: block;
+  font-family: 'Courier New', monospace;
+  color: #0d1b2a;
+  font-size: 0.9rem;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  margin: 8px 0;
+}
+
+.format-or {
+  display: block;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.85rem;
+  margin: 8px 0;
+  font-style: italic;
+}
+
+.format-note {
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-style: italic;
+  margin-top: 8px;
+}
+
+.textarea-container {
+  margin-bottom: 20px;
+}
+
+.textarea-container label {
+  display: block;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+}
+
+.bulk-textarea {
+  width: 100%;
+  padding: 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  resize: vertical;
+  transition: all 0.3s ease;
+}
+
+.bulk-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.bulk-preview {
+  background: #f0fdf4;
+  border: 2px solid #10b981;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 20px;
+}
+
+.bulk-preview h4 {
+  margin: 0 0 16px 0;
+  color: #065f46;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.preview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.preview-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.preview-item ion-icon {
+  font-size: 1.3rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.preview-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preview-info strong {
+  color: #1f2937;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.preview-info span {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.preview-phone {
+  color: #667eea;
+  font-weight: 500;
+}
+
+.preview-more {
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.9rem;
+  font-style: italic;
+  margin-top: 8px;
+}
+
+/* ========================================
+   FORMULARIO ÚNICO
+   ======================================== */
+.guest-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 0.95rem;
+}
+
+.form-input {
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* ========================================
+   DETALLE DEL INVITADO
+   ======================================== */
 .guest-detail {
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
 .detail-header {
@@ -1453,7 +1931,6 @@ onActivated(async () => {
   gap: 20px;
   padding-bottom: 24px;
   border-bottom: 2px solid #e5e7eb;
-  margin-bottom: 24px;
 }
 
 .detail-avatar {
@@ -1471,17 +1948,17 @@ onActivated(async () => {
   box-shadow: 0 4px 16px rgba(13, 27, 42, 0.3);
 }
 
-.detail-info h2 {
+.detail-info h3 {
   margin: 0 0 8px 0;
   color: #1f2937;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   font-weight: 600;
 }
 
 .detail-sections {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 .detail-section {
@@ -1490,10 +1967,10 @@ onActivated(async () => {
   padding: 20px;
 }
 
-.detail-section h3 {
+.detail-section h4 {
   margin: 0 0 16px 0;
   color: #1f2937;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
 }
 
@@ -1526,16 +2003,21 @@ onActivated(async () => {
 
 .detail-item div {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .detail-item strong {
-  display: block;
   color: #1f2937;
   font-weight: 600;
-  margin-bottom: 4px;
+  font-size: 0.9rem;
 }
 
-.detail-actions {
+/* ========================================
+   BOTONES DE ACCIÓN EN MODALES
+   ======================================== */
+.modal-actions {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1544,10 +2026,59 @@ onActivated(async () => {
   border-top: 2px solid #e5e7eb;
 }
 
-.detail-actions ion-button {
-  --border-radius: 8px;
+.primary-action-btn,
+.secondary-action-btn,
+.danger-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 8px;
   font-weight: 600;
-  height: 48px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.primary-action-btn {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.primary-action-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+}
+
+.primary-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.secondary-action-btn {
+  background: white;
+  color: #6b7280;
+  border: 2px solid #e5e7eb;
+}
+
+.secondary-action-btn:hover:not(:disabled) {
+  background: #f8f9fa;
+  border-color: #d1d5db;
+}
+
+.danger-action-btn {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.danger-action-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
 }
 
 /* ========================================
@@ -1559,11 +2090,10 @@ onActivated(async () => {
   }
 
   .page-header {
-    margin-bottom: 24px;
-  }
-
-  .header-content h1 {
-    font-size: 1.6rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px;
   }
 
   .stats-grid {
@@ -1635,11 +2165,38 @@ onActivated(async () => {
     flex-direction: column;
     gap: 12px;
   }
+
+  .custom-modal {
+    max-width: 100%;
+    margin: 0;
+    border-radius: 16px 16px 0 0;
+    max-height: 95vh;
+  }
+
+  .custom-modal-header {
+    padding: 20px;
+  }
+
+  .custom-modal-content {
+    padding: 20px;
+  }
 }
 
 @media (max-width: 480px) {
   .guests-container {
     padding: 12px;
+  }
+
+  .page-header {
+    padding: 16px;
+  }
+
+  .header-content h1 {
+    font-size: 1.5rem;
+  }
+
+  .header-content p {
+    font-size: 0.9rem;
   }
 
   .stats-grid {
@@ -1666,8 +2223,55 @@ onActivated(async () => {
     font-size: 1.6rem;
   }
 
-  .detail-info h2 {
-    font-size: 1.3rem;
+  .detail-info h3 {
+    font-size: 1.1rem;
+  }
+
+  .custom-modal-header h2 {
+    font-size: 1.1rem;
+  }
+
+  .bulk-instructions {
+    padding: 16px;
+  }
+
+  .bulk-instructions h3 {
+    font-size: 1rem;
+  }
+
+  .format-example code {
+    font-size: 0.8rem;
+    padding: 6px;
+  }
+
+  .bulk-textarea {
+    font-size: 0.85rem;
+    padding: 12px;
+  }
+
+  .preview-item {
+    padding: 10px;
+  }
+
+  .preview-info strong {
+    font-size: 0.9rem;
+  }
+
+  .preview-info span {
+    font-size: 0.8rem;
+  }
+
+  .primary-action-btn,
+  .secondary-action-btn,
+  .danger-action-btn {
+    padding: 12px 20px;
+    font-size: 0.95rem;
+  }
+
+  .event-selector-section,
+  .actions-section,
+  .guests-list-section {
+    padding: 20px;
   }
 }
 
@@ -1739,6 +2343,229 @@ onActivated(async () => {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ========================================
+   MODO OSCURO (OPCIONAL)
+   ======================================== */
+@media (prefers-color-scheme: dark) {
+  .guests-content {
+    --background: #1a1a1a;
+  }
+
+  .page-header,
+  .event-selector-section,
+  .stats-section .stat-card,
+  .actions-section,
+  .guests-list-section,
+  .empty-state {
+    background: #2d2d2d;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+
+  .header-content h1,
+  .section-header h3,
+  .guest-info h4,
+  .detail-info h3,
+  .empty-state h3 {
+    color: #f9fafb;
+  }
+
+  .header-content p,
+  .guest-info p,
+  .empty-state p,
+  .event-date,
+  .event-location,
+  .stat-label,
+  .pagination-info {
+    color: #9ca3af;
+  }
+
+  .current-event-card,
+  .guest-item {
+    background: #3a3a3a;
+    border-color: #4a4a4a;
+  }
+
+  .bulk-instructions {
+    background: linear-gradient(135deg, #1e3a5f 0%, #2d4a6f 100%);
+    border-color: #667eea;
+  }
+
+  .bulk-instructions h3,
+  .bulk-instructions p {
+    color: #e5e7eb;
+  }
+
+  .format-example,
+  .bulk-textarea,
+  .form-input {
+    background: #2d2d2d;
+    border-color: #4a4a4a;
+    color: #f9fafb;
+  }
+
+  .bulk-textarea:focus,
+  .form-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+  }
+
+  .custom-modal {
+    background: #2d2d2d;
+  }
+
+  .custom-modal-content {
+    background: #2d2d2d;
+  }
+
+  .event-option,
+  .detail-section,
+  .preview-item,
+  .detail-item {
+    background: #3a3a3a;
+  }
+
+  .event-option:hover {
+    background: #454545;
+  }
+
+  .event-option.selected {
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+  }
+
+  .event-option-info h4,
+  .detail-section h4,
+  .preview-info strong,
+  .detail-item strong {
+    color: #f9fafb;
+  }
+
+  .event-option-info p,
+  .preview-info span,
+  .detail-item span {
+    color: #9ca3af;
+  }
+
+  .secondary-action-btn {
+    background: #3a3a3a;
+    border-color: #4a4a4a;
+    color: #9ca3af;
+  }
+
+  .secondary-action-btn:hover:not(:disabled) {
+    background: #454545;
+    border-color: #5a5a5a;
+  }
+}
+
+/* ========================================
+   SCROLLBAR PERSONALIZADO
+   ======================================== */
+.custom-modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-modal-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.custom-modal-content::-webkit-scrollbar-thumb {
+  background: #667eea;
+  border-radius: 4px;
+}
+
+.custom-modal-content::-webkit-scrollbar-thumb:hover {
+  background: #5a6fce;
+}
+
+@media (prefers-color-scheme: dark) {
+  .custom-modal-content::-webkit-scrollbar-track {
+    background: #3a3a3a;
+  }
+
+  .custom-modal-content::-webkit-scrollbar-thumb {
+    background: #667eea;
+  }
+
+  .custom-modal-content::-webkit-scrollbar-thumb:hover {
+    background: #7588ec;
+  }
+}
+
+/* ========================================
+   ANIMACIONES DE INTERACCIÓN
+   ======================================== */
+.guest-item,
+.event-option,
+.stat-card,
+.primary-action-btn,
+.secondary-action-btn,
+.danger-action-btn,
+.close-modal-btn {
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Efecto de clic en móviles */
+@media (hover: none) {
+  .guest-item:active {
+    transform: scale(0.98);
+  }
+
+  .primary-action-btn:active:not(:disabled),
+  .danger-action-btn:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  .secondary-action-btn:active:not(:disabled) {
+    background: #e5e7eb;
+  }
+}
+
+/* ========================================
+   MEJORAS DE ACCESIBILIDAD
+   ======================================== */
+.close-modal-btn:focus,
+.primary-action-btn:focus,
+.secondary-action-btn:focus,
+.danger-action-btn:focus,
+.form-input:focus,
+.bulk-textarea:focus {
+  outline: 3px solid #667eea;
+  outline-offset: 2px;
+}
+
+/* Focus visible solo con teclado */
+.close-modal-btn:focus:not(:focus-visible),
+.primary-action-btn:focus:not(:focus-visible),
+.secondary-action-btn:focus:not(:focus-visible),
+.danger-action-btn:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   ESTILOS DE IMPRESIÓN (OPCIONAL)
+   ======================================== */
+@media print {
+  .page-header,
+  .actions-section,
+  .guest-actions,
+  .filter-chips,
+  .pagination,
+  .custom-modal-overlay {
+    display: none !important;
+  }
+
+  .guests-container {
+    padding: 0;
+  }
+
+  .guest-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 }
 </style>
