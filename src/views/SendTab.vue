@@ -406,6 +406,8 @@ import {
 import { supabase } from '@/services/supabase.js'
 // @ts-ignore
 import eventsStore from '@/stores/events'
+// @ts-ignore
+import { sendQREmail, sendBulkQREmails, createConsistentQR } from '@/services/email.js'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import { useHaptics } from '@/composables/useHaptics'
 import { useDebounce } from '@/composables/useDebounce'
@@ -608,59 +610,57 @@ const clearSelection = () => {
 }
 
 // ========================================
-// FUNCIONES DE ENVÍO
+// FUNCIONES DE ENVÍO CON EMAILJS
 // ========================================
-const generateDownloadLink = async (guestId: string) => {
-  try {
-    // Generar código único para descarga
-    const downloadCode = `${guestId}-${Date.now()}-${Math.random().toString(36).substring(7)}`
-    
-    const guest = guests.value.find(g => g.id === guestId)
-    if (!guest) throw new Error('Invitado no encontrado')
-
-    // Guardar en tabla de descargas
-    const { error: downloadError } = await supabase
-      .from('download_tickets')
-      .insert([{
-        guest_id: guestId,
-        guest_name: guest.name,
-        guest_email: guest.email,
-        guest_phone: guest.phone,
-        event_id: selectedEvent.value!.id,
-        event_name: selectedEvent.value!.name,
-        event_date: selectedEvent.value!.date,
-        event_location: selectedEvent.value!.location,
-        download_code: downloadCode,
-        qr_code: guest.qr_code || null,
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 días
-        is_used: false
-      }])
-
-    if (downloadError) throw downloadError
-
-    // Retornar link de descarga
-    const baseUrl = window.location.origin
-    return `${baseUrl}/download-ticket/${downloadCode}`
-    
-  } catch (error) {
-    console.error('Error generando link de descarga:', error)
-    throw error
-  }
-}
-
 const sendEmailToGuest = async (guest: any) => {
   try {
-    // Generar link de descarga
-    const downloadLink = await generateDownloadLink(guest.id)
+    if (!selectedEvent.value) {
+      throw new Error('No hay evento seleccionado')
+    }
 
-    // TODO: Aquí integrarías con tu servicio de email (EmailJS, SendGrid, etc.)
-    // Por ahora simulamos el envío
+    // Crear QR consistente
+    const eventData = {
+      id: selectedEvent.value.id,
+      name: selectedEvent.value.name
+    }
+    
+    const guestData = {
+      id: guest.id,
+      name: guest.name,
+      email: guest.email
+    }
+
+    const qrCode = createConsistentQR(guestData, eventData)
+    console.log('🔐 QR creado para:', guest.name)
+
+    // Preparar datos del invitado con información del evento
+    const guestWithEvent = {
+      ...guest,
+      event_id: selectedEvent.value.id,
+      event_name: selectedEvent.value.name
+    }
+
+    // Opciones para el email
+    const emailOptions = {
+      eventId: selectedEvent.value.id,
+      eventName: selectedEvent.value.name,
+      eventDate: formatDate(selectedEvent.value.date),
+      eventLocation: selectedEvent.value.location || 'Ubicación por confirmar',
+      organizerName: 'Organizador del Evento',
+      replyTo: 'info@evento.com'
+    }
+
     console.log('📧 Enviando email a:', guest.email)
-    console.log('🔗 Link de descarga:', downloadLink)
+    
+    // Enviar email usando el servicio de EmailJS
+    const result = await sendQREmail(guestWithEvent, qrCode, emailOptions)
 
-    // Simular delay de envío
-    await new Promise(resolve => setTimeout(resolve, 1000))
+    if (!result.success) {
+      throw new Error(result.error || 'Error al enviar email')
+    }
 
+    console.log('✅ Email enviado exitosamente:', result)
+    
     // Marcar como enviado en la base de datos
     const { error } = await supabase
       .from('guests')
@@ -672,9 +672,14 @@ const sendEmailToGuest = async (guest: any) => {
 
     if (error) throw error
 
-    return true
-  } catch (error) {
-    console.error('Error enviando email:', error)
+    return {
+      success: true,
+      simulated: result.simulated || false,
+      downloadCode: result.downloadCode
+    }
+    
+  } catch (error: any) {
+    console.error('❌ Error enviando email:', error)
     throw error
   }
 }
@@ -695,13 +700,19 @@ const sendToGuest = async (guest: any) => {
         handler: async () => {
           sendingSingle.value = true
           try {
-            await sendEmailToGuest(guest)
+            const result = await sendEmailToGuest(guest)
             await vibrate('success')
-            showToast(`✓ Invitación enviada a ${guest.name}`, 'success')
+            
+            if (result.simulated) {
+              showToast(`⚠️ Invitación simulada para ${guest.name} (configura EmailJS)`, 'warning')
+            } else {
+              showToast(`✓ Invitación enviada a ${guest.name}`, 'success')
+            }
+            
             await loadGuests()
-          } catch (error) {
+          } catch (error: any) {
             await vibrate('error')
-            showToast('Error al enviar la invitación', 'danger')
+            showToast(`Error: ${error.message}`, 'danger')
           } finally {
             sendingSingle.value = false
           }
@@ -729,13 +740,19 @@ const resendToGuest = async (guest: any) => {
         handler: async () => {
           sendingSingle.value = true
           try {
-            await sendEmailToGuest(guest)
+            const result = await sendEmailToGuest(guest)
             await vibrate('success')
-            showToast(`✓ Invitación reenviada a ${guest.name}`, 'success')
+            
+            if (result.simulated) {
+              showToast(`⚠️ Invitación simulada para ${guest.name} (configura EmailJS)`, 'warning')
+            } else {
+              showToast(`✓ Invitación reenviada a ${guest.name}`, 'success')
+            }
+            
             await loadGuests()
-          } catch (error) {
+          } catch (error: any) {
             await vibrate('error')
-            showToast('Error al reenviar la invitación', 'danger')
+            showToast(`Error: ${error.message}`, 'danger')
           } finally {
             sendingSingle.value = false
           }
@@ -807,48 +824,109 @@ const sendToSelected = async () => {
 
 const sendBulkEmails = async (guestsToSend: any[]) => {
   sendingAll.value = true
+  sendingSelected.value = true
   sendingProgress.value = 0
   currentSendingIndex.value = 0
   totalToSend.value = guestsToSend.length
 
-  let successCount = 0
-  let errorCount = 0
-
   try {
-    for (let i = 0; i < guestsToSend.length; i++) {
-      const guest = guestsToSend[i]
+    if (!selectedEvent.value) {
+      throw new Error('No hay evento seleccionado')
+    }
+
+    // Preparar invitados con sus QR codes
+    const guestsWithQRs = guestsToSend.map(guest => {
+      const eventData = {
+        id: selectedEvent.value!.id,
+        name: selectedEvent.value!.name
+      }
       
-      try {
-        await sendEmailToGuest(guest)
-        successCount++
-        await vibrate('light')
-      } catch (error) {
-        console.error(`Error enviando a ${guest.name}:`, error)
-        errorCount++
+      const guestData = {
+        id: guest.id,
+        name: guest.name,
+        email: guest.email
       }
 
-      currentSendingIndex.value = i + 1
-      sendingProgress.value = Math.round(((i + 1) / guestsToSend.length) * 100)
+      const qrCode = createConsistentQR(guestData, eventData)
 
-      // Pequeño delay entre envíos para no saturar
-      await new Promise(resolve => setTimeout(resolve, 500))
+      return {
+        guest: {
+          ...guest,
+          event_id: selectedEvent.value!.id,
+          event_name: selectedEvent.value!.name
+        },
+        qrCode
+      }
+    })
+
+    // Opciones para los emails
+    const emailOptions = {
+      eventId: selectedEvent.value.id,
+      eventName: selectedEvent.value.name,
+      eventDate: formatDate(selectedEvent.value.date),
+      eventLocation: selectedEvent.value.location || 'Ubicación por confirmar',
+      organizerName: 'Organizador del Evento',
+      replyTo: 'info@evento.com'
+    }
+
+    console.log('📧 Iniciando envío masivo:', guestsWithQRs.length, 'emails')
+
+    // Usar el servicio de envío masivo de EmailJS
+    const results = await sendBulkQREmails(guestsWithQRs, emailOptions, (progress: any) => {
+      // Actualizar progreso
+      sendingProgress.value = progress.percentage
+      currentSendingIndex.value = progress.current
+      totalToSend.value = progress.total
+      
+      console.log(`📊 Progreso: ${progress.percentage}% - ${progress.current}/${progress.total}`)
+    })
+
+    console.log('📊 Resultados del envío masivo:', results)
+
+    // Actualizar estados en la base de datos para los enviados exitosamente
+    const successfulEmails = guestsWithQRs
+      .filter((_, index) => index < results.sent + results.simulated)
+      .map(g => g.guest.id)
+
+    if (successfulEmails.length > 0) {
+      const { error } = await supabase
+        .from('guests')
+        .update({
+          qr_sent: true,
+          sent_at: new Date().toISOString()
+        })
+        .in('id', successfulEmails)
+
+      if (error) {
+        console.error('Error actualizando estados:', error)
+      }
     }
 
     await vibrate('success')
-    
-    if (errorCount === 0) {
-      showToast(`✓ ${successCount} invitaciones enviadas correctamente`, 'success')
+
+    // Mostrar resultados
+    if (results.failed === 0) {
+      if (results.simulated > 0) {
+        showToast(`⚠️ ${results.sent} enviados, ${results.simulated} simulados (configura EmailJS)`, 'warning')
+      } else {
+        showToast(`✓ ${results.sent} invitaciones enviadas correctamente`, 'success')
+      }
     } else {
-      showToast(`${successCount} enviadas, ${errorCount} fallidas`, 'warning')
+      showToast(`${results.sent} enviados, ${results.failed} fallidos`, 'warning')
+      
+      // Mostrar errores específicos
+      if (results.errors && results.errors.length > 0) {
+        console.error('❌ Errores en envío:', results.errors)
+      }
     }
 
     selectedGuests.value = []
     await loadGuests()
 
-  } catch (error) {
-    console.error('Error en envío masivo:', error)
+  } catch (error: any) {
+    console.error('❌ Error en envío masivo:', error)
     await vibrate('error')
-    showToast('Error en el envío masivo', 'danger')
+    showToast(`Error: ${error.message}`, 'danger')
   } finally {
     sendingAll.value = false
     sendingSelected.value = false
