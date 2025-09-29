@@ -474,10 +474,10 @@ const searchTerm = ref('')
 const manualSearchTerm = ref('')
 const manualSearchResults = ref<any[]>([])
 
-// Scanner
+// Scanner - CRÍTICO: ref correcto
 const videoElement = ref<HTMLVideoElement | null>(null)
 let codeReader: BrowserMultiFormatReader | null = null
-let scannerStream: MediaStream | null = null
+let activeControls: any = null // Para guardar los controles del scanner
 
 // Modal de resultado
 const resultModalType = ref<'success' | 'duplicate' | 'error'>('success')
@@ -577,12 +577,14 @@ const selectEvent = async (event: any) => {
 }
 
 // ========================================
-// FUNCIONES DEL SCANNER (CORREGIDAS)
+// FUNCIONES DEL SCANNER - COMPLETAMENTE CORREGIDAS
 // ========================================
-const initializeScanner = async () => {
+const initializeScanner = () => {
   try {
-    codeReader = new BrowserMultiFormatReader()
-    console.log('✅ Scanner inicializado')
+    if (!codeReader) {
+      codeReader = new BrowserMultiFormatReader()
+      console.log('✅ Scanner inicializado')
+    }
   } catch (error) {
     console.error('❌ Error inicializando scanner:', error)
     throw error
@@ -590,104 +592,140 @@ const initializeScanner = async () => {
 }
 
 const startScanner = async () => {
+  console.log('🎬 Iniciando startScanner...')
+  
   if (!selectedEvent.value) {
     showToast('Selecciona un evento primero', 'warning')
     return
   }
 
+  // Inicializar scanner si no existe
   if (!codeReader) {
-    await initializeScanner()
+    initializeScanner()
   }
 
   try {
+    // Esperar a que el DOM se actualice
     await nextTick()
 
-    if (videoElement.value && codeReader) {
-      // CORRECCIÓN: Listar dispositivos primero
-      const videoInputDevices = await codeReader.listVideoInputDevices()
-      
-      if (videoInputDevices.length === 0) {
-        throw new Error('No se encontraron cámaras disponibles')
-      }
-
-      console.log('📷 Cámaras disponibles:', videoInputDevices.length)
-      videoInputDevices.forEach((device, index) => {
-        console.log(`  ${index}: ${device.label || 'Cámara sin nombre'}`)
-      })
-
-      // Buscar la cámara trasera o usar la primera disponible
-      const selectedDevice = videoInputDevices.find(device => 
-        device.label.toLowerCase().includes('back') || 
-        device.label.toLowerCase().includes('rear') ||
-        device.label.toLowerCase().includes('trasera') ||
-        device.label.toLowerCase().includes('posterior')
-      ) || videoInputDevices[0]
-
-      console.log('✅ Usando cámara:', selectedDevice.label || selectedDevice.deviceId)
-
-      // Decodificar continuamente desde el dispositivo
-      await codeReader.decodeFromVideoDevice(
-        selectedDevice.deviceId,
-        videoElement.value,
-        (result: any, error: any) => {
-          if (result) {
-            const text = result.getText()
-            console.log('🔍 QR detectado:', text)
-            handleScan(text)
-          }
-          
-          // Solo loguear errores que no sean "NotFoundException"
-          if (error && !(error instanceof NotFoundException)) {
-            console.error('⚠️ Error del scanner:', error.message || error)
-          }
-        }
-      )
-
-      scannerActive.value = true
-      scanStatus.value = 'scanning'
-      scanMessage.value = 'Escaneando...'
-      console.log('✅ Scanner activo y video visible')
-      await vibrate('light')
-    } else {
-      throw new Error('Video element no disponible')
+    // CRÍTICO: Verificar que el elemento de video existe
+    console.log('📹 Video element ref:', videoElement.value)
+    
+    if (!videoElement.value) {
+      throw new Error('Video element no disponible. Esperando DOM...')
     }
+
+    console.log('🎥 Listando dispositivos de video...')
+    
+    // Listar cámaras disponibles
+    const videoInputDevices = await codeReader!.listVideoInputDevices()
+    
+    if (videoInputDevices.length === 0) {
+      throw new Error('No se encontraron cámaras disponibles')
+    }
+
+    console.log(`📷 ${videoInputDevices.length} cámara(s) disponible(s):`)
+    videoInputDevices.forEach((device, index) => {
+      console.log(`  [${index}] ${device.label || device.deviceId}`)
+    })
+
+    // Seleccionar cámara (preferir trasera)
+    const selectedDevice = videoInputDevices.find(device => {
+      const label = device.label.toLowerCase()
+      return label.includes('back') || 
+             label.includes('rear') || 
+             label.includes('trasera') || 
+             label.includes('posterior') ||
+             label.includes('environment')
+    }) || videoInputDevices[0]
+
+    console.log('✅ Cámara seleccionada:', selectedDevice.label || selectedDevice.deviceId)
+
+    // Iniciar decodificación
+    console.log('🔄 Iniciando decodificación desde cámara...')
+    
+    activeControls = await codeReader!.decodeFromVideoDevice(
+      selectedDevice.deviceId,
+      videoElement.value,
+      (result: any, error: any) => {
+        if (result) {
+          const text = result.getText()
+          console.log('🎯 QR DETECTADO:', text)
+          handleScan(text)
+        }
+        
+        // Solo mostrar errores relevantes (no NotFoundException)
+        if (error && !(error instanceof NotFoundException)) {
+          console.warn('⚠️ Error scanner:', error.message || error)
+        }
+      }
+    )
+
+    // Actualizar estados
+    scannerActive.value = true
+    scanStatus.value = 'scanning'
+    scanMessage.value = 'Escaneando...'
+    
+    console.log('✅ Scanner ACTIVO y funcionando')
+    console.log('📺 Stream de video:', videoElement.value.srcObject ? 'ACTIVO' : 'INACTIVO')
+    
+    await vibrate('light')
+    showToast('Scanner activado correctamente', 'success')
+
   } catch (error: any) {
-    console.error('❌ Error activando scanner:', error)
+    console.error('❌ ERROR COMPLETO:', error)
+    console.error('📍 Stack trace:', error.stack)
+    
+    let errorMessage = 'Error al activar el scanner'
     
     if (error.name === 'NotAllowedError') {
-      showToast('Permiso de cámara denegado. Por favor, permite el acceso a la cámara.', 'danger')
+      errorMessage = 'Permiso de cámara denegado. Por favor, permite el acceso.'
     } else if (error.name === 'NotFoundError') {
-      showToast('No se encontró ninguna cámara en el dispositivo', 'danger')
+      errorMessage = 'No se encontró ninguna cámara'
     } else if (error.name === 'NotReadableError') {
-      showToast('La cámara está siendo usada por otra aplicación', 'danger')
-    } else {
-      showToast(`Error al activar el scanner: ${error.message || 'Error desconocido'}`, 'danger')
+      errorMessage = 'La cámara está siendo usada por otra aplicación'
+    } else if (error.message) {
+      errorMessage = error.message
     }
     
+    showToast(errorMessage, 'danger')
     await vibrate('error')
     scannerActive.value = false
   }
 }
 
 const stopScanner = async () => {
+  console.log('⏹️ Deteniendo scanner...')
+  
   try {
+    // Detener controles activos
+    if (activeControls) {
+      activeControls.stop()
+      activeControls = null
+    }
+
+    // Reset del code reader
     if (codeReader) {
       codeReader.reset()
     }
 
-    if (scannerStream) {
-      scannerStream.getTracks().forEach(track => track.stop())
-      scannerStream = null
-    }
-
+    // Limpiar video element
     if (videoElement.value) {
+      const stream = videoElement.value.srcObject as MediaStream
+      if (stream) {
+        stream.getTracks().forEach(track => {
+          track.stop()
+          console.log('🛑 Track detenido:', track.label)
+        })
+      }
       videoElement.value.srcObject = null
     }
 
     scannerActive.value = false
     scanStatus.value = 'idle'
     scanMessage.value = 'Scanner detenido'
-    console.log('⏹️ Scanner detenido')
+    
+    console.log('✅ Scanner detenido correctamente')
   } catch (error) {
     console.error('Error deteniendo scanner:', error)
   }
@@ -706,11 +744,11 @@ const activateScanner = async () => {
 }
 
 // ========================================
-// PROCESAMIENTO DEL QR (CORREGIDO)
+// PROCESAMIENTO DEL QR
 // ========================================
 const handleScan = async (qrData: string) => {
   if (scanning.value) {
-    console.log('⏳ Ya hay un escaneo en proceso, ignorando...')
+    console.log('⏳ Ya procesando un escaneo, ignorando...')
     return
   }
 
@@ -730,22 +768,22 @@ const handleScan = async (qrData: string) => {
       throw new Error('QR inválido: formato incorrecto')
     }
 
-    // Validar que tenga los campos necesarios
+    // Validar campos necesarios
     if (!guestData.id || !guestData.email) {
       throw new Error('QR inválido: faltan datos')
     }
 
-    // CORRECCIÓN: Verificar que selectedEvent.value no sea null
+    // Verificar evento seleccionado
     if (!selectedEvent.value) {
       throw new Error('No hay evento seleccionado')
     }
 
-    // Validar evento
+    // Validar evento del QR
     if (guestData.eventId !== selectedEvent.value.id) {
       throw new Error('Este QR no pertenece al evento actual')
     }
 
-    // Buscar invitado en la base de datos
+    // Buscar invitado en BD
     const { data: guestRecord, error: fetchError } = await supabase
       .from('guests')
       .select('*')
@@ -763,7 +801,6 @@ const handleScan = async (qrData: string) => {
       scanMessage.value = 'Ya escaneado anteriormente'
       await vibrate('warning')
 
-      // Agregar a escaneos recientes
       addRecentScan({
         id: Date.now().toString(),
         guestName: guestRecord.name,
@@ -772,7 +809,6 @@ const handleScan = async (qrData: string) => {
         message: `Ya había entrado el ${formatDateTime(guestRecord.entered_at)}`
       })
 
-      // Mostrar modal de resultado
       showResultModalWithData(
         'duplicate',
         'Entrada Duplicada',
@@ -800,7 +836,6 @@ const handleScan = async (qrData: string) => {
     scanMessage.value = '✓ Entrada válida'
     await vibrate('success')
 
-    // Agregar a escaneos recientes
     addRecentScan({
       id: Date.now().toString(),
       guestName: guestRecord.name,
@@ -809,7 +844,6 @@ const handleScan = async (qrData: string) => {
       message: 'Entrada registrada correctamente'
     })
 
-    // Mostrar modal de resultado
     showResultModalWithData(
       'success',
       '¡Bienvenido!',
@@ -818,7 +852,6 @@ const handleScan = async (qrData: string) => {
       formatDateTime(new Date().toISOString())
     )
 
-    // Recargar datos
     await loadGuests()
 
   } catch (error: any) {
@@ -828,7 +861,6 @@ const handleScan = async (qrData: string) => {
     scanMessage.value = 'Error: ' + error.message
     await vibrate('error')
 
-    // Agregar a escaneos recientes
     addRecentScan({
       id: Date.now().toString(),
       guestName: 'Error',
@@ -837,7 +869,6 @@ const handleScan = async (qrData: string) => {
       message: error.message
     })
 
-    // Mostrar modal de error
     showResultModalWithData(
       'error',
       'Error de Validación',
@@ -879,7 +910,7 @@ const searchGuestsForManualEntry = () => {
       guest.name.toLowerCase().includes(search) ||
       guest.email.toLowerCase().includes(search)
     )
-    .slice(0, 10) // Limitar a 10 resultados
+    .slice(0, 10)
 }
 
 const selectGuestForManualEntry = async (guest: any) => {
@@ -933,7 +964,6 @@ const registerManualEntry = async (guest: any) => {
     await vibrate('success')
     showToast(`✓ Entrada registrada para ${guest.name}`, 'success')
 
-    // Agregar a escaneos recientes
     addRecentScan({
       id: Date.now().toString(),
       guestName: guest.name,
@@ -980,7 +1010,6 @@ const closeResultModal = () => {
 const addRecentScan = (scan: any) => {
   recentScans.value.unshift(scan)
   
-  // Mantener solo los últimos 10
   if (recentScans.value.length > 10) {
     recentScans.value = recentScans.value.slice(0, 10)
   }
