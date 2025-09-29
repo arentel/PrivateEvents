@@ -104,8 +104,9 @@
                 <ion-icon :icon="qrCodeOutline"></ion-icon>
                 Escáner QR
               </h3>
+              <!-- REEMPLÁZALO POR ESTO: -->
               <ion-toggle 
-                v-model="scannerActive" 
+                :checked="scannerActive"
                 @ionChange="toggleScanner"
                 :disabled="!selectedEvent"
               >
@@ -737,11 +738,17 @@ const stopScanner = async () => {
   }
 }
 
-const toggleScanner = async () => {
-  if (scannerActive.value) {
-    await stopScanner()
-  } else {
+// BUSCA ESTA FUNCIÓN Y REEMPLÁZALA:
+const toggleScanner = async (event: any) => {
+  console.log('🔄 Toggle scanner:', event.detail.checked)
+  
+  // Prevenir que el toggle cambie automáticamente
+  if (event.detail.checked) {
+    // Activar scanner
     await startScanner()
+  } else {
+    // Desactivar scanner
+    await stopScanner()
   }
 }
 
@@ -1225,7 +1232,7 @@ onUnmounted(async () => {
 
 .current-event-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 16px;
   padding: 20px;
   background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
@@ -1256,28 +1263,63 @@ onUnmounted(async () => {
 
 .event-info {
   flex: 1;
+  min-width: 0;
 }
 
 .event-info h4 {
   margin: 0 0 8px 0;
   color: #1f2937;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   font-weight: 600;
+  line-height: 1.3;
+  word-wrap: break-word;
 }
 
+.event-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.event-detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: #6b7280;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.event-detail-row ion-icon {
+  color: #667eea;
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.event-detail-row span {
+  flex: 1;
+  word-wrap: break-word;
+}
+
+/* Mantener compatibilidad con el formato anterior */
 .event-date,
 .event-location {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin: 4px 0;
   color: #6b7280;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .event-date ion-icon,
 .event-location ion-icon {
   color: #667eea;
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
 /* ========================================
@@ -1415,6 +1457,12 @@ onUnmounted(async () => {
   --handle-background-checked: white;
 }
 
+/* Scanner Wrapper */
+.scanner-wrapper {
+  position: relative;
+  min-height: 400px;
+}
+
 /* Scanner Warning */
 .scanner-warning {
   text-align: center;
@@ -1459,7 +1507,7 @@ onUnmounted(async () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block; /* IMPORTANTE: Asegurar que se muestre */
+  display: block;
   background: #000;
 }
 
@@ -1474,6 +1522,7 @@ onUnmounted(async () => {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.3);
+  pointer-events: none;
 }
 
 .scanner-frame {
@@ -1652,6 +1701,7 @@ onUnmounted(async () => {
 
 .scan-info {
   flex: 1;
+  min-width: 0;
 }
 
 .scan-info h4 {
@@ -1659,6 +1709,7 @@ onUnmounted(async () => {
   color: #1f2937;
   font-size: 1.05rem;
   font-weight: 600;
+  word-wrap: break-word;
 }
 
 .scan-time {
@@ -1672,6 +1723,7 @@ onUnmounted(async () => {
   margin: 4px 0 0 0;
   color: #6b7280;
   font-size: 0.9rem;
+  word-wrap: break-word;
 }
 
 /* ========================================
@@ -1731,6 +1783,7 @@ onUnmounted(async () => {
 
 .guest-info {
   flex: 1;
+  min-width: 0;
 }
 
 .guest-info h4 {
@@ -1738,6 +1791,7 @@ onUnmounted(async () => {
   color: #1f2937;
   font-size: 1.05rem;
   font-weight: 600;
+  word-wrap: break-word;
 }
 
 .guest-email,
@@ -1748,6 +1802,7 @@ onUnmounted(async () => {
   display: flex;
   align-items: center;
   gap: 6px;
+  word-wrap: break-word;
 }
 
 .guest-timestamp {
@@ -1889,6 +1944,7 @@ onUnmounted(async () => {
 
 .event-option-info {
   flex: 1;
+  min-width: 0;
 }
 
 .event-option-info h4 {
@@ -1896,12 +1952,14 @@ onUnmounted(async () => {
   color: #1f2937;
   font-size: 1.05rem;
   font-weight: 600;
+  word-wrap: break-word;
 }
 
 .event-option-info p {
   margin: 0;
   color: #6b7280;
   font-size: 0.9rem;
+  word-wrap: break-word;
 }
 
 .check-icon {
@@ -1991,6 +2049,7 @@ onUnmounted(async () => {
 
 .result-info {
   flex: 1;
+  min-width: 0;
 }
 
 .result-info h4 {
@@ -1998,12 +2057,14 @@ onUnmounted(async () => {
   color: #1f2937;
   font-size: 0.95rem;
   font-weight: 600;
+  word-wrap: break-word;
 }
 
 .result-info p {
   margin: 0;
   color: #6b7280;
   font-size: 0.85rem;
+  word-wrap: break-word;
 }
 
 .no-results {
@@ -2089,6 +2150,7 @@ onUnmounted(async () => {
   color: #6b7280;
   font-size: 1rem;
   line-height: 1.5;
+  word-wrap: break-word;
 }
 
 .result-content .guest-name {
@@ -2163,15 +2225,45 @@ onUnmounted(async () => {
   }
 
   .current-event-card {
-    flex-direction: column;
-    text-align: center;
+    padding: 16px;
+    gap: 12px;
   }
 
-  .custom-modal {
+  .event-badge {
+    width: 48px;
+    height: 48px;
+    font-size: 1.5rem;
+  }
+
+  .event-info h4 {
+    font-size: 1rem;
+  }
+
+  .event-detail-row,
+  .event-date,
+  .event-location {
+    font-size: 0.8rem;
+  }
+
+  .event-detail-row ion-icon,
+  .event-date ion-icon,
+  .event-location ion-icon {
+    font-size: 0.9rem;
+  }
+
+.custom-modal {
     max-width: 100%;
     margin: 0;
     border-radius: 16px 16px 0 0;
     max-height: 95vh;
+  }
+
+  .custom-modal-header {
+    padding: 20px;
+  }
+
+  .custom-modal-content {
+    padding: 20px;
   }
 }
 
@@ -2227,6 +2319,21 @@ onUnmounted(async () => {
 
   .result-content h2 {
     font-size: 1.3rem;
+  }
+
+  .event-selector-section,
+  .scanner-card,
+  .recent-scans-section,
+  .scanned-guests-section {
+    padding: 20px;
+  }
+
+  .scanner-wrapper {
+    min-height: 350px;
+  }
+
+  .scanner-viewport {
+    aspect-ratio: 1;
   }
 }
 
@@ -2330,6 +2437,7 @@ onUnmounted(async () => {
   .header-content p,
   .event-date,
   .event-location,
+  .event-detail-row,
   .stat-label,
   .guest-email,
   .guest-timestamp,
@@ -2449,40 +2557,47 @@ onUnmounted(async () => {
    SCROLLBAR PERSONALIZADO
    ======================================== */
 .custom-modal-content::-webkit-scrollbar,
-.search-results::-webkit-scrollbar {
+.search-results::-webkit-scrollbar,
+.scanned-guests-list::-webkit-scrollbar {
   width: 8px;
 }
 
 .custom-modal-content::-webkit-scrollbar-track,
-.search-results::-webkit-scrollbar-track {
+.search-results::-webkit-scrollbar-track,
+.scanned-guests-list::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 4px;
 }
 
 .custom-modal-content::-webkit-scrollbar-thumb,
-.search-results::-webkit-scrollbar-thumb {
+.search-results::-webkit-scrollbar-thumb,
+.scanned-guests-list::-webkit-scrollbar-thumb {
   background: #667eea;
   border-radius: 4px;
 }
 
 .custom-modal-content::-webkit-scrollbar-thumb:hover,
-.search-results::-webkit-scrollbar-thumb:hover {
+.search-results::-webkit-scrollbar-thumb:hover,
+.scanned-guests-list::-webkit-scrollbar-thumb:hover {
   background: #5a6fce;
 }
 
 @media (prefers-color-scheme: dark) {
   .custom-modal-content::-webkit-scrollbar-track,
-  .search-results::-webkit-scrollbar-track {
+  .search-results::-webkit-scrollbar-track,
+  .scanned-guests-list::-webkit-scrollbar-track {
     background: #3a3a3a;
   }
 
   .custom-modal-content::-webkit-scrollbar-thumb,
-  .search-results::-webkit-scrollbar-thumb {
+  .search-results::-webkit-scrollbar-thumb,
+  .scanned-guests-list::-webkit-scrollbar-thumb {
     background: #667eea;
   }
 
   .custom-modal-content::-webkit-scrollbar-thumb:hover,
-  .search-results::-webkit-scrollbar-thumb:hover {
+  .search-results::-webkit-scrollbar-thumb:hover,
+  .scanned-guests-list::-webkit-scrollbar-thumb:hover {
     background: #7588ec;
   }
 }
@@ -2604,53 +2719,6 @@ onUnmounted(async () => {
 }
 
 /* ========================================
-   TOOLTIPS PERSONALIZADOS
-   ======================================== */
-[data-tooltip] {
-  position: relative;
-}
-
-[data-tooltip]::before {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%) translateY(-8px);
-  padding: 8px 12px;
-  background: #1f2937;
-  color: white;
-  font-size: 0.85rem;
-  border-radius: 6px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-  z-index: 1000;
-}
-
-[data-tooltip]:hover::before {
-  opacity: 1;
-}
-
-/* ========================================
-   OPTIMIZACIONES DE PERFORMANCE
-   ======================================== */
-.scanner-video {
-  will-change: transform;
-  transform: translateZ(0);
-}
-
-.scanner-frame {
-  will-change: border-color, box-shadow;
-}
-
-.scan-item,
-.guest-item,
-.result-item {
-  will-change: transform, background;
-}
-
-/* ========================================
    EFECTOS ESPECIALES PARA ESCANEO EXITOSO
    ======================================== */
 @keyframes success-flash {
@@ -2675,6 +2743,44 @@ onUnmounted(async () => {
 }
 
 /* ========================================
+   OPTIMIZACIONES DE PERFORMANCE
+   ======================================== */
+.scanner-video {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+.scanner-frame {
+  will-change: border-color, box-shadow;
+}
+
+.scan-item,
+.guest-item,
+.result-item {
+  will-change: transform, background;
+}
+
+/* ========================================
+   FIX ESPECÍFICO PARA iOS
+   ======================================== */
+.scanner-video {
+  -webkit-transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+}
+
+/* Fix para video en iOS */
+@supports (-webkit-touch-callout: none) {
+  .scanner-viewport {
+    -webkit-transform: translateZ(0);
+  }
+  
+  .scanner-video {
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* ========================================
    MEJORAS VISUALES ADICIONALES
    ======================================== */
 .scanner-card {
@@ -2682,34 +2788,8 @@ onUnmounted(async () => {
   overflow: hidden;
 }
 
-.scanner-card::before {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(
-    45deg,
-    transparent 30%,
-    rgba(102, 126, 234, 0.05) 50%,
-    transparent 70%
-  );
-  transform: rotate(45deg);
-  animation: shimmer 3s infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    transform: translateX(-100%) translateY(-100%) rotate(45deg);
-  }
-  100% {
-    transform: translateX(100%) translateY(100%) rotate(45deg);
-  }
-}
-
-/* Desactivar shimmer cuando el scanner está activo */
-.scanner-card:has(.scanner-active)::before {
-  display: none;
+/* Desactivar efectos decorativos cuando el scanner está activo */
+.scanner-card:has(.scanner-active) {
+  overflow: visible;
 }
 </style>
