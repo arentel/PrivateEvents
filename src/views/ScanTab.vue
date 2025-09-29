@@ -600,60 +600,68 @@ const startScanner = async () => {
   }
 
   try {
-    // Solicitar permisos de cámara
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' }
-    })
-
-    scannerStream = stream
-
     await nextTick()
 
     if (videoElement.value && codeReader) {
-      videoElement.value.srcObject = stream
-
-      // CORRECCIÓN: Usar decodeFromVideoDevice
+      // CORRECCIÓN: Listar dispositivos primero
       const videoInputDevices = await codeReader.listVideoInputDevices()
       
-      if (videoInputDevices.length > 0) {
-        // Usar la primera cámara disponible (o la trasera si está disponible)
-        const selectedDevice = videoInputDevices.find(device => 
-          device.label.toLowerCase().includes('back') || 
-          device.label.toLowerCase().includes('rear') ||
-          device.label.toLowerCase().includes('trasera')
-        ) || videoInputDevices[0]
-
-        // Decodificar continuamente
-        codeReader.decodeFromVideoDevice(
-          selectedDevice.deviceId,
-          videoElement.value,
-          (result: any, error: any) => {
-            if (result) {
-              handleScan(result.getText())
-            }
-            
-            if (error && !(error instanceof NotFoundException)) {
-              console.error('Error del scanner:', error)
-            }
-          }
-        )
+      if (videoInputDevices.length === 0) {
+        throw new Error('No se encontraron cámaras disponibles')
       }
+
+      console.log('📷 Cámaras disponibles:', videoInputDevices.length)
+      videoInputDevices.forEach((device, index) => {
+        console.log(`  ${index}: ${device.label || 'Cámara sin nombre'}`)
+      })
+
+      // Buscar la cámara trasera o usar la primera disponible
+      const selectedDevice = videoInputDevices.find(device => 
+        device.label.toLowerCase().includes('back') || 
+        device.label.toLowerCase().includes('rear') ||
+        device.label.toLowerCase().includes('trasera') ||
+        device.label.toLowerCase().includes('posterior')
+      ) || videoInputDevices[0]
+
+      console.log('✅ Usando cámara:', selectedDevice.label || selectedDevice.deviceId)
+
+      // Decodificar continuamente desde el dispositivo
+      await codeReader.decodeFromVideoDevice(
+        selectedDevice.deviceId,
+        videoElement.value,
+        (result: any, error: any) => {
+          if (result) {
+            const text = result.getText()
+            console.log('🔍 QR detectado:', text)
+            handleScan(text)
+          }
+          
+          // Solo loguear errores que no sean "NotFoundException"
+          if (error && !(error instanceof NotFoundException)) {
+            console.error('⚠️ Error del scanner:', error.message || error)
+          }
+        }
+      )
 
       scannerActive.value = true
       scanStatus.value = 'scanning'
       scanMessage.value = 'Escaneando...'
-      console.log('✅ Scanner activo')
+      console.log('✅ Scanner activo y video visible')
       await vibrate('light')
+    } else {
+      throw new Error('Video element no disponible')
     }
   } catch (error: any) {
     console.error('❌ Error activando scanner:', error)
     
     if (error.name === 'NotAllowedError') {
-      showToast('Permiso de cámara denegado', 'danger')
+      showToast('Permiso de cámara denegado. Por favor, permite el acceso a la cámara.', 'danger')
     } else if (error.name === 'NotFoundError') {
-      showToast('No se encontró cámara', 'danger')
+      showToast('No se encontró ninguna cámara en el dispositivo', 'danger')
+    } else if (error.name === 'NotReadableError') {
+      showToast('La cámara está siendo usada por otra aplicación', 'danger')
     } else {
-      showToast('Error al activar el scanner', 'danger')
+      showToast(`Error al activar el scanner: ${error.message || 'Error desconocido'}`, 'danger')
     }
     
     await vibrate('error')
@@ -1416,6 +1424,8 @@ onUnmounted(async () => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block; /* IMPORTANTE: Asegurar que se muestre */
+  background: #000;
 }
 
 .scanner-overlay {
