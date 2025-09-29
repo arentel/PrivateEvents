@@ -106,6 +106,40 @@ http://ionicframework.com/docs/theming/ */
   --app-spacing-md: 1rem;
   --app-spacing-lg: 1.5rem;
   --app-spacing-xl: 3rem;
+
+  /* ============================================
+     TRANSICIONES Y ANIMACIONES - NUEVAS
+     ============================================ */
+  
+  /* Duraciones de transición */
+  --transition-instant: 50ms;
+  --transition-fast: 150ms;
+  --transition-normal: 250ms;
+  --transition-slow: 350ms;
+  --transition-slower: 500ms;
+
+  /* Funciones de easing */
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --ease-in: cubic-bezier(0.32, 0, 0.67, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Transiciones completas listas para usar */
+  --transition-bg: background-color var(--transition-fast) var(--ease-out);
+  --transition-color: color var(--transition-fast) var(--ease-out);
+  --transition-transform: transform var(--transition-normal) var(--ease-smooth);
+  --transition-opacity: opacity var(--transition-normal) var(--ease-out);
+  --transition-all: all var(--transition-normal) var(--ease-out);
+  --transition-shadow: box-shadow var(--transition-normal) var(--ease-out);
+  --transition-bounce: transform var(--transition-normal) var(--ease-bounce);
+
+  /* Sombras con niveles progresivos */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 20px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 12px 32px rgba(0, 0, 0, 0.15);
 }
 
 /* Personalización de componentes Ionic */
@@ -117,6 +151,12 @@ ion-card {
   box-shadow: var(--app-shadow);
   border-radius: var(--app-border-radius-lg);
   margin: var(--app-spacing-md);
+  transition: var(--transition-transform), var(--transition-shadow);
+}
+
+ion-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
 }
 
 ion-card-header {
@@ -140,6 +180,17 @@ ion-button {
   --box-shadow: var(--app-shadow-sm);
   font-weight: 500;
   text-transform: none;
+  transition: var(--transition-transform), var(--transition-shadow);
+}
+
+ion-button:hover {
+  transform: translateY(-2px);
+  --box-shadow: var(--shadow-md);
+}
+
+ion-button:active {
+  transform: translateY(0);
+  transition-duration: var(--transition-fast);
 }
 
 ion-button.button-expand-block {
@@ -154,6 +205,11 @@ ion-input, ion-textarea, ion-select {
   --border-radius: var(--app-border-radius);
   --border-color: var(--app-border);
   --highlight-color: var(--ion-color-primary);
+  transition: var(--transition-all);
+}
+
+ion-input:focus, ion-textarea:focus, ion-select:focus {
+  --border-color: var(--ion-color-primary);
 }
 
 /* Items */
@@ -163,6 +219,11 @@ ion-item {
   --border-color: var(--app-border);
   --inner-padding-end: var(--app-spacing-md);
   --padding-start: var(--app-spacing-md);
+  transition: var(--transition-bg);
+}
+
+ion-item:hover {
+  --background: var(--app-gradient-light);
 }
 
 ion-item ion-label h2 {
@@ -192,6 +253,11 @@ ion-chip {
   --color: var(--app-text-primary);
   font-weight: 500;
   font-size: 0.75rem;
+  transition: var(--transition-transform);
+}
+
+ion-chip:hover {
+  transform: scale(1.05);
 }
 
 ion-chip.chip-outline {
@@ -228,6 +294,7 @@ ion-segment-button {
   --color-checked: white;
   --border-radius: var(--app-border-radius);
   font-weight: 500;
+  transition: var(--transition-all);
 }
 
 /* Lists */
@@ -317,21 +384,86 @@ ion-list ion-item:last-child {
   border-radius: var(--app-border-radius-xl);
 }
 
-/* Animaciones personalizadas */
-.fade-in {
-  animation: fadeIn 0.3s ease-in;
+/* ============================================
+   ANIMACIONES GLOBALES - NUEVAS
+   ============================================ */
+
+/* Aplicar transiciones globales a elementos interactivos */
+button,
+a,
+.clickable,
+ion-button,
+ion-card,
+ion-item {
+  transition: 
+    var(--transition-bg),
+    var(--transition-color),
+    var(--transition-transform),
+    var(--transition-shadow);
 }
 
-.slide-up {
-  animation: slideUp 0.3s ease-out;
-}
-
+/* Animaciones de entrada */
 @keyframes fadeIn {
   from {
     opacity: 0;
   }
   to {
     opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 
@@ -346,69 +478,61 @@ ion-list ion-item:last-child {
   }
 }
 
-/* Responsive design */
-@media (max-width: 576px) {
-  :root {
-    --app-spacing-md: 0.75rem;
-    --app-spacing-lg: 1rem;
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
   }
-  
-  ion-card {
-    margin: var(--app-spacing-sm);
-  }
-  
-  ion-card-title {
-    font-size: 1.1rem;
+  100% {
+    background-position: 1000px 0;
   }
 }
 
-/* Modo oscuro */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --app-background: #121212;
-    --app-surface: #1e1e1e;
-    --app-border: #333333;
-    --app-text-primary: #ffffff;
-    --app-text-secondary: #b3b3b3;
-    --app-text-muted: #666666;
-  }
-  
-  ion-card {
-    --background: var(--app-surface);
-    border: 1px solid var(--app-border);
-  }
-  
-  ion-item {
-    --background: var(--app-surface);
-  }
-  
-  .avatar-placeholder {
-    background: var(--app-gradient);
-  }
+/* Clases de utilidad para animaciones */
+.animate-fade-in {
+  animation: fadeIn var(--transition-normal) var(--ease-out);
 }
 
-/* Estados de carga */
+.animate-fade-in-up {
+  animation: fadeInUp var(--transition-normal) var(--ease-out);
+}
+
+.animate-fade-in-down {
+  animation: fadeInDown var(--transition-normal) var(--ease-out);
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft var(--transition-normal) var(--ease-out);
+}
+
+.animate-slide-in-right {
+  animation: slideInRight var(--transition-normal) var(--ease-out);
+}
+
+.animate-scale-in {
+  animation: scaleIn var(--transition-normal) var(--ease-bounce);
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-in;
+}
+
+.slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+/* Delays para animaciones escalonadas */
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-400 { animation-delay: 400ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* Estados de carga - Skeleton */
 .loading-skeleton {
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
-  animation: loading 1.5s infinite;
+  animation: shimmer 1.5s infinite;
   border-radius: var(--app-border-radius);
-}
-
-@keyframes loading {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  .loading-skeleton {
-    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
-    background-size: 200% 100%;
-  }
 }
 
 /* Estilos para QR Scanner */
@@ -454,6 +578,11 @@ ion-list ion-item:last-child {
   border-radius: var(--app-border-radius-lg);
   text-align: center;
   box-shadow: var(--app-shadow);
+  transition: var(--transition-transform);
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
 }
 
 .stat-number {
@@ -490,4 +619,61 @@ ion-list ion-item:last-child {
 .empty-state p {
   margin-bottom: var(--app-spacing-lg);
   line-height: 1.5;
+}
+
+/* Responsive design */
+@media (max-width: 576px) {
+  :root {
+    --app-spacing-md: 0.75rem;
+    --app-spacing-lg: 1rem;
+  }
+  
+  ion-card {
+    margin: var(--app-spacing-sm);
+  }
+  
+  ion-card-title {
+    font-size: 1.1rem;
+  }
+}
+
+/* Modo oscuro */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-background: #121212;
+    --app-surface: #1e1e1e;
+    --app-border: #333333;
+    --app-text-primary: #ffffff;
+    --app-text-secondary: #b3b3b3;
+    --app-text-muted: #666666;
+  }
+  
+  ion-card {
+    --background: var(--app-surface);
+    border: 1px solid var(--app-border);
+  }
+  
+  ion-item {
+    --background: var(--app-surface);
+  }
+  
+  .avatar-placeholder {
+    background: var(--app-gradient);
+  }
+
+  .loading-skeleton {
+    background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+    background-size: 200% 100%;
+  }
+}
+
+/* Mejoras para accesibilidad */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
