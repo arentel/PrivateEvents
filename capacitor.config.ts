@@ -1,9 +1,10 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'io.ionic.starter',
-  appName: 'discoteca-qr',
-  webDir: 'dist'
+  appId: 'com.privateevents.app',
+  appName: 'Private Events',
+  webDir: 'dist',
+  bundledWebRuntime: false
 };
 
 export default config;
