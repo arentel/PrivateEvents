@@ -360,14 +360,48 @@ const isGoogleApp = () => {
 const openInBrowser = () => {
   const currentUrl = window.location.href
   
-  // Intentar abrir en Chrome
-  window.location.href = `googlechrome://navigate?url=${encodeURIComponent(currentUrl)}`
-  
-  // Fallback después de 1 segundo por si Chrome no está instalado
-  setTimeout(() => {
-    // Intentar abrir en navegador predeterminado
-    window.open(currentUrl, '_system')
-  }, 1000)
+  // Para Android: usar intent para abrir en Chrome
+  if (isAndroid()) {
+    // Intent para abrir en Chrome específicamente
+    const chromeIntent = `intent://${currentUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`
+    
+    try {
+      window.location.href = chromeIntent
+    } catch (e) {
+      // Si falla, intentar con el esquema de Chrome directamente
+      try {
+        window.location.href = `googlechrome://${currentUrl.replace(/^https?:\/\//, '')}`
+      } catch (e2) {
+        // Último recurso: copiar enlace al portapapeles y mostrar mensaje
+        copyToClipboard(currentUrl)
+      }
+    }
+  } else {
+    // Para iOS u otros
+    window.open(currentUrl, '_blank')
+  }
+}
+
+// Función auxiliar para copiar al portapapeles
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    const toast = await toastController.create({
+      message: '📋 Enlace copiado. Pégalo en Chrome para continuar',
+      duration: 4000,
+      color: 'primary',
+      position: 'bottom'
+    })
+    await toast.present()
+  } catch (err) {
+    // Si falla copiar, mostrar el enlace
+    const alert = await alertController.create({
+      header: 'Copia este enlace',
+      message: `Copia y pega este enlace en Chrome:<br><br><small>${text}</small>`,
+      buttons: ['OK']
+    })
+    await alert.present()
+  }
 }
 
 // FUNCIÓN CORREGIDA: Cargar datos del ticket
