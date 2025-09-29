@@ -278,7 +278,6 @@ import {
   globeOutline,
   copyOutline
 } from 'ionicons/icons'
-import QRious from 'qrious'
 
 // Importaciones corregidas
 import { supabase } from '@/services/supabase.js'
@@ -391,6 +390,9 @@ const generateQRInCanvas = async () => {
   await nextTick()
   
   try {
+    // Importar QRious dinámicamente
+    const QRious = (await import('qrious')).default
+    
     new QRious({
       element: qrCanvas.value,
       value: ticketData.value.qrCode,
