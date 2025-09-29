@@ -1,578 +1,690 @@
 <template>
   <ion-page>
-    <ion-content>
+    <ion-content :fullscreen="true" class="scan-content">
       <div class="scan-container">
-        <!-- Header simple -->
-        <div class="page-header">
-          <h1>📱 Validar Entradas</h1>
+        
+        <!-- Header -->
+        <div class="page-header animate-fade-in-down">
+          <div class="header-content">
+            <h1>Escanear Entradas</h1>
+            <p>Valida las invitaciones al evento</p>
+          </div>
+          <ion-button 
+            fill="clear"
+            @click="refreshData"
+            class="refresh-btn"
+          >
+            <ion-icon :icon="refreshOutline"></ion-icon>
+          </ion-button>
         </div>
 
-        <!-- Scanner QR -->
-        <div class="scanner-section">
+        <!-- Selector de Evento -->
+        <div class="event-selector-section animate-fade-in">
           <div class="section-header">
-            <h3>Escanear Código QR</h3>
-          </div>
-          
-          <!-- Resultado de validación inline -->
-          <div v-if="validationResult.show" :class="['validation-inline', validationResult.type]">
-            <div class="validation-content">
-              <ion-icon :name="getResultIcon()" size="large"></ion-icon>
-              <div>
-                <h3>{{ validationResult.title }}</h3>
-                <p>{{ validationResult.message }}</p>
-                <div v-if="validationResult.guest" class="guest-info">
-                  <strong>{{ validationResult.guest.name }}</strong>
-                  <br>
-                  <small>{{ validationResult.guest.email }}</small>
-                </div>
-              </div>
-            </div>
+            <h3>Evento Activo</h3>
             <ion-button 
-              fill="clear" 
+              fill="outline" 
               size="small"
-              @click="validationResult.show = false"
-              class="close-inline-btn"
+              @click="showEventModal = true"
+              class="change-event-btn"
             >
-              <ion-icon name="close-outline"></ion-icon>
+              <ion-icon :icon="calendarOutline" slot="start"></ion-icon>
+              Cambiar Evento
             </ion-button>
           </div>
-
-          <div class="scanner-container">
-            <div v-if="!scannerActive && !isLoading" class="scanner-placeholder">
-              <ion-icon name="qr-code-outline" size="large"></ion-icon>
-              <p>Toca el botón para activar la cámara</p>
+          
+          <div v-if="selectedEvent" class="current-event-card">
+            <div class="event-badge">
+              <ion-icon :icon="calendarOutline"></ion-icon>
             </div>
-            
-            <div v-if="isLoading" class="loading-container">
-              <ion-spinner></ion-spinner>
-              <p>Iniciando cámara...</p>
-            </div>
-            
-            <div 
-              id="qr-reader" 
-              v-show="scannerActive"
-              class="qr-scanner"
-            ></div>
-            
-            <div v-if="cameraError" class="error-container">
-              <ion-icon name="warning-outline" color="danger" size="large"></ion-icon>
-              <p>{{ cameraError }}</p>
+            <div class="event-info">
+              <h4>{{ selectedEvent.name }}</h4>
+              <p class="event-date">
+                <ion-icon :icon="timeOutline"></ion-icon>
+                {{ formatDate(selectedEvent.date) }}
+              </p>
+              <p class="event-location" v-if="selectedEvent.location">
+                <ion-icon :icon="locationOutline"></ion-icon>
+                {{ selectedEvent.location }}
+              </p>
             </div>
           </div>
-          
-          <ion-button 
-            expand="block" 
-            @click="toggleScanner"
-            :color="scannerActive ? 'danger' : undefined"
-            :disabled="isLoading"
-            class="scanner-btn"
-          >
-            <ion-icon 
-              :name="scannerActive ? 'stop-circle-outline' : 'scan-outline'" 
-              slot="start"
-            ></ion-icon>
-            {{ isLoading ? 'Iniciando...' : (scannerActive ? 'Detener Cámara' : 'Activar Cámara') }}
-          </ion-button>
-          
-          <ion-button 
-            expand="block" 
-            fill="outline" 
-            @click="openManualQRInput"
-            class="manual-qr-btn"
-          >
-            <ion-icon name="create-outline" slot="start"></ion-icon>
-            Introducir Código Manualmente
-          </ion-button>
         </div>
 
-        <!-- POPUP DETALLADO -->
-        <div v-if="lastValidatedGuest" class="validation-detail-card">
-          <div class="detail-header">
-            <div class="success-icon">
-              <ion-icon name="checkmark-circle" color="success"></ion-icon>
+        <!-- Estadísticas en tiempo real -->
+        <div class="stats-section animate-fade-in-up delay-100">
+          <div class="stats-grid">
+            <div class="stat-card stat-total">
+              <div class="stat-icon">
+                <ion-icon :icon="peopleOutline"></ion-icon>
+              </div>
+              <div class="stat-content">
+                <div class="stat-value">{{ stats.total }}</div>
+                <div class="stat-label">Total Invitados</div>
+              </div>
             </div>
-            <div class="detail-title">
-              <h2>✅ Entrada Validada</h2>
-              <p>Acceso confirmado exitosamente</p>
+
+            <div class="stat-card stat-scanned">
+              <div class="stat-icon">
+                <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
+              </div>
+              <div class="stat-content">
+                <div class="stat-value">{{ stats.scanned }}</div>
+                <div class="stat-label">Han Entrado</div>
+              </div>
             </div>
-            <ion-button 
-              fill="clear" 
-              size="small"
-              @click="clearLastValidated"
-              class="close-detail-btn"
-            >
-              <ion-icon name="close-outline"></ion-icon>
-            </ion-button>
+
+            <div class="stat-card stat-pending">
+              <div class="stat-icon">
+                <ion-icon :icon="qrCodeOutline"></ion-icon>
+              </div>
+              <div class="stat-content">
+                <div class="stat-value">{{ stats.pending }}</div>
+                <div class="stat-label">Pendientes</div>
+              </div>
+            </div>
+
+            <div class="stat-card stat-progress">
+              <div class="stat-icon">
+                <ion-icon :icon="statsChartOutline"></ion-icon>
+              </div>
+              <div class="stat-content">
+                <div class="stat-value">{{ progressPercentage }}%</div>
+                <div class="stat-label">Asistencia</div>
+              </div>
+            </div>
           </div>
+        </div>
 
-          <div class="detail-content">
-            <!-- Avatar y nombre principal -->
-            <div class="guest-main-info">
-              <div class="guest-avatar-large">
-                {{ lastValidatedGuest.name.charAt(0).toUpperCase() }}
-              </div>
-              <div class="guest-primary">
-                <h3>{{ lastValidatedGuest.name }}</h3>
-                <p class="guest-email">{{ lastValidatedGuest.email }}</p>
-              </div>
-            </div>
-
-            <!-- Información del evento -->
-            <div class="event-details-section">
-              <div class="section-title">
-                <ion-icon name="calendar-outline"></ion-icon>
-                <span>Detalles del Evento</span>
-              </div>
-              
-              <div class="detail-grid">
-                <div class="detail-item">
-                  <ion-icon name="star-outline" color="primary"></ion-icon>
-                  <div>
-                    <span class="detail-label">Evento</span>
-                    <span class="detail-value">{{ lastValidatedGuest.event_name || 'Evento Principal' }}</span>
-                  </div>
-                </div>
-                
-                <div class="detail-item">
-                  <ion-icon name="location-outline" color="primary"></ion-icon>
-                  <div>
-                    <span class="detail-label">Ubicación</span>
-                    <span class="detail-value">Salón Principal</span>
-                  </div>
-                </div>
-
-                <div class="detail-item" v-if="lastValidatedGuest.phone">
-                  <ion-icon name="call-outline" color="primary"></ion-icon>
-                  <div>
-                    <span class="detail-label">Teléfono</span>
-                    <span class="detail-value">{{ lastValidatedGuest.phone }}</span>
-                  </div>
-                </div>
-
-                <div class="detail-item" v-if="lastValidatedGuest.table_number">
-                  <ion-icon name="restaurant-outline" color="primary"></ion-icon>
-                  <div>
-                    <span class="detail-label">Mesa</span>
-                    <span class="detail-value">Mesa {{ lastValidatedGuest.table_number }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Información de acceso -->
-            <div class="access-info-section">
-              <div class="section-title">
-                <ion-icon name="checkmark-circle-outline"></ion-icon>
-                <span>Información de Acceso</span>
-              </div>
-              
-              <div class="access-timeline">
-                <div class="timeline-item completed">
-                  <div class="timeline-icon">
-                    <ion-icon name="qr-code-outline"></ion-icon>
-                  </div>
-                  <div class="timeline-content">
-                    <h4>QR Generado</h4>
-                    <p>{{ formatDateTime(lastValidatedGuest.created_at || '') }}</p>
-                  </div>
-                </div>
-
-                <div class="timeline-item completed" v-if="lastValidatedGuest.sent_at">
-                  <div class="timeline-icon">
-                    <ion-icon name="mail-outline"></ion-icon>
-                  </div>
-                  <div class="timeline-content">
-                    <h4>Email Enviado</h4>
-                    <p>{{ formatDateTime(lastValidatedGuest.sent_at || '') }}</p>
-                  </div>
-                </div>
-
-                <div class="timeline-item completed current">
-                  <div class="timeline-icon">
-                    <ion-icon name="checkmark-circle"></ion-icon>
-                  </div>
-                  <div class="timeline-content">
-                    <h4>Entrada Validada</h4>
-                    <p>{{ formatDateTime(lastValidatedGuest.entered_at || '') }}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Botones de acción -->
-            <div class="detail-actions">
-              <ion-button 
-                expand="block" 
-                @click="clearLastValidated"
-                class="continue-btn"
+        <!-- Scanner Section -->
+        <div class="scanner-section animate-fade-in-up delay-200">
+          <div class="scanner-card">
+            <div class="scanner-header">
+              <h3>
+                <ion-icon :icon="qrCodeOutline"></ion-icon>
+                Escáner QR
+              </h3>
+              <ion-toggle 
+                v-model="scannerActive" 
+                @ionChange="toggleScanner"
+                :disabled="!selectedEvent"
               >
-                <ion-icon name="scan-outline" slot="start"></ion-icon>
-                Continuar Escaneando
+                {{ scannerActive ? 'Activo' : 'Inactivo' }}
+              </ion-toggle>
+            </div>
+
+            <div v-if="!selectedEvent" class="scanner-warning">
+              <ion-icon :icon="alertCircleOutline"></ion-icon>
+              <p>Selecciona un evento para activar el escáner</p>
+            </div>
+
+            <div v-else-if="scannerActive" class="scanner-active">
+              <!-- Video del escáner -->
+              <div class="scanner-viewport">
+                <video 
+                  ref="videoElement" 
+                  class="scanner-video"
+                  autoplay 
+                  playsinline
+                ></video>
+                <div class="scanner-overlay">
+                  <div class="scanner-frame"></div>
+                  <p class="scanner-instruction">Coloca el QR dentro del marco</p>
+                </div>
+              </div>
+
+              <!-- Estado del escáner -->
+              <div class="scanner-status" :class="scanStatus">
+                <ion-spinner v-if="scanning" name="crescent"></ion-spinner>
+                <ion-icon v-else-if="scanStatus === 'success'" :icon="checkmarkCircleOutline"></ion-icon>
+                <ion-icon v-else-if="scanStatus === 'error'" :icon="closeCircleOutline"></ion-icon>
+                <ion-icon v-else :icon="qrCodeOutline"></ion-icon>
+                <span>{{ scanMessage }}</span>
+              </div>
+            </div>
+
+            <div v-else class="scanner-inactive">
+              <div class="scanner-icon">
+                <ion-icon :icon="qrCodeOutline"></ion-icon>
+              </div>
+              <p>Activa el escáner para validar entradas</p>
+              <ion-button 
+                @click="activateScanner" 
+                :disabled="!selectedEvent"
+                class="activate-btn"
+              >
+                <ion-icon :icon="scanOutline" slot="start"></ion-icon>
+                Activar Escáner
               </ion-button>
             </div>
           </div>
-        </div>
 
-        <!-- Estadísticas -->
-        <div class="stats-section">
-          <div class="section-header">
-            <h3>Estadísticas de Validación</h3>
-          </div>
-          
-          <div class="event-stats">
-            <div class="stat-item">
-              <span class="stat-value">{{ totalValidations }}</span>
-              <span class="stat-label">Total</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value">{{ successfulEntries }}</span>
-              <span class="stat-label">Exitosas</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value">{{ rejectedEntries }}</span>
-              <span class="stat-label">Rechazadas</span>
-            </div>
-          </div>
-          
-          <ion-button 
-            expand="block" 
-            fill="outline" 
-            size="small"
-            @click="clearValidationStats"
-            class="clear-stats-btn"
-          >
-            <ion-icon name="refresh-outline" slot="start"></ion-icon>
-            Limpiar Estadísticas
-          </ion-button>
-        </div>
-
-        <!-- Búsqueda manual -->
-        <div class="search-section">
-          <div class="section-header">
-            <h3>Búsqueda Manual</h3>
-          </div>
-          
-          <div class="form-content">
-            <ion-item>
-              <ion-label position="stacked">Buscar por Nombre o Email</ion-label>
-              <ion-input
-                v-model="manualSearch"
-                placeholder="Introduce nombre o email..."
-                @keyup.enter="searchGuest"
-              ></ion-input>
-            </ion-item>
-            
+          <!-- Opciones adicionales -->
+          <div class="scanner-options">
             <ion-button 
-              expand="block" 
-              @click="searchGuest"
-              :disabled="!manualSearch.trim()"
-              class="search-btn"
+              expand="block"
+              fill="outline"
+              @click="showManualEntryModal = true"
+              :disabled="!selectedEvent"
+              class="manual-entry-btn"
             >
-              <ion-icon name="search-outline" slot="start"></ion-icon>
-              Buscar y Validar
+              <ion-icon :icon="createOutline" slot="start"></ion-icon>
+              Entrada Manual
             </ion-button>
           </div>
         </div>
 
-        <!-- Entradas recientes -->
-        <div class="recent-section" v-if="recentEntriesDisplay.length > 0">
+        <!-- Últimos escaneos -->
+        <div v-if="recentScans.length > 0" class="recent-scans-section animate-fade-in-up delay-300">
           <div class="section-header">
-            <h3>Entradas Recientes</h3>
+            <h3>Últimos Escaneos</h3>
+            <ion-button 
+              fill="clear" 
+              size="small"
+              @click="clearRecentScans"
+            >
+              Limpiar
+            </ion-button>
           </div>
-          
-          <div class="guests-list">
-            <div v-for="entry in recentEntriesDisplay" :key="entry.id" class="guest-item scanned">
-              <div class="guest-avatar">
-                {{ entry.name.charAt(0).toUpperCase() }}
+
+          <div class="recent-scans-list">
+            <div 
+              v-for="scan in recentScans" 
+              :key="scan.id"
+              class="scan-item"
+              :class="scan.status"
+            >
+              <div class="scan-icon">
+                <ion-icon 
+                  v-if="scan.status === 'success'" 
+                  :icon="checkmarkCircleOutline"
+                  color="success"
+                ></ion-icon>
+                <ion-icon 
+                  v-else-if="scan.status === 'duplicate'" 
+                  :icon="alertCircleOutline"
+                  color="warning"
+                ></ion-icon>
+                <ion-icon 
+                  v-else 
+                  :icon="closeCircleOutline"
+                  color="danger"
+                ></ion-icon>
               </div>
-              
-              <div class="guest-info">
-                <h4>{{ entry.name }}</h4>
-                <p>{{ entry.email }}</p>
-                <p class="timestamp">{{ formatDateTime(entry.entered_at || '') }}</p>
+
+              <div class="scan-info">
+                <h4>{{ scan.guestName }}</h4>
+                <p class="scan-time">{{ formatTime(scan.timestamp) }}</p>
+                <p class="scan-status-text">{{ scan.message }}</p>
               </div>
-              
-              <div class="guest-status">
-                <span class="status-badge success">
-                  VALIDADO
-                </span>
-              </div>
+
+              <ion-badge 
+                :color="scan.status === 'success' ? 'success' : scan.status === 'duplicate' ? 'warning' : 'danger'"
+              >
+                {{ scan.status === 'success' ? 'VÁLIDO' : scan.status === 'duplicate' ? 'DUPLICADO' : 'ERROR' }}
+              </ion-badge>
             </div>
           </div>
         </div>
 
-        <!-- Estado vacío -->
-        <div v-if="recentEntriesDisplay.length === 0" class="empty-state">
-          <ion-icon name="people-outline" size="large"></ion-icon>
-          <h3>No hay entradas registradas</h3>
-          <p>Las validaciones exitosas aparecerán aquí</p>
+        <!-- Lista de invitados escaneados -->
+        <div v-if="scannedGuests.length > 0" class="scanned-guests-section animate-fade-in-up delay-400">
+          <div class="section-header">
+            <h3>Invitados en el Evento ({{ scannedGuests.length }})</h3>
+            <ion-searchbar
+              v-model="searchTerm"
+              placeholder="Buscar..."
+              :debounce="300"
+              class="compact-search"
+            ></ion-searchbar>
+          </div>
+
+          <div class="scanned-guests-list">
+            <div 
+              v-for="guest in filteredScannedGuests" 
+              :key="guest.id"
+              class="guest-item"
+            >
+              <div class="guest-avatar">
+                {{ guest.name.charAt(0).toUpperCase() }}
+              </div>
+
+              <div class="guest-info">
+                <h4>{{ guest.name }}</h4>
+                <p class="guest-email">
+                  <ion-icon :icon="mailOutline"></ion-icon>
+                  {{ guest.email }}
+                </p>
+                <p class="guest-timestamp">
+                  <ion-icon :icon="timeOutline"></ion-icon>
+                  Entrada: {{ formatDateTime(guest.entered_at) }}
+                </p>
+              </div>
+
+              <ion-badge color="success">
+                <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
+                DENTRO
+              </ion-badge>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ========================================
+           MODAL: SELECCIONAR EVENTO
+           ======================================== -->
+      <div v-if="showEventModal" class="custom-modal-overlay" @click="showEventModal = false">
+        <div class="custom-modal" @click.stop>
+          <div class="custom-modal-header">
+            <h2>Seleccionar Evento</h2>
+            <button class="close-modal-btn" @click="showEventModal = false">
+              <ion-icon :icon="closeOutline"></ion-icon>
+            </button>
+          </div>
+          
+          <div class="custom-modal-content">
+            <div class="events-list">
+              <div 
+                v-for="event in events" 
+                :key="event.id"
+                class="event-option"
+                :class="{ 'selected': selectedEvent?.id === event.id }"
+                @click="selectEvent(event)"
+              >
+                <div class="event-option-icon">
+                  <ion-icon :icon="calendarOutline"></ion-icon>
+                </div>
+                <div class="event-option-info">
+                  <h4>{{ event.name }}</h4>
+                  <p>{{ formatDate(event.date) }}</p>
+                </div>
+                <ion-icon 
+                  v-if="selectedEvent?.id === event.id"
+                  :icon="checkmarkCircleOutline" 
+                  class="check-icon"
+                  color="success"
+                ></ion-icon>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </ion-content>
 
-    <!-- Modal para input manual de QR -->
-    <ion-modal :is-open="showManualQR" @did-dismiss="showManualQR = false">
-      <ion-header>
-        <ion-toolbar>
-          <ion-title>Código QR Manual</ion-title>
-          <ion-buttons slot="end">
-            <ion-button @click="showManualQR = false">
-              <ion-icon name="close-outline"></ion-icon>
-            </ion-button>
-          </ion-buttons>
-        </ion-toolbar>
-      </ion-header>
-      
-      <ion-content>
-        <div class="modal-content">
-          <ion-item>
-            <ion-label position="stacked">Código QR</ion-label>
-            <ion-textarea 
-              v-model="manualQRCode"
-              placeholder="Pega aquí el código QR completo..."
-              :rows="6"
-            ></ion-textarea>
-          </ion-item>
+      <!-- ========================================
+           MODAL: ENTRADA MANUAL
+           ======================================== -->
+      <div v-if="showManualEntryModal" class="custom-modal-overlay" @click="closeManualEntryModal">
+        <div class="custom-modal" @click.stop>
+          <div class="custom-modal-header">
+            <h2>Entrada Manual</h2>
+            <button class="close-modal-btn" @click="closeManualEntryModal">
+              <ion-icon :icon="closeOutline"></ion-icon>
+            </button>
+          </div>
           
+          <div class="custom-modal-content">
+            <p class="modal-description">Busca al invitado por nombre o email</p>
+
+            <div class="form-group">
+              <label>Buscar invitado</label>
+              <input
+                v-model="manualSearchTerm"
+                type="text"
+                placeholder="Nombre o email..."
+                class="form-input"
+                @input="searchGuestsForManualEntry"
+              />
+            </div>
+
+            <div v-if="manualSearchResults.length > 0" class="search-results">
+              <div 
+                v-for="guest in manualSearchResults" 
+                :key="guest.id"
+                class="result-item"
+                :class="{ 'disabled': guest.has_entered }"
+                @click="selectGuestForManualEntry(guest)"
+              >
+                <div class="result-avatar">
+                  {{ guest.name.charAt(0).toUpperCase() }}
+                </div>
+                <div class="result-info">
+                  <h4>{{ guest.name }}</h4>
+                  <p>{{ guest.email }}</p>
+                </div>
+                <ion-badge 
+                  :color="guest.has_entered ? 'warning' : 'success'"
+                >
+                  {{ guest.has_entered ? 'YA ENTRÓ' : 'PENDIENTE' }}
+                </ion-badge>
+              </div>
+            </div>
+
+            <div v-else-if="manualSearchTerm.length > 2" class="no-results">
+              <ion-icon :icon="searchOutline"></ion-icon>
+              <p>No se encontraron invitados</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========================================
+           MODAL: RESULTADO DEL ESCANEO
+           ======================================== -->
+      <div v-if="showResultModal" class="custom-modal-overlay result-modal-overlay">
+        <div class="custom-modal result-modal" :class="resultModalType" @click="closeResultModal">
+          <div class="result-icon">
+            <ion-icon 
+              v-if="resultModalType === 'success'" 
+              :icon="checkmarkCircleOutline"
+            ></ion-icon>
+            <ion-icon 
+              v-else-if="resultModalType === 'duplicate'" 
+              :icon="alertCircleOutline"
+            ></ion-icon>
+            <ion-icon 
+              v-else 
+              :icon="closeCircleOutline"
+            ></ion-icon>
+          </div>
+
+          <div class="result-content">
+            <h2>{{ resultModalTitle }}</h2>
+            <p>{{ resultModalMessage }}</p>
+            <p v-if="resultModalGuestName" class="guest-name">{{ resultModalGuestName }}</p>
+            <p v-if="resultModalTimestamp" class="timestamp">{{ resultModalTimestamp }}</p>
+          </div>
+
           <ion-button 
-            expand="block" 
-            @click="validateManualQR"
-            :disabled="!manualQRCode.trim()"
-            class="validate-btn"
+            expand="block"
+            @click="closeResultModal"
+            :color="resultModalType === 'success' ? 'success' : resultModalType === 'duplicate' ? 'warning' : 'danger'"
           >
-            <ion-icon name="checkmark-outline" slot="start"></ion-icon>
-            Validar Código
+            Continuar
           </ion-button>
         </div>
-      </ion-content>
-    </ion-modal>
+      </div>
+
+    </ion-content>
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, onActivated } from 'vue'
+import { ref, computed, onMounted, onUnmounted, onActivated, onDeactivated, watch, nextTick } from 'vue'
 import {
   IonPage,
-  IonHeader,
-  IonToolbar,
-  IonTitle,
   IonContent,
-  IonCard,
-  IonCardHeader,
-  IonCardTitle,
-  IonCardContent,
   IonButton,
   IonIcon,
+  IonBadge,
+  IonToggle,
+  IonSearchbar,
   IonSpinner,
-  IonItem,
-  IonLabel,
-  IonInput,
-  IonTextarea,
-  IonList,
-  IonAvatar,
-  IonChip,
-  IonRow,
-  IonCol,
-  IonModal,
-  IonButtons,
-  toastController
+  toastController,
+  alertController
 } from '@ionic/vue'
 import {
   qrCodeOutline,
-  stopCircleOutline,
-  scanOutline,
-  warningOutline,
-  createOutline,
-  searchOutline,
-  refreshOutline,
   peopleOutline,
-  closeOutline,
-  checkmarkOutline,
   checkmarkCircleOutline,
   closeCircleOutline,
+  alertCircleOutline,
+  timeOutline,
   calendarOutline,
   locationOutline,
-  callOutline,
-  restaurantOutline,
+  closeOutline,
+  refreshOutline,
+  scanOutline,
+  createOutline,
   mailOutline,
-  starOutline,
-  checkmarkCircle
+  searchOutline,
+  statsChartOutline
 } from 'ionicons/icons'
-import { Html5Qrcode } from 'html5-qrcode'
 // @ts-ignore
 import { supabase } from '@/services/supabase.js'
 // @ts-ignore
-import { audioFeedback } from '@/services/audio.js'
+import eventsStore from '@/stores/events'
+import { useHaptics } from '@/composables/useHaptics'
+import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library'
 
-// Interfaces de TypeScript
-interface Guest {
-  id: string
-  name: string
-  email: string
-  phone?: string
-  event_id: string
-  event_name: string
-  qr_sent: boolean
-  has_entered: boolean
-  sent_at?: string
-  entered_at?: string
-  table_number?: string
-  created_at: string
-}
+// ========================================
+// COMPOSABLES
+// ========================================
+const { vibrate } = useHaptics()
 
-interface ValidationResult {
-  show: boolean
-  type: 'success' | 'warning' | 'error'
-  title: string
-  message: string
-  guest: Guest | null
-}
-
-interface QRData {
-  id: string
-  name: string
-  email: string
-  event_name?: string
-  eventId?: string
-  eventName?: string
-  timestamp?: string
-  date?: string
-  version?: string
-}
-
-// Estado del scanner
+// ========================================
+// ESTADOS
+// ========================================
+const loading = ref(true)
 const scannerActive = ref(false)
-const isLoading = ref(false)
-const cameraError = ref('')
-const html5QrCode = ref<Html5Qrcode | null>(null)
+const scanning = ref(false)
+const scanStatus = ref<'idle' | 'scanning' | 'success' | 'error' | 'duplicate'>('idle')
+const scanMessage = ref('Listo para escanear')
 
-// Estado de validación
-const totalValidations = ref(0)
-const successfulEntries = ref(0)
-const rejectedEntries = ref(0)
-const recentEntries = ref<Guest[]>([])
+// Modales
+const showEventModal = ref(false)
+const showManualEntryModal = ref(false)
+const showResultModal = ref(false)
 
-// Estado para el popup detallado
-const lastValidatedGuest = ref<Guest | null>(null)
+// Datos
+const guests = ref<any[]>([])
+const scannedGuests = ref<any[]>([])
+const recentScans = ref<any[]>([])
+const searchTerm = ref('')
+const manualSearchTerm = ref('')
+const manualSearchResults = ref<any[]>([])
 
-// Estado de inputs manuales
-const showManualQR = ref(false)
-const manualQRCode = ref('')
-const manualSearch = ref('')
+// Scanner
+const videoElement = ref<HTMLVideoElement | null>(null)
+let codeReader: BrowserMultiFormatReader | null = null
+let scannerStream: MediaStream | null = null
 
-// Estado del resultado de validación
-const validationResult = ref<ValidationResult>({
-  show: false,
-  type: 'success',
-  title: '',
-  message: '',
-  guest: null
+// Modal de resultado
+const resultModalType = ref<'success' | 'duplicate' | 'error'>('success')
+const resultModalTitle = ref('')
+const resultModalMessage = ref('')
+const resultModalGuestName = ref('')
+const resultModalTimestamp = ref('')
+
+// ========================================
+// COMPUTED PROPERTIES
+// ========================================
+const events = computed(() => eventsStore.events)
+const selectedEvent = computed(() => eventsStore.currentEvent)
+
+// Estadísticas
+const stats = computed(() => {
+  const total = guests.value.length
+  const scanned = guests.value.filter(g => g.has_entered).length
+  const pending = total - scanned
+
+  return { total, scanned, pending }
 })
 
-// Computed properties
-const recentEntriesDisplay = computed(() => 
-  recentEntries.value.slice(0, 10).sort((a, b) => 
-    new Date(b.entered_at || '').getTime() - new Date(a.entered_at || '').getTime()
+const progressPercentage = computed(() => {
+  if (stats.value.total === 0) return 0
+  return Math.round((stats.value.scanned / stats.value.total) * 100)
+})
+
+// Filtrar invitados escaneados
+const filteredScannedGuests = computed(() => {
+  if (!searchTerm.value.trim()) return scannedGuests.value
+
+  const search = searchTerm.value.toLowerCase().trim()
+  return scannedGuests.value.filter(guest =>
+    guest.name.toLowerCase().includes(search) ||
+    guest.email.toLowerCase().includes(search)
   )
-)
+})
 
-// Función para limpiar el último validado
-const clearLastValidated = () => {
-  lastValidatedGuest.value = null
-}
+// ========================================
+// FUNCIONES DE CARGA DE DATOS
+// ========================================
+const loadGuests = async () => {
+  if (!selectedEvent.value) {
+    guests.value = []
+    scannedGuests.value = []
+    loading.value = false
+    return
+  }
 
-// Función para cargar entradas recientes desde la base de datos
-const loadRecentEntries = async () => {
+  loading.value = true
+
   try {
-    console.log('Cargando entradas recientes desde la base de datos...')
-    
-    const today = new Date().toISOString().split('T')[0]
-    
-    const { data: entries, error } = await supabase
+    const { data, error } = await supabase
       .from('guests')
       .select('*')
-      .eq('has_entered', true)
-      .gte('entered_at', `${today}T00:00:00`)
-      .lte('entered_at', `${today}T23:59:59`)
-      .order('entered_at', { ascending: false })
-      .limit(20)
+      .eq('event_id', selectedEvent.value.id)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    guests.value = data || []
+    scannedGuests.value = guests.value.filter(g => g.has_entered)
     
-    if (error) {
-      console.error('Error loading recent entries:', error)
-      return
-    }
-    
-    recentEntries.value = entries || []
-    console.log('Entradas recientes cargadas:', recentEntries.value.length)
+    console.log('✅ Invitados cargados:', guests.value.length)
+    console.log('📊 Ya escaneados:', scannedGuests.value.length)
     
   } catch (error) {
-    console.error('Error cargando entradas recientes:', error)
+    console.error('Error cargando invitados:', error)
+    await vibrate('error')
+    showToast('Error al cargar invitados', 'danger')
+  } finally {
+    loading.value = false
   }
 }
 
-// Función para cargar estadísticas del día
-const loadTodayStats = async () => {
+const refreshData = async () => {
+  await vibrate('light')
+  await loadGuests()
+  showToast('Datos actualizados', 'success')
+}
+
+// ========================================
+// FUNCIONES DE EVENTOS
+// ========================================
+const selectEvent = async (event: any) => {
+  // Detener scanner si está activo
+  if (scannerActive.value) {
+    await stopScanner()
+  }
+
+  eventsStore.setCurrentEvent(event.id)
+  showEventModal.value = false
+  await vibrate('light')
+  recentScans.value = []
+  await loadGuests()
+}
+
+// ========================================
+// FUNCIONES DEL SCANNER (CORREGIDAS)
+// ========================================
+const initializeScanner = async () => {
   try {
-    const today = new Date().toISOString().split('T')[0]
-    
-    const { data: todayEntries, error: entriesError } = await supabase
-      .from('guests')
-      .select('has_entered, entered_at')
-      .eq('has_entered', true)
-      .gte('entered_at', `${today}T00:00:00`)
-      .lte('entered_at', `${today}T23:59:59`)
-    
-    if (entriesError) {
-      console.error('Error loading today stats:', entriesError)
-      return
-    }
-    
-    const todaySuccessful = (todayEntries || []).length
-    successfulEntries.value = todaySuccessful
-    
-    console.log('Estadísticas del día cargadas:', { successful: todaySuccessful })
-    
+    codeReader = new BrowserMultiFormatReader()
+    console.log('✅ Scanner inicializado')
   } catch (error) {
-    console.error('Error loading today stats:', error)
+    console.error('❌ Error inicializando scanner:', error)
+    throw error
   }
 }
 
-// Funciones utilitarias
-const showToast = async (message: string, color: string = 'primary') => {
-  const toast = await toastController.create({
-    message,
-    duration: 3000,
-    color,
-    position: 'top'
-  })
-  await toast.present()
+const startScanner = async () => {
+  if (!selectedEvent.value) {
+    showToast('Selecciona un evento primero', 'warning')
+    return
+  }
+
+  if (!codeReader) {
+    await initializeScanner()
+  }
+
+  try {
+    // Solicitar permisos de cámara
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment' }
+    })
+
+    scannerStream = stream
+
+    await nextTick()
+
+    if (videoElement.value && codeReader) {
+      videoElement.value.srcObject = stream
+
+      // CORRECCIÓN: Usar decodeFromVideoDevice
+      const videoInputDevices = await codeReader.listVideoInputDevices()
+      
+      if (videoInputDevices.length > 0) {
+        // Usar la primera cámara disponible (o la trasera si está disponible)
+        const selectedDevice = videoInputDevices.find(device => 
+          device.label.toLowerCase().includes('back') || 
+          device.label.toLowerCase().includes('rear') ||
+          device.label.toLowerCase().includes('trasera')
+        ) || videoInputDevices[0]
+
+        // Decodificar continuamente
+        codeReader.decodeFromVideoDevice(
+          selectedDevice.deviceId,
+          videoElement.value,
+          (result: any, error: any) => {
+            if (result) {
+              handleScan(result.getText())
+            }
+            
+            if (error && !(error instanceof NotFoundException)) {
+              console.error('Error del scanner:', error)
+            }
+          }
+        )
+      }
+
+      scannerActive.value = true
+      scanStatus.value = 'scanning'
+      scanMessage.value = 'Escaneando...'
+      console.log('✅ Scanner activo')
+      await vibrate('light')
+    }
+  } catch (error: any) {
+    console.error('❌ Error activando scanner:', error)
+    
+    if (error.name === 'NotAllowedError') {
+      showToast('Permiso de cámara denegado', 'danger')
+    } else if (error.name === 'NotFoundError') {
+      showToast('No se encontró cámara', 'danger')
+    } else {
+      showToast('Error al activar el scanner', 'danger')
+    }
+    
+    await vibrate('error')
+    scannerActive.value = false
+  }
 }
 
-const formatDateTime = (dateString: string) => {
-  if (!dateString) return ''
-  return new Date(dateString).toLocaleString('es-ES', {
-    timeZone: 'Europe/Madrid',
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+const stopScanner = async () => {
+  try {
+    if (codeReader) {
+      codeReader.reset()
+    }
+
+    if (scannerStream) {
+      scannerStream.getTracks().forEach(track => track.stop())
+      scannerStream = null
+    }
+
+    if (videoElement.value) {
+      videoElement.value.srcObject = null
+    }
+
+    scannerActive.value = false
+    scanStatus.value = 'idle'
+    scanMessage.value = 'Scanner detenido'
+    console.log('⏹️ Scanner detenido')
+  } catch (error) {
+    console.error('Error deteniendo scanner:', error)
+  }
 }
 
-const getCurrentMadridTime = () => {
-  return new Date().toLocaleString('en-CA', {
-    timeZone: 'Europe/Madrid',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  }).replace(/(\d{4})-(\d{2})-(\d{2}), (\d{2}):(\d{2}):(\d{2})/, '$1-$2-$3T$4:$5:$6')
-}
-
-// Función para alternar el scanner
 const toggleScanner = async () => {
   if (scannerActive.value) {
     await stopScanner()
@@ -581,426 +693,464 @@ const toggleScanner = async () => {
   }
 }
 
-// Función para iniciar el scanner
-const startScanner = async () => {
-  if (scannerActive.value) return
+const activateScanner = async () => {
+  await startScanner()
+}
+
+// ========================================
+// PROCESAMIENTO DEL QR (CORREGIDO)
+// ========================================
+const handleScan = async (qrData: string) => {
+  if (scanning.value) {
+    console.log('⏳ Ya hay un escaneo en proceso, ignorando...')
+    return
+  }
+
+  scanning.value = true
+  scanStatus.value = 'scanning'
+  scanMessage.value = 'Procesando...'
 
   try {
-    isLoading.value = true
-    cameraError.value = ''
-    
-    // Importación dinámica - solo cuando el usuario activa el scanner
-    console.log('Cargando librerías del scanner...')
-    const { Html5Qrcode } = await import('html5-qrcode')
-    
-    html5QrCode.value = new Html5Qrcode('qr-reader')
-    
-    const config = {
-      fps: 10,
-      qrbox: { width: 250, height: 250 },
-      aspectRatio: 1.0
-    }
+    console.log('📱 QR escaneado:', qrData)
+    await vibrate('light')
 
-    await html5QrCode.value.start(
-      { facingMode: 'environment' },
-      config,
-      onScanSuccess,
-      onScanFailure
-    )
-
-    scannerActive.value = true
-    console.log('Scanner iniciado correctamente')
-    
-  } catch (error) {
-    console.error('Error iniciando scanner:', error)
-    cameraError.value = 'Error al acceder a la cámara'
-  } finally {
-    isLoading.value = false
-  }
-}
-
-const getErrorMessage = (error: any) => {
-  const message = error.message || error.toString()
-  
-  if (message.includes('Permission denied')) {
-    return 'Permiso de cámara denegado. Activa el permiso en configuración.'
-  }
-  if (message.includes('NotFoundError')) {
-    return 'No se encontró cámara disponible.'
-  }
-  if (message.includes('NotAllowedError')) {
-    return 'Acceso a cámara no permitido.'
-  }
-  if (message.includes('NotSupportedError')) {
-    return 'Tu navegador no soporta esta función.'
-  }
-  if (message.includes('OverconstrainedError')) {
-    return 'Configuración de cámara no compatible.'
-  }
-  
-  return 'Error al acceder a la cámara: ' + message
-}
-
-const stopScanner = async () => {
-  try {
-    if (html5QrCode.value && scannerActive.value) {
-      await html5QrCode.value.stop()
-      html5QrCode.value = null
-      scannerActive.value = false
-      cameraError.value = ''
-      showToast('Cámara desactivada', 'medium')
-    }
-  } catch (error) {
-    console.error('Error stopping scanner:', error)
-    scannerActive.value = false
-    html5QrCode.value = null
-  }
-}
-
-const onScanSuccess = async (decodedText: string) => {
-  console.log('QR Code scanned:', decodedText)
-  
-  if (html5QrCode.value && scannerActive.value) {
+    // Parsear datos del QR
+    let guestData: any
     try {
-      await html5QrCode.value.stop()
-      scannerActive.value = false
-      
-      await validateScannedCode(decodedText)
-      
-      setTimeout(async () => {
-        if (!scannerActive.value) {
-          await startScanner()
-        }
-      }, 3000)
-      
-    } catch (error) {
-      console.log('Error restarting scanner:', error)
+      guestData = JSON.parse(qrData)
+    } catch {
+      throw new Error('QR inválido: formato incorrecto')
     }
-  }
-}
 
-const onScanFailure = (error: string) => {
-  // No hacer nada - errores de escaneo son normales
-}
-
-const openManualQRInput = () => {
-  showManualQR.value = true
-  manualQRCode.value = ''
-}
-
-const validateManualQR = async () => {
-  if (!manualQRCode.value.trim()) return
-  
-  await validateScannedCode(manualQRCode.value.trim())
-  showManualQR.value = false
-  manualQRCode.value = ''
-}
-
-// FUNCIÓN PRINCIPAL PARA VALIDAR QR CON AUDIO FEEDBACK
-const validateScannedCode = async (qrCode: string) => {
-  totalValidations.value++
-  
-  try {
-    console.log('Validating QR code:', qrCode.substring(0, 100) + '...')
-    
-    // Reproducir sonido de escaneo al comenzar la validación
-    audioFeedback.playFeedback('scan')
-    
-    let guestData: QRData | null = null
-    
-    try {
-      guestData = JSON.parse(qrCode) as QRData
-      console.log('QR decoded as direct JSON:', guestData)
-    } catch (jsonError) {
-      console.log('QR is not direct JSON, trying encrypted format...')
-      
-      try {
-        // @ts-ignore
-        const qrModule = await import('../services/qr.js')
-        guestData = await qrModule.validateQRCode(qrCode)
-        console.log('QR decoded as encrypted:', guestData)
-      } catch (encryptError) {
-        console.error('Failed to decode QR in both formats:', { jsonError, encryptError })
-      }
+    // Validar que tenga los campos necesarios
+    if (!guestData.id || !guestData.email) {
+      throw new Error('QR inválido: faltan datos')
     }
-    
-    if (!guestData) {
-      // SONIDO DE ERROR
-      audioFeedback.playFeedback('error')
-      showValidationResult('error', '❌ CÓDIGO NO VÁLIDO', 'El código QR no es válido o está corrupto')
-      rejectedEntries.value++
-      return
+
+    // CORRECCIÓN: Verificar que selectedEvent.value no sea null
+    if (!selectedEvent.value) {
+      throw new Error('No hay evento seleccionado')
     }
-    
-    if (!guestData.id || !guestData.name || !guestData.email) {
-      console.error('QR missing required fields:', guestData)
-      // SONIDO DE ERROR
-      audioFeedback.playFeedback('error')
-      showValidationResult('error', '❌ CÓDIGO INCOMPLETO', 'El código QR no contiene la información necesaria')
-      rejectedEntries.value++
-      return
+
+    // Validar evento
+    if (guestData.eventId !== selectedEvent.value.id) {
+      throw new Error('Este QR no pertenece al evento actual')
     }
-    
-    console.log('Guest data decoded successfully:', guestData)
-    
-    const { data: guest, error } = await supabase
+
+    // Buscar invitado en la base de datos
+    const { data: guestRecord, error: fetchError } = await supabase
       .from('guests')
       .select('*')
       .eq('id', guestData.id)
+      .eq('event_id', selectedEvent.value.id)
       .single()
-    
-    if (error || !guest) {
-      console.error('Guest not found:', error)
-      // SONIDO DE ERROR
-      audioFeedback.playFeedback('error')
-      showValidationResult('error', '❌ INVITADO NO ENCONTRADO', 'Este invitado no está en la lista')
-      rejectedEntries.value++
-      return
+
+    if (fetchError || !guestRecord) {
+      throw new Error('Invitado no encontrado en el evento')
     }
-    
-    console.log('Guest found:', guest)
-    
-    if (guest.has_entered) {
-      // SONIDO DE ADVERTENCIA (ya entró)
-      audioFeedback.playFeedback('warning')
-      showValidationResult(
-        'warning', 
-        '⚠️ YA INGRESÓ ANTERIORMENTE', 
-        'Este invitado ya utilizó su código de entrada',
-        guest
+
+    // Verificar si ya entró
+    if (guestRecord.has_entered) {
+      scanStatus.value = 'duplicate'
+      scanMessage.value = 'Ya escaneado anteriormente'
+      await vibrate('warning')
+
+      // Agregar a escaneos recientes
+      addRecentScan({
+        id: Date.now().toString(),
+        guestName: guestRecord.name,
+        timestamp: new Date().toISOString(),
+        status: 'duplicate',
+        message: `Ya había entrado el ${formatDateTime(guestRecord.entered_at)}`
+      })
+
+      // Mostrar modal de resultado
+      showResultModalWithData(
+        'duplicate',
+        'Entrada Duplicada',
+        'Este invitado ya había ingresado al evento',
+        guestRecord.name,
+        `Primera entrada: ${formatDateTime(guestRecord.entered_at)}`
       )
-      rejectedEntries.value++
+
       return
     }
-    
-    const madridTime = getCurrentMadridTime()
-    
+
+    // Marcar como entrado
     const { error: updateError } = await supabase
       .from('guests')
       .update({
         has_entered: true,
-        entered_at: madridTime
+        entered_at: new Date().toISOString()
       })
-      .eq('id', guest.id)
-    
+      .eq('id', guestData.id)
+
     if (updateError) throw updateError
-    
-    const updatedGuest: Guest = {
-      ...guest,
-      has_entered: true,
-      entered_at: madridTime
-    }
-    
-    recentEntries.value.unshift(updatedGuest)
-    lastValidatedGuest.value = updatedGuest
-    
-    // SONIDO DE ÉXITO
-    audioFeedback.playFeedback('success')
-    
-    showValidationResult(
+
+    // Éxito
+    scanStatus.value = 'success'
+    scanMessage.value = '✓ Entrada válida'
+    await vibrate('success')
+
+    // Agregar a escaneos recientes
+    addRecentScan({
+      id: Date.now().toString(),
+      guestName: guestRecord.name,
+      timestamp: new Date().toISOString(),
+      status: 'success',
+      message: 'Entrada registrada correctamente'
+    })
+
+    // Mostrar modal de resultado
+    showResultModalWithData(
       'success',
-      '✅ BIENVENIDO/A',
-      `¡Acceso permitido para ${guest.name}!`,
-      updatedGuest
+      '¡Bienvenido!',
+      'Entrada registrada correctamente',
+      guestRecord.name,
+      formatDateTime(new Date().toISOString())
     )
-    
-    successfulEntries.value++
-    showToast(`${guest.name} ha ingresado correctamente`, 'success')
-    
-    setTimeout(() => {
-      validationResult.value.show = false
-    }, 4000)
-    
+
+    // Recargar datos
+    await loadGuests()
+
   } catch (error: any) {
-    console.error('Error validating QR:', error)
-    // SONIDO DE ERROR
-    audioFeedback.playFeedback('error')
-    showValidationResult('error', '❌ ERROR DE VALIDACIÓN', 'Error al procesar el código QR: ' + error.message)
-    rejectedEntries.value++
+    console.error('❌ Error procesando QR:', error)
+    
+    scanStatus.value = 'error'
+    scanMessage.value = 'Error: ' + error.message
+    await vibrate('error')
+
+    // Agregar a escaneos recientes
+    addRecentScan({
+      id: Date.now().toString(),
+      guestName: 'Error',
+      timestamp: new Date().toISOString(),
+      status: 'error',
+      message: error.message
+    })
+
+    // Mostrar modal de error
+    showResultModalWithData(
+      'error',
+      'Error de Validación',
+      error.message,
+      '',
+      ''
+    )
+  } finally {
+    scanning.value = false
+    
+    // Resetear estado después de 2 segundos
+    setTimeout(() => {
+      if (scannerActive.value) {
+        scanStatus.value = 'scanning'
+        scanMessage.value = 'Escaneando...'
+      }
+    }, 2000)
   }
 }
 
-const searchGuest = async () => {
-  if (!manualSearch.value.trim()) return
+// ========================================
+// ENTRADA MANUAL
+// ========================================
+const closeManualEntryModal = () => {
+  showManualEntryModal.value = false
+  manualSearchTerm.value = ''
+  manualSearchResults.value = []
+}
+
+const searchGuestsForManualEntry = () => {
+  if (!manualSearchTerm.value.trim() || manualSearchTerm.value.length < 2) {
+    manualSearchResults.value = []
+    return
+  }
+
+  const search = manualSearchTerm.value.toLowerCase().trim()
+  manualSearchResults.value = guests.value
+    .filter(guest =>
+      guest.name.toLowerCase().includes(search) ||
+      guest.email.toLowerCase().includes(search)
+    )
+    .slice(0, 10) // Limitar a 10 resultados
+}
+
+const selectGuestForManualEntry = async (guest: any) => {
+  if (guest.has_entered) {
+    await vibrate('warning')
+    
+    const alert = await alertController.create({
+      header: 'Invitado ya ingresó',
+      message: `${guest.name} ya había ingresado el ${formatDateTime(guest.entered_at)}`,
+      buttons: ['OK']
+    })
+    
+    await alert.present()
+    return
+  }
+
+  await vibrate('light')
+
+  const alert = await alertController.create({
+    header: 'Confirmar entrada',
+    message: `¿Permitir entrada a ${guest.name}?`,
+    buttons: [
+      {
+        text: 'Cancelar',
+        role: 'cancel'
+      },
+      {
+        text: 'Confirmar',
+        handler: async () => {
+          await registerManualEntry(guest)
+        }
+      }
+    ]
+  })
+
+  await alert.present()
+}
+
+const registerManualEntry = async (guest: any) => {
+  try {
+    const { error } = await supabase
+      .from('guests')
+      .update({
+        has_entered: true,
+        entered_at: new Date().toISOString()
+      })
+      .eq('id', guest.id)
+
+    if (error) throw error
+
+    await vibrate('success')
+    showToast(`✓ Entrada registrada para ${guest.name}`, 'success')
+
+    // Agregar a escaneos recientes
+    addRecentScan({
+      id: Date.now().toString(),
+      guestName: guest.name,
+      timestamp: new Date().toISOString(),
+      status: 'success',
+      message: 'Entrada manual registrada'
+    })
+
+    closeManualEntryModal()
+    await loadGuests()
+
+  } catch (error: any) {
+    console.error('Error registrando entrada manual:', error)
+    await vibrate('error')
+    showToast('Error al registrar entrada', 'danger')
+  }
+}
+
+// ========================================
+// MODAL DE RESULTADOS
+// ========================================
+const showResultModalWithData = (
+  type: 'success' | 'duplicate' | 'error',
+  title: string,
+  message: string,
+  guestName: string,
+  timestamp: string
+) => {
+  resultModalType.value = type
+  resultModalTitle.value = title
+  resultModalMessage.value = message
+  resultModalGuestName.value = guestName
+  resultModalTimestamp.value = timestamp
+  showResultModal.value = true
+}
+
+const closeResultModal = () => {
+  showResultModal.value = false
+}
+
+// ========================================
+// ESCANEOS RECIENTES
+// ========================================
+const addRecentScan = (scan: any) => {
+  recentScans.value.unshift(scan)
+  
+  // Mantener solo los últimos 10
+  if (recentScans.value.length > 10) {
+    recentScans.value = recentScans.value.slice(0, 10)
+  }
+}
+
+const clearRecentScans = () => {
+  recentScans.value = []
+}
+
+// ========================================
+// FUNCIONES DE UTILIDADES
+// ========================================
+const showToast = async (message: string, color: string = 'primary') => {
+  const toast = await toastController.create({
+    message,
+    duration: 2500,
+    color,
+    position: 'top'
+  })
+  await toast.present()
+}
+
+const formatDate = (dateString: string) => {
+  if (!dateString) return ''
   
   try {
-    const searchTerm = manualSearch.value.trim().toLowerCase()
-    
-    const { data: guests, error } = await supabase
-      .from('guests')
-      .select('*')
-      .or(`name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`)
-      .limit(5)
-    
-    if (error) throw error
-    
-    if (guests.length === 0) {
-      // SONIDO DE ERROR
-      audioFeedback.playFeedback('error')
-      showValidationResult('error', '❌ NO ENCONTRADO', 'No se encontró ningún invitado con ese nombre o email')
-      return
-    }
-    
-    if (guests.length > 1) {
-      // SONIDO DE ADVERTENCIA
-      audioFeedback.playFeedback('warning')
-      showToast(`Se encontraron ${guests.length} invitados. Sé más específico`, 'warning')
-      return
-    }
-    
-    const guest = guests[0] as Guest
-    
-    if (guest.has_entered) {
-      // SONIDO DE ADVERTENCIA
-      audioFeedback.playFeedback('warning')
-      showValidationResult(
-        'warning',
-        '⚠️ YA INGRESÓ ANTERIORMENTE',
-        'Este invitado ya utilizó su entrada',
-        guest
-      )
-      return
-    }
-    
-    const madridTime = getCurrentMadridTime()
-    
-    const { error: updateError } = await supabase
-      .from('guests')
-      .update({
-        has_entered: true,
-        entered_at: madridTime
-      })
-      .eq('id', guest.id)
-    
-    if (updateError) throw updateError
-    
-    const updatedGuest: Guest = {
-      ...guest,
-      has_entered: true,
-      entered_at: madridTime
-    }
-    
-    recentEntries.value.unshift(updatedGuest)
-    lastValidatedGuest.value = updatedGuest
-    
-    // SONIDO DE ÉXITO
-    audioFeedback.playFeedback('success')
-    
-    showValidationResult(
-      'success',
-      '✅ ENTRADA MANUAL',
-      `Acceso permitido para ${guest.name} (validación manual)`,
-      updatedGuest
-    )
-    
-    successfulEntries.value++
-    totalValidations.value++
-    showToast(`✅ ${guest.name} validado manualmente`, 'success')
-    
-  } catch (error: any) {
-    console.error('Error searching guest:', error)
-    // SONIDO DE ERROR
-    audioFeedback.playFeedback('error')
-    showToast('Error al buscar invitado: ' + error.message, 'danger')
+    const date = new Date(dateString)
+    return date.toLocaleDateString('es-ES', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return dateString
   }
+}
+
+const formatDateTime = (dateString: string) => {
+  if (!dateString) return ''
   
-  manualSearch.value = ''
-}
-
-const showValidationResult = (type: 'success' | 'warning' | 'error', title: string, message: string, guest: Guest | null = null) => {
-  validationResult.value = {
-    show: true,
-    type,
-    title,
-    message,
-    guest
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return dateString
   }
 }
 
-const getResultIcon = () => {
-  switch (validationResult.value.type) {
-    case 'success':
-      return checkmarkCircleOutline
-    case 'warning':
-      return warningOutline
-    case 'error':
-    default:
-      return closeCircleOutline
+const formatTime = (dateString: string) => {
+  if (!dateString) return ''
+  
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleTimeString('es-ES', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    })
+  } catch {
+    return dateString
   }
 }
 
-const clearValidationStats = () => {
-  if (confirm('¿Limpiar todas las estadísticas de validación?')) {
-    totalValidations.value = 0
-    successfulEntries.value = 0
-    rejectedEntries.value = 0
-    recentEntries.value = []
-    lastValidatedGuest.value = null
-    showToast('Estadísticas limpiadas', 'success')
+// ========================================
+// WATCHERS
+// ========================================
+watch(() => selectedEvent.value?.id, async (newId, oldId) => {
+  if (newId && newId !== oldId) {
+    await loadGuests()
   }
-}
+})
 
-const refreshData = async () => {
-  await Promise.all([
-    loadRecentEntries(),
-    loadTodayStats()
-  ])
-  showToast('Datos actualizados', 'success')
-}
-
+// ========================================
+// LIFECYCLE HOOKS
+// ========================================
 onMounted(async () => {
-  console.log('ScanTab mounted - loading data...')
+  console.log('📱 ScanTab montado')
   
-  await Promise.all([
-    loadRecentEntries(),
-    loadTodayStats()
-  ])
+  if (events.value.length === 0) {
+    await eventsStore.init()
+  }
+  
+  if (selectedEvent.value) {
+    await loadGuests()
+  } else {
+    loading.value = false
+  }
 })
 
 onActivated(async () => {
-  console.log('ScanTab activated - refreshing recent entries...')
-  await loadRecentEntries()
+  console.log('🔄 ScanTab activado')
+  
+  if (selectedEvent.value) {
+    await loadGuests()
+  }
+})
+
+onDeactivated(async () => {
+  console.log('⏸️ ScanTab desactivado - deteniendo scanner')
+  
+  if (scannerActive.value) {
+    await stopScanner()
+  }
 })
 
 onUnmounted(async () => {
-  try {
-    if (html5QrCode.value && scannerActive.value) {
-      await html5QrCode.value.stop()
-      html5QrCode.value = null
-    }
-  } catch (error) {
-    console.error('Error cleaning up scanner:', error)
+  console.log('🔚 ScanTab desmontado - limpiando recursos')
+  
+  if (scannerActive.value) {
+    await stopScanner()
   }
 })
 </script>
 
 <style scoped>
+/* ========================================
+   CONTENEDOR PRINCIPAL
+   ======================================== */
 .scan-container {
   padding: 20px;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
-/* Header simple */
+.scan-content {
+  --background: #f8f9fa;
+}
+
+/* ========================================
+   HEADER
+   ======================================== */
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
-.page-header h1 {
+.header-content {
+  flex: 1;
+}
+
+.header-content h1 {
   font-size: 1.8rem;
   font-weight: 600;
-  margin: 0;
+  margin: 0 0 8px 0;
   color: #1f2937;
 }
 
-/* Secciones - mismo estilo que GuestsTab */
-.scanner-section,
-.stats-section,
-.search-section,
-.recent-section {
+.header-content p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+.refresh-btn {
+  --color: #667eea;
+  --padding-start: 12px;
+  --padding-end: 12px;
+}
+
+/* ========================================
+   SELECTOR DE EVENTO
+   ======================================== */
+.event-selector-section {
   background: white;
   border-radius: 12px;
   padding: 24px;
@@ -1022,162 +1172,582 @@ onUnmounted(async () => {
   font-weight: 600;
 }
 
-/* Scanner */
-.scanner-container {
-  text-align: center;
-  padding: 1rem;
-  min-height: 300px;
+.change-event-btn {
+  --border-radius: 8px;
+  font-weight: 600;
+  --border-width: 2px;
+  --border-color: #667eea;
+  --color: #667eea;
+}
+
+.current-event-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.current-event-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  transform: translateY(-2px);
+}
+
+.event-badge {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-direction: column;
-}
-
-.scanner-placeholder {
-  color: #6b7280;
-}
-
-.loading-container {
-  color: #6b7280;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
-}
-
-.error-container {
-  color: #dc3545;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.qr-scanner {
-  width: 100%;
-  max-width: 400px;
-  margin: 0 auto;
-}
-
-:deep(#qr-reader) {
-  border: 2px solid #0d1b2a;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-:deep(#qr-reader video) {
-  width: 100% !important;
-  height: auto !important;
-  border-radius: 6px;
-}
-
-:deep(#qr-reader canvas) {
-  width: 100% !important;
-  height: auto !important;
-}
-
-/* Botones - mismo estilo que GuestsTab */
-.scanner-btn,
-.search-btn,
-.continue-btn,
-.validate-btn {
-  --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
-  --border-radius: 8px;
-  font-weight: 600;
-  margin-top: 16px;
-}
-
-.scanner-btn:hover,
-.search-btn:hover,
-.continue-btn:hover,
-.validate-btn:hover {
-  transform: translateY(-1px);
+  font-size: 1.8rem;
+  flex-shrink: 0;
   box-shadow: 0 4px 12px rgba(13, 27, 42, 0.3);
 }
 
-.manual-qr-btn {
-  margin-top: 8px;
+.event-info {
+  flex: 1;
 }
 
-/* Validación inline */
-.validation-inline {
-  margin-bottom: 1rem;
-  padding: 1rem;
-  border-radius: 8px;
-  position: relative;
-  animation: slideDown 0.3s ease-out;
+.event-info h4 {
+  margin: 0 0 8px 0;
+  color: #1f2937;
+  font-size: 1.2rem;
+  font-weight: 600;
 }
 
-.validation-inline.success {
-  background: linear-gradient(135deg, #d4edda, #c3e6cb);
-  color: #155724;
-  border: 2px solid #28a745;
-}
-
-.validation-inline.warning {
-  background: linear-gradient(135deg, #fff3cd, #ffeaa7);
-  color: #856404;
-  border: 2px solid #ffc107;
-}
-
-.validation-inline.error {
-  background: linear-gradient(135deg, #f8d7da, #f5c6cb);
-  color: #721c24;
-  border: 2px solid #dc3545;
-}
-
-.validation-content {
+.event-date,
+.event-location {
   display: flex;
   align-items: center;
-  gap: 1rem;
-}
-
-.validation-content h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-  font-weight: bold;
-}
-
-.validation-content p {
-  margin: 0;
+  gap: 8px;
+  margin: 4px 0;
+  color: #6b7280;
   font-size: 0.9rem;
 }
 
-.guest-info {
-  margin-top: 0.5rem;
-  font-size: 0.85rem;
+.event-date ion-icon,
+.event-location ion-icon {
+  color: #667eea;
 }
 
-.close-inline-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  --color: currentColor;
+/* ========================================
+   ESTADÍSTICAS
+   ======================================== */
+.stats-section {
+  margin-bottom: 24px;
 }
 
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
 }
 
-/* POPUP DETALLADO */
-.validation-detail-card {
+.stat-card {
   background: white;
   border-radius: 12px;
-  margin-bottom: 24px;
-  box-shadow: 0 4px 20px rgba(13, 27, 42, 0.15);
-  overflow: hidden;
-  border: 2px solid #28a745;
-  animation: slideInUp 0.4s ease-out;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  border-left: 4px solid transparent;
 }
 
-@keyframes slideInUp {
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.stat-total {
+  border-left-color: #667eea;
+}
+
+.stat-total .stat-icon {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.stat-scanned {
+  border-left-color: #10b981;
+}
+
+.stat-scanned .stat-icon {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.stat-pending {
+  border-left-color: #fbbf24;
+}
+
+.stat-pending .stat-icon {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+}
+
+.stat-progress {
+  border-left-color: #0ea5e9;
+}
+
+.stat-progress .stat-icon {
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+}
+
+.stat-icon {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ========================================
+   SCANNER SECTION
+   ======================================== */
+.scanner-section {
+  margin-bottom: 24px;
+}
+
+.scanner-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.scanner-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.scanner-header h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 1.2rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scanner-header ion-toggle {
+  --background: #e5e7eb;
+  --background-checked: #10b981;
+  --handle-background: white;
+  --handle-background-checked: white;
+}
+
+/* Scanner Warning */
+.scanner-warning {
+  text-align: center;
+  padding: 40px 20px;
+  background: #fef3c7;
+  border: 2px solid #fbbf24;
+  border-radius: 8px;
+}
+
+.scanner-warning ion-icon {
+  font-size: 3rem;
+  color: #f59e0b;
+  margin-bottom: 12px;
+}
+
+.scanner-warning p {
+  margin: 0;
+  color: #92400e;
+  font-weight: 500;
+}
+
+/* Scanner Activo */
+.scanner-active {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.scanner-viewport {
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.scanner-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scanner-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.scanner-frame {
+  width: 250px;
+  height: 250px;
+  border: 3px solid #10b981;
+  border-radius: 12px;
+  box-shadow: 0 0 0 99999px rgba(0, 0, 0, 0.5);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    border-color: #10b981;
+    box-shadow: 0 0 0 99999px rgba(0, 0, 0, 0.5), 0 0 20px rgba(16, 185, 129, 0.5);
+  }
+  50% {
+    border-color: #059669;
+    box-shadow: 0 0 0 99999px rgba(0, 0, 0, 0.5), 0 0 30px rgba(16, 185, 129, 0.8);
+  }
+}
+
+.scanner-instruction {
+  margin-top: 20px;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  padding: 0 20px;
+}
+
+/* Scanner Status */
+.scanner-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border-left: 4px solid #6b7280;
+  transition: all 0.3s ease;
+}
+
+.scanner-status.scanning {
+  border-left-color: #0ea5e9;
+  background: #f0f9ff;
+}
+
+.scanner-status.success {
+  border-left-color: #10b981;
+  background: #f0fdf4;
+}
+
+.scanner-status.error {
+  border-left-color: #ef4444;
+  background: #fef2f2;
+}
+
+.scanner-status.duplicate {
+  border-left-color: #fbbf24;
+  background: #fef3c7;
+}
+
+.scanner-status ion-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.scanner-status.scanning ion-icon {
+  color: #0ea5e9;
+}
+
+.scanner-status.success ion-icon {
+  color: #10b981;
+}
+
+.scanner-status.error ion-icon {
+  color: #ef4444;
+}
+
+.scanner-status.duplicate ion-icon {
+  color: #fbbf24;
+}
+
+.scanner-status span {
+  flex: 1;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+/* Scanner Inactivo */
+.scanner-inactive {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.scanner-icon {
+  font-size: 4rem;
+  color: #9ca3af;
+  margin-bottom: 20px;
+}
+
+.scanner-inactive p {
+  margin: 0 0 24px 0;
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+.activate-btn {
+  --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  --border-radius: 8px;
+  font-weight: 600;
+}
+
+/* Opciones del Scanner */
+.scanner-options {
+  margin-top: 16px;
+}
+
+.manual-entry-btn {
+  --border-radius: 8px;
+  font-weight: 600;
+  --border-width: 2px;
+  --border-color: #0d1b2a;
+  --color: #0d1b2a;
+}
+
+/* ========================================
+   ESCANEOS RECIENTES
+   ======================================== */
+.recent-scans-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.recent-scans-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scan-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border-left: 4px solid #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.scan-item.success {
+  border-left-color: #10b981;
+  background: linear-gradient(135deg, #f0fdf4 0%, #f8f9fa 100%);
+}
+
+.scan-item.duplicate {
+  border-left-color: #fbbf24;
+  background: linear-gradient(135deg, #fef3c7 0%, #f8f9fa 100%);
+}
+
+.scan-item.error {
+  border-left-color: #ef4444;
+  background: linear-gradient(135deg, #fef2f2 0%, #f8f9fa 100%);
+}
+
+.scan-icon {
+  font-size: 1.8rem;
+  flex-shrink: 0;
+}
+
+.scan-info {
+  flex: 1;
+}
+
+.scan-info h4 {
+  margin: 0 0 4px 0;
+  color: #1f2937;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.scan-time {
+  margin: 2px 0;
+  color: #6b7280;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.scan-status-text {
+  margin: 4px 0 0 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+/* ========================================
+   INVITADOS ESCANEADOS
+   ======================================== */
+.scanned-guests-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.compact-search {
+  margin-top: 12px;
+  --background: #f8f9fa;
+  --border-radius: 8px;
+  --box-shadow: none;
+}
+
+.scanned-guests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.guest-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f0fdf4;
+  border-radius: 12px;
+  border-left: 4px solid #10b981;
+  transition: all 0.3s ease;
+}
+
+.guest-item:hover {
+  background: #dcfce7;
+  transform: translateX(4px);
+}
+
+.guest-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.guest-info {
+  flex: 1;
+}
+
+.guest-info h4 {
+  margin: 0 0 4px 0;
+  color: #1f2937;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.guest-email,
+.guest-timestamp {
+  margin: 2px 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.guest-timestamp {
+  color: #059669;
+  font-weight: 500;
+}
+
+/* ========================================
+   MODALES PERSONALIZADOS
+   ======================================== */
+.custom-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.custom-modal {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
   from {
     opacity: 0;
     transform: translateY(30px);
@@ -1188,479 +1758,913 @@ onUnmounted(async () => {
   }
 }
 
-.detail-header {
+.custom-modal-header {
   background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
   color: white;
-  padding: 20px 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  position: relative;
-}
-
-.success-icon {
-  background: #28a745;
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-}
-
-.detail-title h2 {
-  margin: 0 0 4px 0;
-  font-size: 1.4rem;
-  font-weight: 600;
-}
-
-.detail-title p {
-  margin: 0;
-  opacity: 0.9;
-  font-size: 0.95rem;
-}
-
-.close-detail-btn {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  --color: white;
-}
-
-.detail-content {
   padding: 24px;
-}
-
-/* Información principal del invitado */
-.guest-main-info {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 20px;
-  margin-bottom: 32px;
-  padding: 20px;
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  border-radius: 12px;
-  border-left: 4px solid #28a745;
 }
 
-.guest-avatar-large {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #28a745, #20c997);
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: bold;
-  font-size: 2rem;
-  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
-}
-
-.guest-primary h3 {
-  margin: 0 0 8px 0;
-  color: #1f2937;
-  font-size: 1.6rem;
-  font-weight: 600;
-}
-
-.guest-email {
+.custom-modal-header h2 {
   margin: 0;
-  color: #6b7280;
-  font-size: 1.1rem;
-  font-weight: 500;
-}
-
-/* Secciones del popup */
-.event-details-section,
-.access-info-section {
-  margin-bottom: 28px;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-  color: #1f2937;
-  font-weight: 600;
-  font-size: 1.1rem;
-}
-
-.section-title ion-icon {
   font-size: 1.3rem;
-  color: #0d1b2a;
-}
-
-/* Grid de detalles */
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 16px;
-}
-
-.detail-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border-left: 3px solid #0d1b2a;
-}
-
-.detail-item ion-icon {
-  font-size: 1.2rem;
-  flex-shrink: 0;
-}
-
-.detail-item div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.detail-label {
-  font-size: 0.8rem;
-  color: #6b7280;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.detail-value {
-  font-size: 1rem;
-  color: #1f2937;
   font-weight: 600;
 }
 
-/* Timeline */
-.access-timeline {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.timeline-item {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  position: relative;
-}
-
-.timeline-item:not(:last-child)::after {
-  content: '';
-  position: absolute;
-  left: 20px;
-  top: 50px;
-  width: 2px;
-  height: 16px;
-  background: #e5e7eb;
-}
-
-.timeline-item.completed::after {
-  background: #28a745;
-}
-
-.timeline-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #e5e7eb;
-  color: #6b7280;
+.close-modal-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
-  flex-shrink: 0;
-}
-
-.timeline-item.completed .timeline-icon {
-  background: #28a745;
   color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-.timeline-item.current .timeline-icon {
-  background: #0d1b2a;
-  color: white;
-  animation: pulse 2s infinite;
+.close-modal-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
 }
 
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
-}
-
-.timeline-content h4 {
-  margin: 0 0 4px 0;
-  color: #1f2937;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.timeline-content p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 0.9rem;
-}
-
-/* Acciones del popup */
-.detail-actions {
-  margin-top: 32px;
-  padding-top: 24px;
-  border-top: 1px solid #e5e7eb;
-}
-
-/* Estadísticas - mismo estilo que GuestsTab */
-.event-stats {
-  display: flex;
-  justify-content: space-around;
-  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
-  color: white;
-  padding: 16px;
-  border-radius: 8px;
-  margin-bottom: 16px;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.stat-value {
-  font-weight: 700;
-  font-size: 1.4rem;
-}
-
-.stat-label {
-  font-size: 0.8rem;
-  opacity: 0.9;
-}
-
-.clear-stats-btn {
-  margin-top: 16px;
-}
-
-/* Formulario - mismo estilo que GuestsTab */
-.form-content {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-ion-item {
-  --background: #f8f9fa;
-  --color: #1f2937;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  margin-bottom: 0;
-}
-
-/* Lista de invitados - mismo estilo que GuestsTab */
-.guests-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.guest-item {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #e5e7eb;
-  transition: all 0.2s ease;
-}
-
-.guest-item:hover {
-  background: #f1f3f4;
-  transform: translateX(4px);
-}
-
-.guest-item.sent {
-  border-left-color: #fbbf24;
-}
-
-.guest-item.scanned {
-  border-left-color: #10b981;
-}
-
-.guest-avatar {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: #6b7280;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 1.2rem;
-}
-
-.guest-item.sent .guest-avatar {
-  background: #fbbf24;
-}
-
-.guest-item.scanned .guest-avatar {
-  background: #10b981;
-}
-
-.guest-info {
+.custom-modal-content {
+  padding: 24px;
+  overflow-y: auto;
   flex: 1;
 }
 
-.guest-info h4 {
+/* Lista de eventos en modal */
+.events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.event-option {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.event-option:hover {
+  background: #f1f3f4;
+  border-color: #667eea;
+  transform: translateX(4px);
+}
+
+.event-option.selected {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border-color: #667eea;
+}
+
+.event-option-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.event-option-info {
+  flex: 1;
+}
+
+.event-option-info h4 {
   margin: 0 0 4px 0;
   color: #1f2937;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 600;
 }
 
-.guest-info p {
-  margin: 0 0 2px 0;
+.event-option-info p {
+  margin: 0;
   color: #6b7280;
   font-size: 0.9rem;
 }
 
-.timestamp {
-  font-size: 0.8rem;
+.check-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+/* Modal de entrada manual */
+.modal-description {
+  margin: 0 0 20px 0;
+  color: #6b7280;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  font-family: inherit;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Resultados de búsqueda */
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.result-item:hover:not(.disabled) {
+  background: #e5e7eb;
+  transform: translateX(4px);
+}
+
+.result-item.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.result-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.result-info {
+  flex: 1;
+}
+
+.result-info h4 {
+  margin: 0 0 2px 0;
+  color: #1f2937;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.result-info p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.no-results {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6b7280;
+}
+
+.no-results ion-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+  opacity: 0.5;
+}
+
+.no-results p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+/* ========================================
+   MODAL DE RESULTADO (ESCANEO)
+   ======================================== */
+.result-modal-overlay {
+  z-index: 20000;
+}
+
+.result-modal {
+  max-width: 400px;
+  text-align: center;
+  padding: 40px 32px;
+}
+
+.result-modal.success {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+}
+
+.result-modal.duplicate {
+  background: linear-gradient(135deg, #fef3c7 0%, #ffffff 100%);
+}
+
+.result-modal.error {
+  background: linear-gradient(135deg, #fef2f2 0%, #ffffff 100%);
+}
+
+.result-icon {
+  font-size: 5rem;
+  margin-bottom: 24px;
+  animation: scaleIn 0.5s ease-out;
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.result-modal.success .result-icon {
+  color: #10b981;
+}
+
+.result-modal.duplicate .result-icon {
+  color: #fbbf24;
+}
+
+.result-modal.error .result-icon {
+  color: #ef4444;
+}
+
+.result-content h2 {
+  margin: 0 0 12px 0;
+  color: #1f2937;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.result-content p {
+  margin: 8px 0;
+  color: #6b7280;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.result-content .guest-name {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 16px 0;
+}
+
+.result-content .timestamp {
+  font-size: 0.9rem;
   color: #9ca3af;
   font-style: italic;
 }
 
-.status-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.7rem;
+.result-modal ion-button {
+  margin-top: 24px;
   font-weight: 600;
-  text-transform: uppercase;
 }
 
-.status-badge.success {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.status-badge.warning {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status-badge.medium {
-  background: #f3f4f6;
-  color: #374151;
-}
-
-/* Estado vacío - mismo estilo que GuestsTab */
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-  color: #6b7280;
-}
-
-.empty-state ion-icon {
-  margin-bottom: 20px;
-  color: #9ca3af;
-}
-
-.empty-state h3 {
-  margin: 0 0 12px 0;
-  color: #374151;
-}
-
-.empty-state p {
-  margin: 0 0 24px 0;
-}
-
-/* Modal */
-.modal-content {
-  padding: 20px;
-}
-
-/* Responsive - mismo que GuestsTab */
+/* ========================================
+   RESPONSIVE
+   ======================================== */
 @media (max-width: 768px) {
   .scan-container {
     padding: 16px;
   }
-  
+
   .page-header {
     flex-direction: column;
+    align-items: flex-start;
     gap: 16px;
-    align-items: stretch;
-    text-align: center;
+    padding: 20px;
   }
-  
-  .event-stats {
-    flex-direction: column;
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
     gap: 12px;
   }
-  
-  .stat-item {
-    flex-direction: row;
-    justify-content: space-between;
-  }
-  
-  .scanner-section,
-  .stats-section,
-  .search-section,
-  .recent-section {
+
+  .stat-card {
     padding: 16px;
   }
-  
-  .guest-item {
-    flex-wrap: wrap;
-    gap: 12px;
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
   }
-  
-  .guest-actions {
-    width: 100%;
-    justify-content: flex-end;
-  }
-  
-  .scanner-container {
-    min-height: 250px;
-  }
-  
-  .detail-content {
-    padding: 16px;
-  }
-  
-  .guest-main-info {
-    flex-direction: column;
-    text-align: center;
-    gap: 16px;
-  }
-  
-  .detail-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .guest-avatar-large {
-    width: 60px;
-    height: 60px;
+
+  .stat-value {
     font-size: 1.5rem;
   }
-  
-  .guest-primary h3 {
-    font-size: 1.3rem;
+
+  .stat-label {
+    font-size: 0.75rem;
   }
-  
-  .detail-header {
-    padding: 16px;
+
+  .section-header {
     flex-direction: column;
-    text-align: center;
+    align-items: flex-start;
     gap: 12px;
   }
-  
-  .close-detail-btn {
-    top: 8px;
-    right: 8px;
+
+  .scanner-viewport {
+    max-width: 100%;
   }
+
+  .scanner-frame {
+    width: 200px;
+    height: 200px;
+  }
+
+  .current-event-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .custom-modal {
+    max-width: 100%;
+    margin: 0;
+    border-radius: 16px 16px 0 0;
+    max-height: 95vh;
+  }
+}
+
+@media (max-width: 480px) {
+  .scan-container {
+    padding: 12px;
+  }
+
+  .page-header {
+    padding: 16px;
+  }
+
+  .header-content h1 {
+    font-size: 1.5rem;
+  }
+
+  .header-content p {
+    font-size: 0.9rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .scanner-frame {
+    width: 180px;
+    height: 180px;
+  }
+
+  .scanner-instruction {
+    font-size: 0.85rem;
+  }
+
+  .guest-avatar,
+  .result-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
+  }
+
+  .guest-info h4,
+  .result-info h4 {
+    font-size: 0.95rem;
+  }
+
+  .result-modal {
+    padding: 32px 24px;
+  }
+
+  .result-icon {
+    font-size: 4rem;
+  }
+
+  .result-content h2 {
+    font-size: 1.3rem;
+  }
+}
+
+/* ========================================
+   ANIMACIONES
+   ======================================== */
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.animate-fade-in-down {
+  animation: fadeInDown 0.5s ease-out;
+}
+
+.delay-100 {
+  animation-delay: 100ms;
+}
+
+.delay-200 {
+  animation-delay: 200ms;
+}
+
+.delay-300 {
+  animation-delay: 300ms;
+}
+
+.delay-400 {
+  animation-delay: 400ms;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================
+   ACCESIBILIDAD
+   ======================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .scanner-frame {
+    animation: none;
+  }
+}
+
+/* ========================================
+   MODO OSCURO
+   ======================================== */
+@media (prefers-color-scheme: dark) {
+  .scan-content {
+    --background: #1a1a1a;
+  }
+
+  .page-header,
+  .event-selector-section,
+  .stats-section .stat-card,
+  .scanner-card,
+  .recent-scans-section,
+  .scanned-guests-section {
+    background: #2d2d2d;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+
+  .header-content h1,
+  .section-header h3,
+  .scanner-header h3,
+  .guest-info h4,
+  .scan-info h4,
+  .result-info h4 {
+    color: #f9fafb;
+  }
+
+  .header-content p,
+  .event-date,
+  .event-location,
+  .stat-label,
+  .guest-email,
+  .guest-timestamp,
+  .scan-time,
+  .scan-status-text,
+  .result-info p {
+    color: #9ca3af;
+  }
+
+  .current-event-card,
+  .scan-item,
+  .guest-item,
+  .event-option,
+  .result-item,
+  .scanner-status {
+    background: #3a3a3a;
+    border-color: #4a4a4a;
+  }
+
+  .scan-item.success,
+  .guest-item {
+    background: linear-gradient(135deg, #1e3a2a 0%, #3a3a3a 100%);
+  }
+
+  .scan-item.duplicate {
+    background: linear-gradient(135deg, #3a2e1a 0%, #3a3a3a 100%);
+  }
+
+  .scan-item.error {
+    background: linear-gradient(135deg, #3a1e1e 0%, #3a3a3a 100%);
+  }
+
+  .scanner-status {
+    background: #3a3a3a;
+  }
+
+  .scanner-status.scanning {
+    background: #1e3a4a;
+  }
+
+  .scanner-status.success {
+    background: #1e3a2a;
+  }
+
+  .scanner-status.error {
+    background: #3a1e1e;
+  }
+
+  .scanner-status.duplicate {
+    background: #3a2e1a;
+  }
+
+  .scanner-warning {
+    background: #3a2e1a;
+    border-color: #f59e0b;
+  }
+
+  .scanner-warning p {
+    color: #fbbf24;
+  }
+
+  .form-input {
+    background: #2d2d2d;
+    border-color: #4a4a4a;
+    color: #f9fafb;
+  }
+
+  .form-input:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+  }
+
+  .custom-modal {
+    background: #2d2d2d;
+  }
+
+  .custom-modal-content {
+    background: #2d2d2d;
+  }
+
+  .result-modal.success {
+    background: linear-gradient(135deg, #1e3a2a 0%, #2d2d2d 100%);
+  }
+
+  .result-modal.duplicate {
+    background: linear-gradient(135deg, #3a2e1a 0%, #2d2d2d 100%);
+  }
+
+  .result-modal.error {
+    background: linear-gradient(135deg, #3a1e1e 0%, #2d2d2d 100%);
+  }
+
+  .result-content h2,
+  .result-content .guest-name {
+    color: #f9fafb;
+  }
+
+  .result-content p,
+  .result-content .timestamp {
+    color: #9ca3af;
+  }
+
+  .no-results {
+    color: #9ca3af;
+  }
+
+  .modal-description {
+    color: #9ca3af;
+  }
+
+  .form-group label {
+    color: #f9fafb;
+  }
+}
+
+/* ========================================
+   SCROLLBAR PERSONALIZADO
+   ======================================== */
+.custom-modal-content::-webkit-scrollbar,
+.search-results::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-modal-content::-webkit-scrollbar-track,
+.search-results::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.custom-modal-content::-webkit-scrollbar-thumb,
+.search-results::-webkit-scrollbar-thumb {
+  background: #667eea;
+  border-radius: 4px;
+}
+
+.custom-modal-content::-webkit-scrollbar-thumb:hover,
+.search-results::-webkit-scrollbar-thumb:hover {
+  background: #5a6fce;
+}
+
+@media (prefers-color-scheme: dark) {
+  .custom-modal-content::-webkit-scrollbar-track,
+  .search-results::-webkit-scrollbar-track {
+    background: #3a3a3a;
+  }
+
+  .custom-modal-content::-webkit-scrollbar-thumb,
+  .search-results::-webkit-scrollbar-thumb {
+    background: #667eea;
+  }
+
+  .custom-modal-content::-webkit-scrollbar-thumb:hover,
+  .search-results::-webkit-scrollbar-thumb:hover {
+    background: #7588ec;
+  }
+}
+
+/* ========================================
+   ANIMACIONES DE INTERACCIÓN
+   ======================================== */
+.scan-item,
+.guest-item,
+.event-option,
+.result-item,
+.stat-card,
+.close-modal-btn {
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Efecto de clic en móviles */
+@media (hover: none) {
+  .scan-item:active,
+  .guest-item:active,
+  .result-item:active:not(.disabled) {
+    transform: scale(0.98);
+  }
+
+  .activate-btn:active,
+  .manual-entry-btn:active {
+    transform: scale(0.95);
+  }
+}
+
+/* ========================================
+   MEJORAS DE ACCESIBILIDAD
+   ======================================== */
+.close-modal-btn:focus,
+.activate-btn:focus,
+.manual-entry-btn:focus,
+.form-input:focus {
+  outline: 3px solid #667eea;
+  outline-offset: 2px;
+}
+
+/* Focus visible solo con teclado */
+.close-modal-btn:focus:not(:focus-visible),
+.activate-btn:focus:not(:focus-visible),
+.manual-entry-btn:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ========================================
+   LOADING STATES
+   ======================================== */
+.scanner-video[aria-busy="true"] {
+  opacity: 0.6;
+}
+
+/* ========================================
+   ESTILOS DE IMPRESIÓN
+   ======================================== */
+@media print {
+  .page-header,
+  .scanner-section,
+  .scanner-options,
+  .custom-modal-overlay {
+    display: none !important;
+  }
+
+  .scan-container {
+    padding: 0;
+  }
+
+  .scanned-guests-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .guest-item {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+/* ========================================
+   ESTADOS DE CARGA ESPECÍFICOS
+   ======================================== */
+.scanner-video::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    45deg,
+    transparent 25%,
+    rgba(102, 126, 234, 0.1) 25%,
+    rgba(102, 126, 234, 0.1) 50%,
+    transparent 50%,
+    transparent 75%,
+    rgba(102, 126, 234, 0.1) 75%
+  );
+  background-size: 40px 40px;
+  animation: loading-stripe 1s linear infinite;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scanner-video[data-loading="true"]::before {
+  opacity: 1;
+}
+
+@keyframes loading-stripe {
+  0% {
+    background-position: 0 0;
+  }
+  100% {
+    background-position: 40px 40px;
+  }
+}
+
+/* ========================================
+   TOOLTIPS PERSONALIZADOS
+   ======================================== */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  padding: 8px 12px;
+  background: #1f2937;
+  color: white;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 1000;
+}
+
+[data-tooltip]:hover::before {
+  opacity: 1;
+}
+
+/* ========================================
+   OPTIMIZACIONES DE PERFORMANCE
+   ======================================== */
+.scanner-video {
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+.scanner-frame {
+  will-change: border-color, box-shadow;
+}
+
+.scan-item,
+.guest-item,
+.result-item {
+  will-change: transform, background;
+}
+
+/* ========================================
+   EFECTOS ESPECIALES PARA ESCANEO EXITOSO
+   ======================================== */
+@keyframes success-flash {
+  0%, 100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.scanner-viewport.success-flash::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #10b981;
+  animation: success-flash 0.5s ease-out;
+  pointer-events: none;
+}
+
+/* ========================================
+   MEJORAS VISUALES ADICIONALES
+   ======================================== */
+.scanner-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.scanner-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 30%,
+    rgba(102, 126, 234, 0.05) 50%,
+    transparent 70%
+  );
+  transform: rotate(45deg);
+  animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%) translateY(-100%) rotate(45deg);
+  }
+  100% {
+    transform: translateX(100%) translateY(100%) rotate(45deg);
+  }
+}
+
+/* Desactivar shimmer cuando el scanner está activo */
+.scanner-card:has(.scanner-active)::before {
+  display: none;
 }
 </style>
