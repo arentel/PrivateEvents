@@ -1,27 +1,84 @@
+# Dependencias
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+build/
+out/
+www/
+
+# Archivos de sistema
 .DS_Store
-node_modules
-/coverage
-/dist
-/ios
-/android
+Thumbs.db
+*.log
 
+# Ionic y Capacitor
+.ionic/
+android/
+ios/
+.capacitor/
 
-# local env files
+# Coverage y testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Cache
+.cache/
+.vite/
+.temp/
+*.tmp
+
+# Environment files
+.env
 .env.local
 .env.*.local
+.env.production
+.env.development
 
-# Log files
+# Logs
+logs/
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
-# Editor directories and files
-.idea
-.vscode
+# Editor directories
+.idea/
+.vscode/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*.swp
+*.swo
 
+# Archivos compilados y generados
+*.js.map
+*.d.ts.map
+
+# Service Worker (generado)
+public/sw.js
+
+# Archivos de configuración que no necesitan lint
+*.config.js
+*.config.ts
+vite.config.ts
+vitest.config.ts
+
+# Archivos de tipos externos
+src/shims-*.d.ts
+src/types/global.d.ts
+
+# Documentación generada
+docs/
+
+# Backups
+*.backup
+*.bak
+*.old
