@@ -118,44 +118,50 @@
               <p>Selecciona un evento para activar el escáner</p>
             </div>
 
-            <div v-else-if="scannerActive" class="scanner-active">
-              <!-- Video del escáner -->
-              <div class="scanner-viewport">
-                <video 
-                  ref="videoElement" 
-                  class="scanner-video"
-                  autoplay 
-                  playsinline
-                ></video>
-                <div class="scanner-overlay">
-                  <div class="scanner-frame"></div>
-                  <p class="scanner-instruction">Coloca el QR dentro del marco</p>
+            <!-- CRÍTICO: Video siempre en el DOM, usar v-show en lugar de v-if -->
+            <div class="scanner-wrapper">
+              <!-- Scanner Activo -->
+              <div class="scanner-active" v-show="scannerActive">
+                <!-- Video del escáner - SIEMPRE en el DOM -->
+                <div class="scanner-viewport">
+                  <video 
+                    ref="videoElement" 
+                    class="scanner-video"
+                    autoplay 
+                    playsinline
+                    muted
+                  ></video>
+                  <div class="scanner-overlay">
+                    <div class="scanner-frame"></div>
+                    <p class="scanner-instruction">Coloca el QR dentro del marco</p>
+                  </div>
+                </div>
+
+                <!-- Estado del escáner -->
+                <div class="scanner-status" :class="scanStatus">
+                  <ion-spinner v-if="scanning" name="crescent"></ion-spinner>
+                  <ion-icon v-else-if="scanStatus === 'success'" :icon="checkmarkCircleOutline"></ion-icon>
+                  <ion-icon v-else-if="scanStatus === 'error'" :icon="closeCircleOutline"></ion-icon>
+                  <ion-icon v-else :icon="qrCodeOutline"></ion-icon>
+                  <span>{{ scanMessage }}</span>
                 </div>
               </div>
 
-              <!-- Estado del escáner -->
-              <div class="scanner-status" :class="scanStatus">
-                <ion-spinner v-if="scanning" name="crescent"></ion-spinner>
-                <ion-icon v-else-if="scanStatus === 'success'" :icon="checkmarkCircleOutline"></ion-icon>
-                <ion-icon v-else-if="scanStatus === 'error'" :icon="closeCircleOutline"></ion-icon>
-                <ion-icon v-else :icon="qrCodeOutline"></ion-icon>
-                <span>{{ scanMessage }}</span>
+              <!-- Scanner Inactivo -->
+              <div v-show="!scannerActive && selectedEvent" class="scanner-inactive">
+                <div class="scanner-icon">
+                  <ion-icon :icon="qrCodeOutline"></ion-icon>
+                </div>
+                <p>Activa el escáner para validar entradas</p>
+                <ion-button 
+                  @click="activateScanner" 
+                  :disabled="!selectedEvent"
+                  class="activate-btn"
+                >
+                  <ion-icon :icon="scanOutline" slot="start"></ion-icon>
+                  Activar Escáner
+                </ion-button>
               </div>
-            </div>
-
-            <div v-else class="scanner-inactive">
-              <div class="scanner-icon">
-                <ion-icon :icon="qrCodeOutline"></ion-icon>
-              </div>
-              <p>Activa el escáner para validar entradas</p>
-              <ion-button 
-                @click="activateScanner" 
-                :disabled="!selectedEvent"
-                class="activate-btn"
-              >
-                <ion-icon :icon="scanOutline" slot="start"></ion-icon>
-                Activar Escáner
-              </ion-button>
             </div>
           </div>
 
