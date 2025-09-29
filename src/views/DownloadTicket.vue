@@ -357,28 +357,83 @@ const isGoogleApp = () => {
 }
 
 // Función para abrir en navegador externo
-const openInBrowser = () => {
+const openInBrowser = async () => {
   const currentUrl = window.location.href
   
-  // Para Android: usar intent para abrir en Chrome
-  if (isAndroid()) {
-    // Intent para abrir en Chrome específicamente
-    const chromeIntent = `intent://${currentUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`
+  // Primero mostrar instrucciones y copiar enlace
+  try {
+    await navigator.clipboard.writeText(currentUrl)
     
-    try {
-      window.location.href = chromeIntent
-    } catch (e) {
-      // Si falla, intentar con el esquema de Chrome directamente
-      try {
-        window.location.href = `googlechrome://${currentUrl.replace(/^https?:\/\//, '')}`
-      } catch (e2) {
-        // Último recurso: copiar enlace al portapapeles y mostrar mensaje
-        copyToClipboard(currentUrl)
-      }
-    }
-  } else {
-    // Para iOS u otros
-    window.open(currentUrl, '_blank')
+    const alert = await alertController.create({
+      header: 'Abrir en Chrome',
+      message: `
+        <div style="text-align: left; line-height: 1.6;">
+          <p><strong>Enlace copiado al portapapeles</strong></p>
+          <p>Sigue estos pasos:</p>
+          <ol style="margin: 10px 0; padding-left: 20px;">
+            <li>Cierra esta ventana</li>
+            <li>Abre la app de <strong>Chrome</strong></li>
+            <li>Pega el enlace en la barra de direcciones</li>
+            <li>Presiona Enter</li>
+          </ol>
+          <p style="margin-top: 12px; padding: 8px; background: #f0f9ff; border-radius: 4px; font-size: 0.85em;">
+            O toca el botón "Abrir Chrome" abajo para intentar abrirlo automáticamente
+          </p>
+        </div>
+      `,
+      buttons: [
+        {
+          text: 'Entendido',
+          role: 'cancel'
+        },
+        {
+          text: 'Abrir Chrome',
+          handler: () => {
+            // Intentar múltiples métodos
+            const methods = [
+              // Método 1: Intent de Chrome
+              `intent://${currentUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`,
+              // Método 2: Market link para abrir Chrome si no está instalado
+              `market://details?id=com.android.chrome`,
+              // Método 3: Esquema de Chrome
+              `googlechrome://${currentUrl.replace(/^https?:\/\//, '')}`
+            ]
+            
+            let methodIndex = 0
+            const tryNextMethod = () => {
+              if (methodIndex < methods.length) {
+                try {
+                  window.location.href = methods[methodIndex]
+                  methodIndex++
+                } catch (e) {
+                  tryNextMethod()
+                }
+              }
+            }
+            
+            tryNextMethod()
+          }
+        }
+      ]
+    })
+    
+    await alert.present()
+    
+  } catch (err) {
+    // Si no se puede copiar al portapapeles, mostrar el enlace
+    const alert = await alertController.create({
+      header: 'Abre este enlace en Chrome',
+      message: `
+        <div style="text-align: left;">
+          <p>Copia este enlace y ábrelo en Chrome:</p>
+          <div style="margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 4px; word-break: break-all; font-size: 0.8em;">
+            ${currentUrl}
+          </div>
+        </div>
+      `,
+      buttons: ['OK']
+    })
+    await alert.present()
   }
 }
 
