@@ -360,58 +360,28 @@ const isGoogleApp = () => {
 const openInBrowser = async () => {
   const currentUrl = window.location.href
   
-  // Primero mostrar instrucciones y copiar enlace
   try {
+    // Copiar al portapapeles
     await navigator.clipboard.writeText(currentUrl)
     
     const alert = await alertController.create({
-      header: 'Abrir en Chrome',
-      message: `
-        <div style="text-align: left; line-height: 1.6;">
-          <p><strong>Enlace copiado al portapapeles</strong></p>
-          <p>Sigue estos pasos:</p>
-          <ol style="margin: 10px 0; padding-left: 20px;">
-            <li>Cierra esta ventana</li>
-            <li>Abre la app de <strong>Chrome</strong></li>
-            <li>Pega el enlace en la barra de direcciones</li>
-            <li>Presiona Enter</li>
-          </ol>
-          <p style="margin-top: 12px; padding: 8px; background: #f0f9ff; border-radius: 4px; font-size: 0.85em;">
-            O toca el botón "Abrir Chrome" abajo para intentar abrirlo automáticamente
-          </p>
-        </div>
-      `,
+      header: 'Abrir en Safari/Chrome',
+      message: 'Enlace copiado. Abre Safari o Chrome y pega el enlace en la barra de direcciones.',
       buttons: [
         {
           text: 'Entendido',
           role: 'cancel'
         },
         {
-          text: 'Abrir Chrome',
+          text: 'Abrir Safari',
           handler: () => {
-            // Intentar múltiples métodos
-            const methods = [
-              // Método 1: Intent de Chrome
-              `intent://${currentUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`,
-              // Método 2: Market link para abrir Chrome si no está instalado
-              `market://details?id=com.android.chrome`,
-              // Método 3: Esquema de Chrome
-              `googlechrome://${currentUrl.replace(/^https?:\/\//, '')}`
-            ]
-            
-            let methodIndex = 0
-            const tryNextMethod = () => {
-              if (methodIndex < methods.length) {
-                try {
-                  window.location.href = methods[methodIndex]
-                  methodIndex++
-                } catch (e) {
-                  tryNextMethod()
-                }
-              }
+            // En iOS, intentar abrir en Safari
+            if (isIOS()) {
+              window.open(currentUrl, '_blank')
+            } else if (isAndroid()) {
+              // En Android, usar Intent
+              window.location.href = `intent://${currentUrl.replace(/^https?:\/\//, '')}#Intent;scheme=https;package=com.android.chrome;end`
             }
-            
-            tryNextMethod()
           }
         }
       ]
@@ -420,17 +390,10 @@ const openInBrowser = async () => {
     await alert.present()
     
   } catch (err) {
-    // Si no se puede copiar al portapapeles, mostrar el enlace
+    // Si falla copiar
     const alert = await alertController.create({
-      header: 'Abre este enlace en Chrome',
-      message: `
-        <div style="text-align: left;">
-          <p>Copia este enlace y ábrelo en Chrome:</p>
-          <div style="margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 4px; word-break: break-all; font-size: 0.8em;">
-            ${currentUrl}
-          </div>
-        </div>
-      `,
+      header: 'Abre en tu navegador',
+      message: 'Por favor, copia este enlace y ábrelo en Safari o Chrome para descargar el ticket.',
       buttons: ['OK']
     })
     await alert.present()
