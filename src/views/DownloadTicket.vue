@@ -169,9 +169,22 @@
                 {{ downloading ? 'Generando PDF...' : 'Descargar Ticket PDF' }}
               </ion-button>
               
+              <!-- Botón para abrir en navegador (Google App) -->
+              <ion-button 
+                v-if="isGoogleApp()"
+                fill="solid"
+                expand="block"
+                @click="openInBrowser"
+                class="browser-btn"
+                color="warning"
+              >
+                <ion-icon :icon="globeOutline" slot="start"></ion-icon>
+                Abrir en Chrome
+              </ion-button>
+              
               <!-- Botón adicional para Android -->
               <ion-button 
-                v-if="isAndroid()"
+                v-if="isAndroid() && !isGoogleApp()"
                 fill="outline"
                 expand="block"
                 @click="openDownloadsFolder"
@@ -236,7 +249,8 @@ import {
   timeOutline,
   bookmarkOutline,
   checkmarkCircleOutline,
-  folderOpenOutline
+  folderOpenOutline,
+  globeOutline
 } from 'ionicons/icons'
 
 // Importaciones corregidas
@@ -337,6 +351,25 @@ const isIOS = () => {
   return /iPhone|iPad|iPod/i.test(navigator.userAgent)
 }
 
+const isGoogleApp = () => {
+  const ua = navigator.userAgent.toLowerCase()
+  return ua.includes('googleapp') || ua.includes('gsa/')
+}
+
+// Función para abrir en navegador externo
+const openInBrowser = () => {
+  const currentUrl = window.location.href
+  
+  // Intentar abrir en Chrome
+  window.location.href = `googlechrome://navigate?url=${encodeURIComponent(currentUrl)}`
+  
+  // Fallback después de 1 segundo por si Chrome no está instalado
+  setTimeout(() => {
+    // Intentar abrir en navegador predeterminado
+    window.open(currentUrl, '_system')
+  }, 1000)
+}
+
 // FUNCIÓN CORREGIDA: Cargar datos del ticket
 const loadTicketData = async () => {
   if (!downloadCode.value) return
@@ -431,9 +464,7 @@ const loadTicketData = async () => {
       guest: guestData,
       event: eventData,
       downloadCode: ticketRecord.download_code,
-      // ✅ AGREGAR EL QR ALMACENADO
       qrCode: ticketRecord.qr_code,
-      // También agregarlo como qr_code para compatibilidad
       qr_code: ticketRecord.qr_code
     }
     
@@ -528,6 +559,28 @@ const showDownloadInstructions = async () => {
 const downloadTicket = async () => {
   if (!ticketData.value) return
 
+  // Detectar si está en la app de Google
+  if (isGoogleApp()) {
+    const alert = await alertController.create({
+      header: 'Abrir en navegador',
+      message: 'Para descargar el PDF, necesitas abrir este enlace en Chrome o tu navegador predeterminado.',
+      buttons: [
+        {
+          text: 'Cancelar',
+          role: 'cancel'
+        },
+        {
+          text: 'Abrir en Chrome',
+          handler: () => {
+            openInBrowser()
+          }
+        }
+      ]
+    })
+    await alert.present()
+    return
+  }
+
   downloading.value = true
   
   try {
@@ -535,10 +588,8 @@ const downloadTicket = async () => {
     
     const { generateTicketPDF } = await import('@/services/ticketPDF.js')
     
-    // ✅ CORRECCIÓN CRÍTICA: Usar el QR almacenado, NO crear uno nuevo
     let qrCodeToUse = ticketData.value.qrCode || ticketData.value.qr_code
     
-    // Solo si no hay QR almacenado (caso de emergencia), crear uno
     if (!qrCodeToUse) {
       console.warn('⚠️ No hay QR almacenado, creando QR de emergencia')
       qrCodeToUse = JSON.stringify({
@@ -557,13 +608,12 @@ const downloadTicket = async () => {
     const success = await generateTicketPDF(
       ticketData.value.guest, 
       ticketData.value.event,
-      qrCodeToUse  // ✅ Pasar el QR correcto
+      qrCodeToUse
     )
     
     if (success) {
       await markTicketAsDownloaded()
       
-      // Toast de éxito
       const toast = await toastController.create({
         message: '🎫 Ticket descargado correctamente',
         duration: 2000,
@@ -572,7 +622,6 @@ const downloadTicket = async () => {
       })
       await toast.present()
       
-      // Mostrar instrucciones específicas después de un breve delay
       setTimeout(() => {
         showDownloadInstructions()
       }, 1000)
@@ -596,7 +645,6 @@ const downloadTicket = async () => {
 // Función para abrir carpeta de descargas (Android)
 const openDownloadsFolder = () => {
   if (isAndroid()) {
-    // Intentar abrir la app de archivos
     try {
       window.open('content://com.android.externalstorage.documents/document/primary%3ADownload', '_blank')
     } catch (e) {
