@@ -1,808 +1,873 @@
 <template>
   <ion-page>
-    <ion-content>
+    <ion-content :fullscreen="true" class="reports-content">
       <div class="reports-container">
-        <!-- Header simple -->
-        <div class="page-header">
-          <h1>📊 Reportes</h1>
-          <ion-button
-            fill="outline"
+        
+        <!-- Header -->
+        <div class="page-header animate-fade-in-down">
+          <div class="header-content">
+            <h1>📊 Reportes y Estadísticas</h1>
+            <p>Análisis detallado de tus eventos</p>
+          </div>
+          <ion-button 
+            fill="clear"
             @click="refreshData"
+            class="refresh-btn"
           >
-            <ion-icon :icon="refreshOutline" slot="start"></ion-icon>
-            Actualizar
+            <ion-icon :icon="refreshOutline"></ion-icon>
           </ion-button>
-        </div>
-
-        <!-- Cargando -->
-        <div v-if="isLoading" class="loading-container">
-          <ion-spinner></ion-spinner>
-          <p>Cargando datos...</p>
         </div>
 
         <!-- Selector de Evento -->
-        <div v-if="!isLoading && eventsStore.events.length > 1" class="event-selector-section">
+        <div class="event-selector-section animate-fade-in-up delay-100">
           <div class="section-header">
-            <h3>Seleccionar Evento</h3>
-          </div>
-          
-          <ion-select 
-            v-model="selectedEventId"
-            @ionChange="onEventChange"
-            placeholder="Selecciona un evento"
-            interface="popover"
-            class="event-select"
-          >
-            <ion-select-option 
-              v-for="event in eventsStore.events" 
-              :key="event.id" 
-              :value="event.id"
-            >
-              {{ event.name }} - {{ formatEventDate(event.date) }}
-            </ion-select-option>
-          </ion-select>
-          
-          <div v-if="selectedEvent" class="event-info">
-            <h4>{{ selectedEvent.name }}</h4>
-            <p v-if="selectedEvent.description">{{ selectedEvent.description }}</p>
-            <p><strong>Fecha:</strong> {{ formatEventDate(selectedEvent.date) }}</p>
-            <p v-if="selectedEvent.location"><strong>Ubicación:</strong> {{ selectedEvent.location }}</p>
-          </div>
-        </div>
-
-        <!-- Evento actual si solo hay uno -->
-        <div v-else-if="!isLoading && selectedEvent" class="current-event-section">
-          <div class="section-header">
-            <h3>{{ selectedEvent.name }}</h3>
-          </div>
-          <p>{{ formatEventDate(selectedEvent.date) }}</p>
-        </div>
-
-        <!-- Estadísticas principales -->
-        <div v-if="!isLoading && selectedEvent" class="stats-section">
-          <div class="section-header">
-            <h3>Resumen de {{ selectedEvent.name }}</h3>
-          </div>
-          
-          <div class="event-stats">
-            <div class="stat-item">
-              <span class="stat-value">{{ eventStats.total }}</span>
-              <span class="stat-label">Total</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value">{{ eventStats.attended }}</span>
-              <span class="stat-label">Asistieron</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value">{{ eventStats.sent }}</span>
-              <span class="stat-label">QRs Enviados</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-value">{{ attendanceRate }}%</span>
-              <span class="stat-label">Asistencia</span>
-            </div>
-          </div>
-          
-          <!-- Barra de progreso de asistencia -->
-          <div class="progress-section">
-            <p class="progress-label">Tasa de Asistencia</p>
-            <ion-progress-bar 
-              :value="attendanceRate / 100"
-              color="success"
-            ></ion-progress-bar>
-            <p class="progress-text">
-              {{ eventStats.attended }} de {{ eventStats.total }} invitados asistieron
-            </p>
-          </div>
-        </div>
-
-        <!-- Generación de PDFs -->
-        <div v-if="!isLoading && selectedEvent && eventStats.total > 0" class="pdf-section">
-          <div class="section-header">
-            <h3>Generar Reportes PDF</h3>
-          </div>
-          
-          <div class="form-content">
+            <h3>Evento Seleccionado</h3>
             <ion-button 
-              expand="block" 
-              @click="generateAttendeesPDF"
-              :disabled="eventStats.attended === 0 || isGeneratingPDF"
-              color="success"
-              class="pdf-btn"
-            >
-              <ion-icon :icon="documentTextOutline" slot="start"></ion-icon>
-              {{ isGeneratingPDF ? 'Generando...' : `PDF Solo Asistentes (${eventStats.attended})` }}
-            </ion-button>
-            
-            <ion-button 
-              expand="block" 
-              @click="generateFullReportPDF"
-              :disabled="eventStats.total === 0 || isGeneratingPDF"
-              class="pdf-btn"
-            >
-              <ion-icon :icon="analyticsOutline" slot="start"></ion-icon>
-              {{ isGeneratingPDF ? 'Generando...' : 'PDF Reporte Completo' }}
-            </ion-button>
-            
-            <ion-button 
-              expand="block" 
-              @click="generateGuestListPDF"
-              :disabled="eventStats.total === 0 || isGeneratingPDF"
-              color="tertiary"
-              class="pdf-btn"
-            >
-              <ion-icon :icon="peopleOutline" slot="start"></ion-icon>
-              {{ isGeneratingPDF ? 'Generando...' : 'PDF Lista de Invitados' }}
-            </ion-button>
-            
-            <div v-if="lastPDFGenerated" class="pdf-status">
-              <ion-icon :icon="checkmarkCircleOutline" color="success"></ion-icon>
-              <span>Último PDF generado: {{ formatDate(lastPDFGenerated) }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Filtros y vista de datos -->
-        <div v-if="!isLoading && selectedEvent && eventStats.total > 0" class="filters-section">
-          <div class="section-header">
-            <h3>Ver Datos del Evento</h3>
-          </div>
-          
-          <ion-segment v-model="selectedView">
-            <ion-segment-button value="attended">
-              <ion-label>Asistentes ({{ eventStats.attended }})</ion-label>
-            </ion-segment-button>
-            <ion-segment-button value="all">
-              <ion-label>Todos ({{ eventStats.total }})</ion-label>
-            </ion-segment-button>
-            <ion-segment-button value="pending">
-              <ion-label>Sin QR ({{ eventStats.pending }})</ion-label>
-            </ion-segment-button>
-            <ion-segment-button value="sent">
-              <ion-label>Con QR ({{ eventStats.sent }})</ion-label>
-            </ion-segment-button>
-          </ion-segment>
-        </div>
-
-        <!-- Lista de invitados según filtro -->
-        <div v-if="!isLoading && selectedEvent && eventStats.total > 0" class="guests-list-section">
-          <div class="section-header">
-            <h3>{{ getListTitle() }}</h3>
-            <ion-button 
-              v-if="currentList.length > 0"
-              size="small" 
               fill="outline"
-              @click="exportCurrentList"
+              size="small"
+              @click="showEventSelectorModal = true"
+              class="change-event-btn"
             >
-              <ion-icon :icon="downloadOutline" slot="start"></ion-icon>
-              Exportar
+              <ion-icon :icon="swapHorizontalOutline" slot="start"></ion-icon>
+              Cambiar
             </ion-button>
           </div>
-          
-          <div class="guests-list" v-if="currentList.length > 0">
-            <div v-for="(guest, index) in currentList" :key="guest.id" class="guest-item" :class="getGuestClass(guest)">
-              <div class="guest-avatar">
-                {{ guest.name.charAt(0).toUpperCase() }}
+
+          <div v-if="currentEvent" class="current-event-card">
+            <div class="event-badge">
+              <ion-icon :icon="calendarOutline"></ion-icon>
+            </div>
+            <div class="event-info">
+              <h4>{{ currentEvent.name }}</h4>
+              <div class="event-date">
+                <ion-icon :icon="timeOutline"></ion-icon>
+                <span>{{ formatDate(currentEvent.date) }}</span>
               </div>
-              
-              <div class="guest-info">
-                <h4>{{ index + 1 }}. {{ guest.name }}</h4>
-                <p>{{ guest.email }}</p>
-                <p v-if="guest.phone" class="phone">📱 {{ guest.phone }}</p>
-                <p v-if="guest.qr_sent_at || guest.sent_at" class="timestamp">
-                  QR enviado: {{ formatDate(guest.qr_sent_at || guest.sent_at) }}
-                </p>
-                <p v-if="guest.entered_at" class="timestamp">
-                  Entrada: {{ formatDate(guest.entered_at) }}
-                </p>
-              </div>
-              
-              <div class="guest-status">
-                <span class="status-badge" :class="getStatusClass(guest)">
-                  {{ getStatusText(guest) }}
-                </span>
+              <div class="event-location" v-if="currentEvent.location">
+                <ion-icon :icon="locationOutline"></ion-icon>
+                <span>{{ currentEvent.location }}</span>
               </div>
             </div>
           </div>
-          
-          <div v-else class="empty-state">
-            <p>{{ getEmptyMessage() }}</p>
+
+          <div v-else class="no-event-selected">
+            <ion-icon :icon="alertCircleOutline"></ion-icon>
+            <p>No hay evento seleccionado</p>
+            <ion-button @click="showEventSelectorModal = true" size="small">
+              Seleccionar Evento
+            </ion-button>
           </div>
         </div>
 
-        <!-- Estadísticas por hora -->
-        <div v-if="!isLoading && selectedEvent && eventStats.attended > 0" class="hourly-section">
-          <div class="section-header">
-            <h3>Entradas por Hora</h3>
-          </div>
+        <!-- ✅ SKELETON LOADER mientras carga -->
+        <div v-if="loading" class="animate-fade-in">
+          <SkeletonLoader type="generic" :count="6" />
+        </div>
+
+        <!-- Estadísticas Principales -->
+        <div v-else-if="currentEvent" class="stats-container animate-fade-in-up delay-200">
           
-          <div class="hourly-stats">
-            <div 
-              v-for="stat in hourlyStats" 
-              :key="stat.hour"
-              class="hour-stat"
-            >
-              <div class="hour-label">{{ stat.hour }}:00</div>
-              <div class="hour-bar">
-                <div 
-                  class="hour-fill"
-                  :style="{ width: stat.percentage + '%' }"
-                ></div>
+          <!-- KPIs Principales -->
+          <div class="kpi-grid">
+            <div class="kpi-card kpi-total">
+              <div class="kpi-icon">
+                <ion-icon :icon="peopleOutline"></ion-icon>
               </div>
-              <div class="hour-count">{{ stat.count }}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Comparativa de eventos -->
-        <div v-if="!isLoading && eventsStore.events.length > 1" class="comparison-section">
-          <div class="section-header">
-            <h3>Comparativa de Eventos</h3>
-          </div>
-          
-          <div class="events-comparison">
-            <div 
-              v-for="event in eventsStore.events" 
-              :key="event.id"
-              class="event-comparison-row"
-            >
-              <div class="event-name">{{ event.name }}</div>
-              <div class="event-stats-text">
-                <span class="stat">{{ getEventGuestCount(event.id) }} invitados</span>
-                <span class="stat">{{ getEventAttendanceCount(event.id) }} asistieron</span>
-                <span class="stat">{{ getEventAttendanceRate(event.id) }}% asistencia</span>
+              <div class="kpi-content">
+                <div class="kpi-value">{{ stats.totalGuests }}</div>
+                <div class="kpi-label">Total Invitados</div>
               </div>
             </div>
+
+            <div class="kpi-card kpi-attended">
+              <div class="kpi-icon">
+                <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
+              </div>
+              <div class="kpi-content">
+                <div class="kpi-value">{{ stats.attended }}</div>
+                <div class="kpi-label">Asistieron</div>
+                <div class="kpi-percentage">{{ stats.attendanceRate }}%</div>
+              </div>
+            </div>
+
+            <div class="kpi-card kpi-pending">
+              <div class="kpi-icon">
+                <ion-icon :icon="hourglassOutline"></ion-icon>
+              </div>
+              <div class="kpi-content">
+                <div class="kpi-value">{{ stats.pending }}</div>
+                <div class="kpi-label">Sin Asistir</div>
+              </div>
+            </div>
+
+            <div class="kpi-card kpi-sent">
+              <div class="kpi-icon">
+                <ion-icon :icon="mailOutline"></ion-icon>
+              </div>
+              <div class="kpi-content">
+                <div class="kpi-value">{{ stats.qrSent }}</div>
+                <div class="kpi-label">QR Enviados</div>
+                <div class="kpi-percentage">{{ stats.qrSentRate }}%</div>
+              </div>
+            </div>
           </div>
-          
-          <ion-button 
-            expand="block" 
-            fill="outline"
-            @click="generateComparativeReport"
-            :disabled="isGeneratingPDF"
-            class="comparative-btn"
-          >
-            <ion-icon :icon="barChartOutline" slot="start"></ion-icon>
-            Generar Reporte Comparativo
-          </ion-button>
+
+          <!-- Gráfico de Barras - Asistencia -->
+          <div class="chart-section">
+            <div class="section-header">
+              <h3>📈 Resumen de Asistencia</h3>
+            </div>
+            <div class="chart-card">
+              <div class="bar-chart">
+                <div class="bar-group">
+                  <div class="bar-container">
+                    <div 
+                      class="bar bar-total"
+                      :style="{ height: '100%' }"
+                    >
+                      <span class="bar-value">{{ stats.totalGuests }}</span>
+                    </div>
+                  </div>
+                  <div class="bar-label">Total</div>
+                </div>
+
+                <div class="bar-group">
+                  <div class="bar-container">
+                    <div 
+                      class="bar bar-attended"
+                      :style="{ height: getBarHeight(stats.attended, stats.totalGuests) }"
+                    >
+                      <span class="bar-value">{{ stats.attended }}</span>
+                    </div>
+                  </div>
+                  <div class="bar-label">Asistieron</div>
+                </div>
+
+                <div class="bar-group">
+                  <div class="bar-container">
+                    <div 
+                      class="bar bar-pending"
+                      :style="{ height: getBarHeight(stats.pending, stats.totalGuests) }"
+                    >
+                      <span class="bar-value">{{ stats.pending }}</span>
+                    </div>
+                  </div>
+                  <div class="bar-label">Pendientes</div>
+                </div>
+
+                <div class="bar-group">
+                  <div class="bar-container">
+                    <div 
+                      class="bar bar-sent"
+                      :style="{ height: getBarHeight(stats.qrSent, stats.totalGuests) }"
+                    >
+                      <span class="bar-value">{{ stats.qrSent }}</span>
+                    </div>
+                  </div>
+                  <div class="bar-label">QR Enviados</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Gráfico Circular - Distribución -->
+          <div class="chart-section">
+            <div class="section-header">
+              <h3>🎯 Distribución de Estados</h3>
+            </div>
+            <div class="chart-card">
+              <div class="pie-chart-container">
+                <div class="pie-chart">
+                  <svg viewBox="0 0 200 200" class="pie-svg">
+                    <!-- Círculo base -->
+                    <circle cx="100" cy="100" r="80" fill="none" stroke="#f3f4f6" stroke-width="40"/>
+                    
+                    <!-- Asistieron (verde) -->
+                    <circle 
+                      cx="100" 
+                      cy="100" 
+                      r="80" 
+                      fill="none" 
+                      stroke="#10b981" 
+                      stroke-width="40"
+                      :stroke-dasharray="`${getPieSegment(stats.attended, stats.totalGuests)} 502`"
+                      stroke-dashoffset="125.5"
+                      transform="rotate(-90 100 100)"
+                      class="pie-segment"
+                    />
+                    
+                    <!-- Pendientes (amarillo) -->
+                    <circle 
+                      cx="100" 
+                      cy="100" 
+                      r="80" 
+                      fill="none" 
+                      stroke="#fbbf24" 
+                      stroke-width="40"
+                      :stroke-dasharray="`${getPieSegment(stats.pending, stats.totalGuests)} 502`"
+                      :stroke-dashoffset="125.5 - getPieSegment(stats.attended, stats.totalGuests)"
+                      transform="rotate(-90 100 100)"
+                      class="pie-segment"
+                    />
+                    
+                    <!-- Centro con porcentaje -->
+                    <text x="100" y="95" text-anchor="middle" class="pie-percentage">
+                      {{ stats.attendanceRate }}%
+                    </text>
+                    <text x="100" y="115" text-anchor="middle" class="pie-label">
+                      Asistencia
+                    </text>
+                  </svg>
+                </div>
+
+                <div class="pie-legend">
+                  <div class="legend-item">
+                    <div class="legend-color" style="background: #10b981;"></div>
+                    <span>Asistieron: {{ stats.attended }} ({{ stats.attendanceRate }}%)</span>
+                  </div>
+                  <div class="legend-item">
+                    <div class="legend-color" style="background: #fbbf24;"></div>
+                    <span>Pendientes: {{ stats.pending }} ({{ 100 - stats.attendanceRate }}%)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lista de Asistencias Recientes -->
+          <div class="recent-section">
+            <div class="section-header">
+              <h3>🕐 Asistencias Recientes</h3>
+              <span class="badge-count">{{ recentAttendances.length }}</span>
+            </div>
+
+            <div v-if="recentAttendances.length > 0" class="recent-list">
+              <div 
+                v-for="guest in recentAttendances" 
+                :key="guest.id"
+                class="recent-item"
+              >
+                <div class="recent-avatar">
+                  {{ getInitials(guest.name) }}
+                </div>
+                <div class="recent-info">
+                  <h4>{{ guest.name }}</h4>
+                  <p>{{ guest.email }}</p>
+                </div>
+                <div class="recent-time">
+                  <ion-icon :icon="timeOutline"></ion-icon>
+                  <span>{{ formatTimeAgo(guest.entered_at) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="empty-recent">
+              <ion-icon :icon="hourglassOutline"></ion-icon>
+              <p>No hay asistencias registradas aún</p>
+            </div>
+          </div>
+
+          <!-- Top Invitados por Mesa/Grupo -->
+          <div v-if="guestsByTable.length > 0" class="tables-section">
+            <div class="section-header">
+              <h3>📋 Distribución por Mesa</h3>
+            </div>
+
+            <div class="tables-grid">
+              <div 
+                v-for="table in guestsByTable" 
+                :key="table.name"
+                class="table-card"
+              >
+                <div class="table-header">
+                  <div class="table-icon">
+                    <ion-icon :icon="restaurantOutline"></ion-icon>
+                  </div>
+                  <h4>{{ table.name }}</h4>
+                </div>
+                <div class="table-stats">
+                  <div class="table-stat">
+                    <span class="stat-label">Total:</span>
+                    <span class="stat-value">{{ table.total }}</span>
+                  </div>
+                  <div class="table-stat">
+                    <span class="stat-label">Asistieron:</span>
+                    <span class="stat-value success">{{ table.attended }}</span>
+                  </div>
+                  <div class="table-progress">
+                    <div 
+                      class="progress-bar"
+                      :style="{ width: getPercentage(table.attended, table.total) + '%' }"
+                    ></div>
+                  </div>
+                  <div class="table-percentage">
+                    {{ getPercentage(table.attended, table.total) }}% asistencia
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Acciones de Exportación -->
+          <div class="export-section">
+            <div class="section-header">
+              <h3>📥 Exportar Datos</h3>
+            </div>
+
+            <div class="export-buttons">
+              <ion-button 
+                expand="block"
+                @click="exportToCSV"
+                class="export-btn"
+              >
+                <ion-icon :icon="documentTextOutline" slot="start"></ion-icon>
+                Exportar a CSV
+              </ion-button>
+
+              <ion-button 
+                expand="block"
+                fill="outline"
+                @click="printReport"
+                class="export-btn"
+              >
+                <ion-icon :icon="printOutline" slot="start"></ion-icon>
+                Imprimir Reporte
+              </ion-button>
+
+              <ion-button 
+                expand="block"
+                fill="outline"
+                @click="shareReport"
+                class="export-btn"
+              >
+                <ion-icon :icon="shareOutline" slot="start"></ion-icon>
+                Compartir
+              </ion-button>
+            </div>
+          </div>
+
         </div>
 
-        <!-- Estado vacío -->
-        <div v-if="!isLoading && eventsStore.events.length === 0" class="no-events">
-          <ion-icon :icon="calendarOutline" size="large"></ion-icon>
-          <h3>No hay eventos</h3>
-          <p>Crea tu primer evento para generar reportes</p>
-          <ion-button @click="$router.push('/tabs/events')" class="create-event-btn">
+        <!-- Estado sin evento -->
+        <div v-else class="empty-state animate-fade-in">
+          <div class="empty-icon">
+            <ion-icon :icon="barChartOutline"></ion-icon>
+          </div>
+          <h3>Selecciona un Evento</h3>
+          <p>Elige un evento para ver sus estadísticas y reportes detallados</p>
+          <ion-button @click="showEventSelectorModal = true">
             <ion-icon :icon="calendarOutline" slot="start"></ion-icon>
-            Crear Evento
+            Seleccionar Evento
           </ion-button>
+        </div>
+
+      </div>
+
+      <!-- ========================================
+           MODAL: SELECTOR DE EVENTO
+           ======================================== -->
+      <div v-if="showEventSelectorModal" class="custom-modal-overlay" @click="showEventSelectorModal = false">
+        <div class="custom-modal" @click.stop>
+          <div class="custom-modal-header">
+            <h2>Seleccionar Evento</h2>
+            <button class="close-modal-btn" @click="closeEventSelector">
+              <ion-icon :icon="closeOutline"></ion-icon>
+            </button>
+          </div>
+          
+          <div class="custom-modal-content">
+            <div v-if="events.length > 0" class="events-list">
+              <div 
+                v-for="event in events" 
+                :key="event.id"
+                class="event-option"
+                :class="{ 'selected': currentEvent?.id === event.id }"
+                @click="selectEventForReport(event)"
+              >
+                <div class="event-option-icon">
+                  <ion-icon :icon="calendarOutline"></ion-icon>
+                </div>
+                <div class="event-option-info">
+                  <h4>{{ event.name }}</h4>
+                  <p>{{ formatDate(event.date) }}</p>
+                </div>
+                <ion-icon 
+                  v-if="currentEvent?.id === event.id"
+                  :icon="checkmarkCircleOutline" 
+                  class="check-icon"
+                  color="success"
+                ></ion-icon>
+              </div>
+            </div>
+
+            <div v-else class="no-events">
+              <ion-icon :icon="alertCircleOutline"></ion-icon>
+              <p>No hay eventos disponibles</p>
+            </div>
+          </div>
         </div>
       </div>
-    </ion-content>
 
-    <!-- Toast para mensajes -->
-    <ion-toast
-      :is-open="toast.isOpen"
-      :message="toast.message"
-      :duration="3000"
-      :color="toast.color"
-      @didDismiss="toast.isOpen = false"
-    ></ion-toast>
+    </ion-content>
   </ion-page>
 </template>
 
-<script setup>
-import { ref, onMounted, computed, watch, onActivated } from 'vue'
+<script setup lang="ts">
+import { ref, computed, onMounted, onActivated, watch } from 'vue'
 import {
-  IonPage, IonContent, IonSpinner, IonButton, IonIcon, IonProgressBar, 
-  IonSegment, IonSegmentButton, IonLabel, IonToast, IonSelect, IonSelectOption
+  IonPage,
+  IonContent,
+  IonButton,
+  IonIcon,
+  toastController,
+  actionSheetController
 } from '@ionic/vue'
 import {
-  documentTextOutline, analyticsOutline, checkmarkCircleOutline,
-  downloadOutline, refreshOutline, peopleOutline, calendarOutline,
-  barChartOutline
+  calendarOutline,
+  peopleOutline,
+  checkmarkCircleOutline,
+  timeOutline,
+  locationOutline,
+  hourglassOutline,
+  mailOutline,
+  swapHorizontalOutline,
+  alertCircleOutline,
+  closeOutline,
+  refreshOutline,
+  documentTextOutline,
+  printOutline,
+  shareOutline,
+  barChartOutline,
+  restaurantOutline
 } from 'ionicons/icons'
-import { eventsStore } from '../stores/events'
-// ❌ QUITAMOS ESTE IMPORT ESTÁTICO:
-// import { generatePDF } from '../services/pdf'
-import { supabase } from '../services/supabase'
+// @ts-ignore
+import eventsStore from '@/stores/events'
+import SkeletonLoader from '@/components/SkeletonLoader.vue'
+import { useHaptics } from '@/composables/useHaptics'
 
-// Estado reactivo
-const selectedEventId = ref(null)
-const selectedView = ref('attended')
-const isGeneratingPDF = ref(false)
-const lastPDFGenerated = ref(null)
-const isLoading = ref(true)
-const localGuests = ref([])
+// ========================================
+// COMPOSABLES
+// ========================================
+const { vibrate } = useHaptics()
 
-const toast = ref({
-  isOpen: false,
-  message: '',
-  color: 'success'
-})
+// ========================================
+// ESTADOS
+// ========================================
+const loading = ref(true)
+const showEventSelectorModal = ref(false)
 
-// Computed properties
-const selectedEvent = computed(() => {
-  if (!selectedEventId.value) return null
-  return eventsStore.events.find(e => e.id === selectedEventId.value) || null
-})
+// ========================================
+// COMPUTED PROPERTIES
+// ========================================
+const events = computed(() => eventsStore.events)
+const currentEvent = computed(() => eventsStore.currentEvent)
+const currentEventGuests = computed(() => eventsStore.currentEventGuests)
 
-const eventGuests = computed(() => {
-  if (!selectedEventId.value) return []
-  return localGuests.value.filter(g => g.event_id === selectedEventId.value)
-})
+// Estadísticas calculadas
+const stats = computed(() => {
+  if (!currentEvent.value) {
+    return {
+      totalGuests: 0,
+      attended: 0,
+      pending: 0,
+      qrSent: 0,
+      attendanceRate: 0,
+      qrSentRate: 0
+    }
+  }
 
-const eventStats = computed(() => {
-  const guests = eventGuests.value
+  const guests = currentEventGuests.value
+  const totalGuests = guests.length
+  const attended = guests.filter((g: any) => g.has_entered).length
+  const pending = totalGuests - attended
+  const qrSent = guests.filter((g: any) => g.qr_sent).length
+  
+  const attendanceRate = totalGuests > 0 ? Math.round((attended / totalGuests) * 100) : 0
+  const qrSentRate = totalGuests > 0 ? Math.round((qrSent / totalGuests) * 100) : 0
+
   return {
-    total: guests.length,
-    sent: guests.filter(g => g.qr_sent || g.sent).length,
-    attended: guests.filter(g => g.has_entered).length,
-    pending: guests.filter(g => !(g.qr_sent || g.sent)).length,
-    confirmed: guests.filter(g => g.confirmed).length
+    totalGuests,
+    attended,
+    pending,
+    qrSent,
+    attendanceRate,
+    qrSentRate
   }
 })
 
-const attendanceRate = computed(() => 
-  eventStats.value.total > 0 ? Math.round((eventStats.value.attended / eventStats.value.total) * 100) : 0
-)
+// Asistencias recientes (últimas 10)
+const recentAttendances = computed(() => {
+  if (!currentEvent.value) return []
 
-const currentList = computed(() => {
-  const guests = eventGuests.value
-  
-  switch (selectedView.value) {
-    case 'attended':
-      return guests
-        .filter(g => g.has_entered)
-        .sort((a, b) => new Date(b.entered_at || b.created_at) - new Date(a.entered_at || a.created_at))
-    case 'all':
-      return guests
-        .sort((a, b) => a.name.localeCompare(b.name))
-    case 'pending':
-      return guests
-        .filter(g => !(g.qr_sent || g.sent))
-        .sort((a, b) => a.name.localeCompare(b.name))
-    case 'sent':
-      return guests
-        .filter(g => (g.qr_sent || g.sent) && !g.has_entered)
-        .sort((a, b) => new Date(b.qr_sent_at || b.sent_at || b.created_at) - new Date(a.qr_sent_at || a.sent_at || a.created_at))
-    default:
-      return []
-  }
+  return currentEventGuests.value
+    .filter((g: any) => g.has_entered && g.entered_at)
+    .sort((a: any, b: any) => {
+      const dateA = new Date(a.entered_at).getTime()
+      const dateB = new Date(b.entered_at).getTime()
+      return dateB - dateA
+    })
+    .slice(0, 10)
 })
 
-const hourlyStats = computed(() => {
-  const attendedGuests = eventGuests.value.filter(g => g.has_entered && g.entered_at)
-  if (attendedGuests.length === 0) return []
-  
-  const hourCounts = {}
-  
-  attendedGuests.forEach(guest => {
-    const date = new Date(guest.entered_at)
-    const hour = date.getHours()
-    hourCounts[hour] = (hourCounts[hour] || 0) + 1
+// Invitados agrupados por mesa
+const guestsByTable = computed(() => {
+  if (!currentEvent.value) return []
+
+  const guests = currentEventGuests.value
+  const tableMap = new Map()
+
+  guests.forEach((guest: any) => {
+    const tableName = guest.table_number || 'Sin mesa'
+    
+    if (!tableMap.has(tableName)) {
+      tableMap.set(tableName, {
+        name: tableName,
+        total: 0,
+        attended: 0
+      })
+    }
+
+    const table = tableMap.get(tableName)
+    table.total++
+    if (guest.has_entered) {
+      table.attended++
+    }
   })
-  
-  const maxCount = Math.max(...Object.values(hourCounts))
-  
-  return Object.entries(hourCounts)
-    .map(([hour, count]) => ({
-      hour: hour.padStart(2, '0'),
-      count,
-      percentage: (count / maxCount) * 100
-    }))
-    .sort((a, b) => a.hour.localeCompare(b.hour))
+
+  return Array.from(tableMap.values())
+    .sort((a, b) => b.total - a.total)
 })
 
-// Función para cargar datos desde Supabase
-const loadGuestsData = async () => {
-  try {
-    isLoading.value = true
-    
-    const { data: guests, error } = await supabase
-      .from('guests')
-      .select('*')
-      .order('created_at', { ascending: false })
-
-    if (error) throw error
-
-    localGuests.value = guests || []
-    
-    console.log('Invitados cargados desde Supabase:', localGuests.value.length)
-    console.log('Invitados que han entrado:', localGuests.value.filter(g => g.has_entered).length)
-    
-  } catch (error) {
-    console.error('Error cargando invitados:', error)
-    showToast('Error al cargar datos', 'danger')
-  } finally {
-    isLoading.value = false
-  }
+// ========================================
+// FUNCIONES DE CÁLCULO
+// ========================================
+const getBarHeight = (value: number, total: number): string => {
+  if (total === 0) return '0%'
+  const percentage = (value / total) * 100
+  return `${Math.max(percentage, 5)}%` // Mínimo 5% para visibilidad
 }
 
-// Watch para mantener sincronizado con el evento actual del store
-watch(() => eventsStore.currentEventId, (newEventId) => {
-  if (newEventId && (!selectedEventId.value || selectedEventId.value !== newEventId)) {
-    selectedEventId.value = newEventId
-  }
-}, { immediate: true })
-
-// Función para mostrar toast
-const showToast = (message, color = 'success') => {
-  toast.value = {
-    isOpen: true,
-    message,
-    color
-  }
+const getPieSegment = (value: number, total: number): number => {
+  if (total === 0) return 0
+  const circumference = 2 * Math.PI * 80 // radio = 80
+  return (value / total) * circumference
 }
 
-// Función para cambiar evento
-const onEventChange = (event) => {
-  const eventId = event.detail.value
-  selectedEventId.value = eventId
-  eventsStore.setCurrentEvent(eventId)
-  selectedView.value = 'attended'
+const getPercentage = (value: number, total: number): number => {
+  if (total === 0) return 0
+  return Math.round((value / total) * 100)
 }
 
-// Función para refrescar datos
-const refreshData = async () => {
-  try {
-    await Promise.all([
-      eventsStore.forceReload(),
-      loadGuestsData()
-    ])
-    showToast('Datos actualizados')
-  } catch (error) {
-    console.error('Error refreshing data:', error)
-    showToast('Error al actualizar datos', 'danger')
-  }
+const getInitials = (name: string): string => {
+  if (!name) return '?'
+  const parts = name.trim().split(' ')
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase()
+  return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
 }
 
-// ✅ FUNCIÓN 1 OPTIMIZADA: PDF de asistentes
-const generateAttendeesPDF = async () => {
-  if (eventStats.value.attended === 0) {
-    showToast('No hay asistentes para generar PDF', 'warning')
-    return
-  }
-  
-  isGeneratingPDF.value = true
-  
-  try {
-    console.log('Cargando generador de PDF para asistentes...')
-    
-    // ✅ Importación dinámica - solo cuando el usuario descarga
-    const { generatePDF } = await import('../services/pdf')
-    
-    const attendeesList = eventGuests.value.filter(g => g.has_entered)
-    
-    await generatePDF({
-      type: 'attendees',
-      eventName: selectedEvent.value.name,
-      eventDate: selectedEvent.value.date,
-      eventLocation: selectedEvent.value.location,
-      attendees: attendeesList,
-      stats: {
-        total: eventStats.value.total,
-        attended: eventStats.value.attended,
-        rate: attendanceRate.value
-      }
-    })
-    
-    lastPDFGenerated.value = new Date().toISOString()
-    showToast('PDF de asistentes generado')
-    
-  } catch (error) {
-    console.error('Error generating PDF:', error)
-    showToast('Error al generar PDF: ' + error.message, 'danger')
-  } finally {
-    isGeneratingPDF.value = false
-  }
-}
-
-// ✅ FUNCIÓN 2 OPTIMIZADA: PDF de reporte completo
-const generateFullReportPDF = async () => {
-  if (eventStats.value.total === 0) {
-    showToast('No hay datos para generar reporte', 'warning')
-    return
-  }
-  
-  isGeneratingPDF.value = true
-  
-  try {
-    console.log('Cargando generador de PDF para reporte completo...')
-    
-    // ✅ Importación dinámica - solo cuando el usuario descarga
-    const { generatePDF } = await import('../services/pdf')
-    
-    await generatePDF({
-      type: 'full',
-      eventName: selectedEvent.value.name,
-      eventDate: selectedEvent.value.date,
-      eventLocation: selectedEvent.value.location,
-      eventDescription: selectedEvent.value.description,
-      guests: eventGuests.value,
-      attendees: eventGuests.value.filter(g => g.has_entered),
-      stats: {
-        total: eventStats.value.total,
-        attended: eventStats.value.attended,
-        sent: eventStats.value.sent,
-        pending: eventStats.value.pending,
-        rate: attendanceRate.value
-      },
-      hourlyStats: hourlyStats.value
-    })
-    
-    lastPDFGenerated.value = new Date().toISOString()
-    showToast('Reporte completo generado')
-    
-  } catch (error) {
-    console.error('Error generating full report:', error)
-    showToast('Error al generar reporte: ' + error.message, 'danger')
-  } finally {
-    isGeneratingPDF.value = false
-  }
-}
-
-// ✅ FUNCIÓN 3 OPTIMIZADA: PDF lista de invitados
-const generateGuestListPDF = async () => {
-  if (eventStats.value.total === 0) {
-    showToast('No hay invitados para generar lista', 'warning')
-    return
-  }
-  
-  isGeneratingPDF.value = true
-  
-  try {
-    console.log('Cargando generador de PDF para lista de invitados...')
-    
-    // ✅ Importación dinámica - solo cuando el usuario descarga
-    const { generatePDF } = await import('../services/pdf')
-    
-    await generatePDF({
-      type: 'guests',
-      eventName: selectedEvent.value.name,
-      eventDate: selectedEvent.value.date,
-      eventLocation: selectedEvent.value.location,
-      guests: eventGuests.value,
-      stats: {
-        total: eventStats.value.total,
-        sent: eventStats.value.sent,
-        pending: eventStats.value.pending
-      }
-    })
-    
-    lastPDFGenerated.value = new Date().toISOString()
-    showToast('Lista de invitados generada')
-    
-  } catch (error) {
-    console.error('Error generating guest list:', error)
-    showToast('Error al generar lista: ' + error.message, 'danger')
-  } finally {
-    isGeneratingPDF.value = false
-  }
-}
-
-// ✅ FUNCIÓN 4 OPTIMIZADA: Reporte comparativo
-const generateComparativeReport = async () => {
-  if (eventsStore.events.length < 2) {
-    showToast('Se necesitan al menos 2 eventos para comparar', 'warning')
-    return
-  }
-  
-  isGeneratingPDF.value = true
-  
-  try {
-    console.log('Cargando generador de PDF para reporte comparativo...')
-    
-    // ✅ Importación dinámica - solo cuando el usuario descarga
-    const { generatePDF } = await import('../services/pdf')
-    
-    const eventsData = eventsStore.events.map(event => {
-      const eventGuestsForComparison = localGuests.value.filter(g => g.event_id === event.id)
-      return {
-        event,
-        guests: eventGuestsForComparison,
-        stats: {
-          total: eventGuestsForComparison.length,
-          sent: eventGuestsForComparison.filter(g => g.qr_sent || g.sent).length,
-          scanned: eventGuestsForComparison.filter(g => g.has_entered).length,
-          rate: eventGuestsForComparison.length > 0 ? Math.round((eventGuestsForComparison.filter(g => g.has_entered).length / eventGuestsForComparison.length) * 100) : 0
-        }
-      }
-    })
-    
-    await generatePDF({
-      type: 'comparative',
-      eventsData
-    })
-    
-    lastPDFGenerated.value = new Date().toISOString()
-    showToast('Reporte comparativo generado')
-    
-  } catch (error) {
-    console.error('Error generating comparative report:', error)
-    showToast('Error al generar reporte comparativo: ' + error.message, 'danger')
-  } finally {
-    isGeneratingPDF.value = false
-  }
-}
-
-// Función para exportar lista actual
-const exportCurrentList = () => {
-  if (currentList.value.length === 0) return
-  
-  const csvContent = generateCSV(currentList.value)
-  const blob = new Blob([csvContent], { type: 'text/csv' })
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  
-  const eventName = selectedEvent.value.name.replace(/\s+/g, '_')
-  const listType = getListTitle().replace(/\s+/g, '_')
-  
-  link.href = url
-  link.download = `${eventName}_${listType}_${new Date().toISOString().split('T')[0]}.csv`
-  link.click()
-  
-  window.URL.revokeObjectURL(url)
-  showToast('Lista exportada como CSV')
-}
-
-// Función para generar CSV
-const generateCSV = (data) => {
-  const headers = ['Nombre', 'Email', 'Teléfono', 'QR Enviado', 'Ha Entrado', 'Fecha QR', 'Fecha Entrada']
-  const rows = data.map(guest => [
-    guest.name,
-    guest.email,
-    guest.phone || '',
-    (guest.qr_sent || guest.sent) ? 'Sí' : 'No',
-    guest.has_entered ? 'Sí' : 'No',
-    (guest.qr_sent_at || guest.sent_at) ? formatDate(guest.qr_sent_at || guest.sent_at) : '',
-    guest.entered_at ? formatDate(guest.entered_at) : ''
-  ])
-  
-  return [headers, ...rows]
-    .map(row => row.map(cell => `"${cell}"`).join(','))
-    .join('\n')
-}
-
-// Funciones para estadísticas de eventos
-const getEventGuestCount = (eventId) => {
-  return localGuests.value.filter(g => g.event_id === eventId).length
-}
-
-const getEventAttendanceCount = (eventId) => {
-  return localGuests.value.filter(g => g.event_id === eventId && g.has_entered).length
-}
-
-const getEventAttendanceRate = (eventId) => {
-  const guests = localGuests.value.filter(g => g.event_id === eventId)
-  const attended = guests.filter(g => g.has_entered).length
-  return guests.length > 0 ? Math.round((attended / guests.length) * 100) : 0
-}
-
-// Funciones de utilidad
-const getGuestClass = (guest) => {
-  if (guest.has_entered) return 'scanned'
-  if (guest.qr_sent || guest.sent) return 'sent'
-  return 'pending'
-}
-
-const getStatusClass = (guest) => {
-  if (guest.has_entered) return 'success'
-  if (guest.qr_sent || guest.sent) return 'warning'
-  return 'medium'
-}
-
-const getStatusText = (guest) => {
-  if (guest.has_entered) return 'ASISTIÓ'
-  if (guest.qr_sent || guest.sent) return 'QR ENVIADO'
-  return 'PENDIENTE'
-}
-
-const getListTitle = () => {
-  if (!selectedEvent.value) return 'Lista'
-  
-  switch (selectedView.value) {
-    case 'attended':
-      return `Asistentes de ${selectedEvent.value.name} (${eventStats.value.attended})`
-    case 'all':
-      return `Todos los Invitados de ${selectedEvent.value.name} (${eventStats.value.total})`
-    case 'pending':
-      return `Sin QR de ${selectedEvent.value.name} (${eventStats.value.pending})`
-    case 'sent':
-      return `Con QR de ${selectedEvent.value.name} (${eventStats.value.sent - eventStats.value.attended})`
-    default:
-      return 'Lista'
-  }
-}
-
-const getEmptyMessage = () => {
-  switch (selectedView.value) {
-    case 'attended':
-      return 'No hay asistentes registrados aún en este evento'
-    case 'all':
-      return 'No hay invitados en este evento'
-    case 'pending':
-      return 'Todos los invitados de este evento tienen QR enviado'
-    case 'sent':
-      return 'No hay invitados con QR enviado sin asistir'
-    default:
-      return 'No hay datos'
-  }
-}
-
-const formatDate = (dateString) => {
+// ========================================
+// FUNCIONES DE FORMATO
+// ========================================
+const formatDate = (dateString: string): string => {
   if (!dateString) return ''
-  return new Date(dateString).toLocaleString('es-ES', {
-    timeZone: 'Europe/Madrid',
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('es-ES', {
+      weekday: 'short',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch {
+    return dateString
+  }
 }
 
-const formatEventDate = (dateString) => {
-  if (!dateString) return ''
-  return new Date(dateString).toLocaleDateString('es-ES', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  })
+const formatTimeAgo = (dateString: string | undefined): string => {
+  if (!dateString) return 'Sin registro'
+  
+  try {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMins / 60)
+    const diffDays = Math.floor(diffHours / 24)
+
+    if (diffMins < 1) return 'Ahora mismo'
+    if (diffMins < 60) return `Hace ${diffMins} min`
+    if (diffHours < 24) return `Hace ${diffHours}h`
+    if (diffDays === 1) return 'Ayer'
+    if (diffDays < 7) return `Hace ${diffDays} días`
+    
+    return date.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: 'short'
+    })
+  } catch {
+    return 'Fecha inválida'
+  }
 }
 
-// Inicializar al montar y cuando se activa la vista
-onMounted(async () => {
+// ========================================
+// FUNCIONES DE CARGA
+// ========================================
+const loadData = async () => {
+  loading.value = true
+
   try {
     await eventsStore.init()
-    await loadGuestsData()
     
-    if (eventsStore.events.length > 0) {
-      selectedEventId.value = eventsStore.currentEventId || eventsStore.events[0].id
-    }
+    console.log('✅ Datos de reportes cargados')
+    console.log('Evento actual:', currentEvent.value?.name)
+    console.log('Total invitados:', stats.value.totalGuests)
+    
   } catch (error) {
-    console.error('Error initializing reports:', error)
+    console.error('Error cargando datos:', error)
+    await vibrate('error')
+    showToast('Error al cargar datos', 'danger')
+  } finally {
+    loading.value = false
   }
+}
+
+const refreshData = async () => {
+  await vibrate('light')
+  await loadData()
+  showToast('Datos actualizados', 'success')
+}
+
+// ========================================
+// FUNCIONES DE SELECCIÓN DE EVENTO
+// ========================================
+const selectEventForReport = async (event: any) => {
+  await vibrate('selection')
+  eventsStore.setCurrentEvent(event.id)
+  showEventSelectorModal.value = false
+  showToast(`Mostrando reportes de "${event.name}"`, 'success')
+  await loadData()
+}
+
+const closeEventSelector = async () => {
+  await vibrate('light')
+  showEventSelectorModal.value = false
+}
+
+// ========================================
+// FUNCIONES DE EXPORTACIÓN
+// ========================================
+const exportToCSV = async () => {
+  await vibrate('medium')
+
+  try {
+    if (!currentEvent.value) {
+      showToast('Selecciona un evento primero', 'warning')
+      return
+    }
+
+    const guests = currentEventGuests.value
+    
+    // Crear encabezados CSV
+    const headers = ['Nombre', 'Email', 'Teléfono', 'Mesa', 'QR Enviado', 'Ha Asistido', 'Fecha de Entrada']
+    
+    // Crear filas CSV
+    const rows = guests.map((guest: any) => [
+      guest.name,
+      guest.email || '',
+      guest.phone || '',
+      guest.table_number || '',
+      guest.qr_sent ? 'Sí' : 'No',
+      guest.has_entered ? 'Sí' : 'No',
+      guest.entered_at ? formatDate(guest.entered_at) : ''
+    ])
+
+    // Combinar todo
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n')
+
+    // Crear blob y descargar
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `reporte_${currentEvent.value.name}_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+
+    await vibrate('success')
+    showToast('Reporte exportado correctamente', 'success')
+
+  } catch (error) {
+    console.error('Error exportando CSV:', error)
+    await vibrate('error')
+    showToast('Error al exportar reporte', 'danger')
+  }
+}
+
+const printReport = async () => {
+  await vibrate('light')
+  
+  try {
+    window.print()
+    showToast('Preparando impresión...', 'primary')
+  } catch (error) {
+    console.error('Error al imprimir:', error)
+    showToast('Error al imprimir', 'danger')
+  }
+}
+
+const shareReport = async () => {
+  await vibrate('light')
+
+  const actionSheet = await actionSheetController.create({
+    header: 'Compartir Reporte',
+    buttons: [
+      {
+        text: 'Copiar resumen',
+        icon: documentTextOutline,
+        handler: async () => {
+          await copyReportSummary()
+        }
+      },
+      {
+        text: 'Exportar y compartir CSV',
+        icon: shareOutline,
+        handler: async () => {
+          await exportToCSV()
+        }
+      },
+      {
+        text: 'Cancelar',
+        role: 'cancel',
+        icon: closeOutline
+      }
+    ]
+  })
+
+  await actionSheet.present()
+}
+
+const copyReportSummary = async () => {
+  try {
+    if (!currentEvent.value) return
+
+    const summary = `
+📊 Reporte: ${currentEvent.value.name}
+📅 Fecha: ${formatDate(currentEvent.value.date)}
+
+📈 Estadísticas:
+👥 Total Invitados: ${stats.value.totalGuests}
+✅ Asistieron: ${stats.value.attended} (${stats.value.attendanceRate}%)
+⏳ Pendientes: ${stats.value.pending}
+📧 QR Enviados: ${stats.value.qrSent} (${stats.value.qrSentRate}%)
+    `.trim()
+
+    await navigator.clipboard.writeText(summary)
+    await vibrate('success')
+    showToast('Resumen copiado al portapapeles', 'success')
+  } catch (error) {
+    console.error('Error copiando resumen:', error)
+    showToast('Error al copiar resumen', 'danger')
+  }
+}
+
+// ========================================
+// FUNCIONES DE UTILIDADES
+// ========================================
+const showToast = async (message: string, color: string = 'primary') => {
+  const toast = await toastController.create({
+    message,
+    duration: 2500,
+    color,
+    position: 'top'
+  })
+  await toast.present()
+}
+
+// ========================================
+// WATCHERS
+// ========================================
+watch(currentEvent, async (newEvent) => {
+  if (newEvent) {
+    console.log('📊 Evento cambiado, recargando estadísticas:', newEvent.name)
+    await loadData()
+  }
+})
+
+// ========================================
+// LIFECYCLE HOOKS
+// ========================================
+onMounted(async () => {
+  console.log('📊 ReportsTab montado')
+  await loadData()
 })
 
 onActivated(async () => {
-  console.log('ReportsTab activated - refreshing data')
-  await loadGuestsData()
+  console.log('🔄 ReportsTab activado - refrescando datos')
+  await loadData()
 })
 </script>
 
 <style scoped>
+/* ========================================
+   CONTENEDOR PRINCIPAL
+   ======================================== */
 .reports-container {
   padding: 20px;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
-/* Header simple */
+.reports-content {
+  --background: #f8f9fa;
+}
+
+/* ========================================
+   HEADER
+   ======================================== */
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
 }
 
-.page-header h1 {
+.header-content {
+  flex: 1;
+}
+
+.header-content h1 {
   font-size: 1.8rem;
   font-weight: 600;
-  margin: 0;
+  margin: 0 0 8px 0;
   color: #1f2937;
 }
 
-/* Secciones - mismo estilo que GuestsTab */
-.event-selector-section,
-.current-event-section,
-.stats-section,
-.pdf-section,
-.filters-section,
-.guests-list-section,
-.hourly-section,
-.comparison-section {
+.header-content p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+.refresh-btn {
+  --color: #667eea;
+  --padding-start: 12px;
+  --padding-end: 12px;
+}
+
+/* ========================================
+   SELECTOR DE EVENTO
+   ======================================== */
+.event-selector-section {
   background: white;
   border-radius: 12px;
   padding: 24px;
@@ -824,29 +889,56 @@ onActivated(async () => {
   font-weight: 600;
 }
 
-/* Loading */
-.loading-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-  color: #6b7280;
+.badge-count {
+  background: #667eea;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
-/* Event selector */
-.event-select {
-  --background: #f8f9fa;
-  --color: #1f2937;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  margin-bottom: 16px;
+.change-event-btn {
+  --border-radius: 8px;
+  font-weight: 600;
+  --border-width: 2px;
+  --border-color: #667eea;
+  --color: #667eea;
+}
+
+.current-event-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.current-event-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.event-badge {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(13, 27, 42, 0.3);
 }
 
 .event-info {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #e5e7eb;
+  flex: 1;
+  min-width: 0;
 }
 
 .event-info h4 {
@@ -854,429 +946,1025 @@ onActivated(async () => {
   color: #1f2937;
   font-size: 1.1rem;
   font-weight: 600;
+  word-wrap: break-word;
 }
 
-.event-info p {
+.event-date,
+.event-location {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 4px 0;
   color: #6b7280;
   font-size: 0.9rem;
 }
 
-/* Estadísticas - mismo estilo que GuestsTab */
-.event-stats {
-  display: flex;
-  justify-content: space-around;
-  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
-  color: white;
-  padding: 16px;
-  border-radius: 8px;
-  margin-bottom: 16px;
+.event-date ion-icon,
+.event-location ion-icon {
+  color: #667eea;
+  font-size: 1rem;
 }
 
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.stat-value {
-  font-weight: 700;
-  font-size: 1.4rem;
-}
-
-.stat-label {
-  font-size: 0.8rem;
-  opacity: 0.9;
-}
-
-/* Progress bar */
-.progress-section {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #e5e7eb;
-}
-
-.progress-label {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
+.no-event-selected {
   text-align: center;
-  color: #1f2937;
+  padding: 40px 20px;
+  background: #fef3c7;
+  border: 2px dashed #fbbf24;
+  border-radius: 12px;
 }
 
-.progress-text {
-  text-align: center;
-  margin-top: 0.5rem;
-  font-size: 0.9rem;
-  color: #6b7280;
-}
-
-/* Botones - mismo estilo que GuestsTab */
-.pdf-btn,
-.comparative-btn,
-.create-event-btn {
-  --background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
-  --border-radius: 8px;
-  font-weight: 600;
+.no-event-selected ion-icon {
+  font-size: 3rem;
+  color: #f59e0b;
   margin-bottom: 12px;
 }
 
-.pdf-btn:hover,
-.comparative-btn:hover,
-.create-event-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(13, 27, 42, 0.3);
+.no-event-selected p {
+  margin: 0 0 16px 0;
+  color: #92400e;
+  font-weight: 500;
 }
 
-.pdf-btn[color="success"] {
-  --background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-}
-
-.pdf-btn[color="tertiary"] {
-  --background: linear-gradient(135deg, #6f42c1 0%, #e83e8c 100%);
-}
-
-.form-content {
+/* ========================================
+   CONTENEDOR DE ESTADÍSTICAS
+   ======================================== */
+.stats-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 24px;
 }
 
-/* PDF Status */
-.pdf-status {
+/* ========================================
+   KPI CARDS
+   ======================================== */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  padding: 0.8rem;
-  background: #d4edda;
-  border-radius: 6px;
+  gap: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  border-left: 4px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  opacity: 0.1;
+  transform: translate(30%, -30%);
+}
+
+.kpi-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.kpi-total {
+  border-left-color: #667eea;
+}
+
+.kpi-total::before {
+  background: #667eea;
+}
+
+.kpi-total .kpi-icon {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.kpi-attended {
+  border-left-color: #10b981;
+}
+
+.kpi-attended::before {
+  background: #10b981;
+}
+
+.kpi-attended .kpi-icon {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.kpi-pending {
+  border-left-color: #fbbf24;
+}
+
+.kpi-pending::before {
+  background: #fbbf24;
+}
+
+.kpi-pending .kpi-icon {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+}
+
+.kpi-sent {
+  border-left-color: #0ea5e9;
+}
+
+.kpi-sent::before {
+  background: #0ea5e9;
+}
+
+.kpi-sent .kpi-icon {
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+}
+
+.kpi-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.8rem;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.kpi-content {
+  flex: 1;
+}
+
+.kpi-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.kpi-label {
   font-size: 0.9rem;
+  color: #6b7280;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-/* Segment */
-ion-segment {
-  --background: #f8f9fa;
+.kpi-percentage {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #10b981;
+  margin-top: 8px;
+}
+
+/* ========================================
+   SECCIONES DE GRÁFICOS
+   ======================================== */
+.chart-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.chart-card {
+  margin-top: 20px;
+}
+
+/* ========================================
+   GRÁFICO DE BARRAS
+   ======================================== */
+.bar-chart {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-end;
+  gap: 20px;
+  padding: 40px 20px 20px;
+  min-height: 300px;
+}
+
+.bar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.bar-container {
+  width: 100%;
+  height: 200px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+}
+
+.bar {
+  width: 80%;
+  max-width: 80px;
+  border-radius: 8px 8px 0 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12px;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  position: relative;
+  animation: growBar 1s ease-out;
+}
+
+@keyframes growBar {
+  from {
+    height: 0 !important;
+  }
+}
+
+.bar-total {
+  background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+}
+
+.bar-attended {
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+}
+
+.bar-pending {
+  background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%);
+}
+
+.bar-sent {
+  background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+}
+
+.bar-value {
+  color: white;
+  font-weight: 700;
+  font-size: 1.2rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.bar-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-align: center;
+}
+
+/* ========================================
+   GRÁFICO CIRCULAR
+   ======================================== */
+.pie-chart-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  padding: 20px;
+}
+
+.pie-chart {
+  width: 100%;
+  max-width: 300px;
+  aspect-ratio: 1;
+}
+
+.pie-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(0deg);
+}
+
+.pie-segment {
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pie-percentage {
+  font-size: 2.5rem;
+  font-weight: 700;
+  fill: #1f2937;
+}
+
+.pie-label {
+  font-size: 1rem;
+  font-weight: 500;
+  fill: #6b7280;
+}
+
+.pie-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8f9fa;
   border-radius: 8px;
-  margin-bottom: 16px;
 }
 
-ion-segment-button {
-  --color: #6b7280;
-  --color-checked: #0d1b2a;
-  --background-checked: white;
-  --border-radius: 6px;
+.legend-color {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  flex-shrink: 0;
 }
 
-/* Lista de invitados - mismo estilo que GuestsTab */
-.guests-list {
+.legend-item span {
+  font-size: 0.95rem;
+  color: #1f2937;
+  font-weight: 500;
+}
+
+/* ========================================
+   ASISTENCIAS RECIENTES
+   ======================================== */
+.recent-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.recent-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.guest-item {
+.recent-item {
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 16px;
   background: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #e5e7eb;
-  transition: all 0.2s ease;
+  border-radius: 12px;
+  border-left: 4px solid #10b981;
+  transition: all 0.3s ease;
 }
 
-.guest-item:hover {
-  background: #f1f3f4;
+.recent-item:hover {
+  background: #f0fdf4;
   transform: translateX(4px);
 }
 
-.guest-item.sent {
-  border-left-color: #fbbf24;
-}
-
-.guest-item.scanned {
-  border-left-color: #10b981;
-}
-
-.guest-avatar {
+.recent-avatar {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  background: #6b7280;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 1.2rem;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 }
 
-.guest-item.sent .guest-avatar {
-  background: #fbbf24;
-}
-
-.guest-item.scanned .guest-avatar {
-  background: #10b981;
-}
-
-.guest-info {
+.recent-info {
   flex: 1;
+  min-width: 0;
 }
 
-.guest-info h4 {
+.recent-info h4 {
   margin: 0 0 4px 0;
   color: #1f2937;
   font-size: 1rem;
   font-weight: 600;
+  word-wrap: break-word;
 }
 
-.guest-info p {
-  margin: 0 0 2px 0;
+.recent-info p {
+  margin: 0;
   color: #6b7280;
   font-size: 0.9rem;
+  word-wrap: break-word;
 }
 
-.phone {
-  font-size: 0.8rem;
-  color: #9ca3af;
-}
-
-.timestamp {
-  font-size: 0.8rem;
-  color: #9ca3af;
-  font-style: italic;
-}
-
-.status-badge {
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.status-badge.success {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.status-badge.warning {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status-badge.medium {
-  background: #f3f4f6;
-  color: #374151;
-}
-
-/* Estadísticas por hora */
-.hourly-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-}
-
-.hour-stat {
+.recent-time {
   display: flex;
   align-items: center;
-  gap: 1rem;
-}
-
-.hour-label {
-  min-width: 50px;
-  font-weight: bold;
-  font-size: 0.9rem;
-  color: #1f2937;
-}
-
-.hour-bar {
-  flex: 1;
-  height: 20px;
-  background: #e9ecef;
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.hour-fill {
-  height: 100%;
-  background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-  transition: width 0.3s ease;
-}
-
-.hour-count {
-  min-width: 30px;
-  text-align: center;
-  font-weight: bold;
-  color: #1f2937;
-}
-
-/* Comparativa de eventos */
-.events-comparison {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.event-comparison-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border-left: 4px solid #0d1b2a;
-}
-
-.event-name {
+  gap: 6px;
+  color: #059669;
+  font-size: 0.85rem;
   font-weight: 600;
-  color: #1f2937;
-  flex: 1;
-  margin-right: 1rem;
+  white-space: nowrap;
+}
+
+.recent-time ion-icon {
   font-size: 1rem;
 }
 
-.event-stats-text {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  text-align: right;
-}
-
-.event-stats-text .stat {
-  font-size: 0.8rem;
-  color: #6b7280;
-}
-
-/* Estados vacíos */
-.empty-state,
-.no-events {
+.empty-recent {
   text-align: center;
   padding: 60px 20px;
-  color: #6b7280;
 }
 
-.empty-state ion-icon,
-.no-events ion-icon {
-  margin-bottom: 20px;
+.empty-recent ion-icon {
+  font-size: 4rem;
   color: #9ca3af;
+  margin-bottom: 16px;
 }
 
-.empty-state h3,
-.no-events h3 {
-  margin: 0 0 12px 0;
-  color: #374151;
+.empty-recent p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+/* ========================================
+   DISTRIBUCIÓN POR MESA
+   ======================================== */
+.tables-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.tables-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.table-card {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 20px;
+  border: 2px solid #e5e7eb;
+  transition: all 0.3s ease;
+}
+
+.table-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+  transform: translateY(-2px);
+}
+
+.table-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.table-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.table-header h4 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 1.05rem;
+  font-weight: 600;
+  flex: 1;
+}
+
+.table-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.table-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-label {
+  font-size: 0.9rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.stat-value {
   font-size: 1.1rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.stat-value.success {
+  color: #10b981;
+}
+
+.table-progress {
+  width: 100%;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
+  border-radius: 4px;
+  transition: width 0.5s ease-out;
+}
+
+.table-percentage {
+  font-size: 0.85rem;
+  color: #059669;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* ========================================
+   EXPORTACIÓN
+   ======================================== */
+.export-section {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.export-buttons {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.export-btn {
+  --border-radius: 8px;
+  font-weight: 600;
+  height: 48px;
+}
+
+/* ========================================
+   ESTADO VACÍO
+   ======================================== */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.empty-icon {
+  font-size: 5rem;
+  color: #9ca3af;
+  margin-bottom: 24px;
+}
+
+.empty-state h3 {
+  margin: 0 0 12px 0;
+  color: #1f2937;
+  font-size: 1.5rem;
   font-weight: 600;
 }
 
-.empty-state p,
-.no-events p {
-  margin: 0 0 24px 0;
+.empty-state p {
+  margin: 0 0 32px 0;
+  color: #6b7280;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+/* ========================================
+   MODALES
+   ======================================== */
+.custom-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.custom-modal {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.custom-modal-header {
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  color: white;
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.custom-modal-header h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.close-modal-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.close-modal-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.custom-modal-content {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.events-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.event-option {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.event-option:hover {
+  background: #f1f3f4;
+  border-color: #667eea;
+  transform: translateX(4px);
+}
+
+.event-option.selected {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border-color: #667eea;
+}
+
+.event-option-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0d1b2a 0%, #1e3a8a 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.event-option-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.event-option-info h4 {
+  margin: 0 0 4px 0;
+  color: #1f2937;
+  font-size: 1.05rem;
+  font-weight: 600;
+  word-wrap: break-word;
+}
+
+.event-option-info p {
+  margin: 0;
+  color: #6b7280;
   font-size: 0.9rem;
+  word-wrap: break-word;
 }
 
-/* Toast personalización */
-ion-toast {
-  --background: #1f2937;
-  --color: white;
-  --border-radius: 8px;
+.check-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
 }
 
-/* Responsive - mismo que GuestsTab */
+.no-events {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.no-events ion-icon {
+  font-size: 4rem;
+  color: #9ca3af;
+  margin-bottom: 16px;
+}
+
+.no-events p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 1rem;
+}
+
+/* ========================================
+   RESPONSIVE
+   ======================================== */
 @media (max-width: 768px) {
   .reports-container {
     padding: 16px;
   }
-  
+
   .page-header {
     flex-direction: column;
+    align-items: flex-start;
     gap: 16px;
-    align-items: stretch;
-    text-align: center;
+    padding: 20px;
   }
-  
-  .event-stats {
-    flex-direction: column;
+
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
     gap: 12px;
   }
-  
-  .stat-item {
-    flex-direction: row;
-    justify-content: space-between;
-  }
-  
-  .event-selector-section,
-  .current-event-section,
-  .stats-section,
-  .pdf-section,
-  .filters-section,
-  .guests-list-section,
-  .hourly-section,
-  .comparison-section {
+
+  .kpi-card {
     padding: 16px;
   }
-  
-  .guest-item {
-    flex-wrap: wrap;
-    gap: 12px;
+
+  .kpi-icon {
+    width: 48px;
+    height: 48px;
+    font-size: 1.4rem;
   }
-  
-  .event-comparison-row {
-    flex-direction: column;
-    text-align: center;
-    gap: 0.5rem;
+
+  .kpi-value {
+    font-size: 2rem;
   }
-  
-  .event-name {
-    margin-right: 0;
+
+  .bar-chart {
+    padding: 20px 10px 10px;
+    min-height: 250px;
   }
-  
-  .event-stats-text {
-    text-align: center;
-    flex-direction: row;
-    gap: 1rem;
-    justify-content: center;
+
+  .bar-container {
+    height: 150px;
   }
-  
-  .hour-stat {
-    flex-wrap: wrap;
-    gap: 8px;
+
+  .pie-chart-container {
+    gap: 24px;
   }
-  
-  .hour-label {
-    min-width: 40px;
+
+  .tables-grid {
+    grid-template-columns: 1fr;
   }
-  
-  .hour-count {
-    min-width: 25px;
+
+  .export-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .custom-modal {
+    max-width: 100%;
+    margin: 0;
+    border-radius: 16px 16px 0 0;
+    max-height: 95vh;
   }
 }
 
-/* Ajustes adicionales para mantener consistencia */
-ion-progress-bar {
-  --progress-background: #28a745;
-  height: 8px;
+@media (max-width: 480px) {
+  .reports-container {
+    padding: 12px;
+  }
+
+  .page-header {
+    padding: 16px;
+  }
+
+  .header-content h1 {
+    font-size: 1.5rem;
+  }
+
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi-value {
+    font-size: 1.8rem;
+  }
+
+  .kpi-label {
+    font-size: 0.8rem;
+  }
+
+  .bar-value {
+    font-size: 1rem;
+  }
+
+  .bar-label {
+    font-size: 0.8rem;
+  }
+
+  .recent-avatar {
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
+  }
+
+  .recent-info h4 {
+    font-size: 0.95rem;
+  }
+
+  .recent-info p {
+    font-size: 0.85rem;
+  }
+
+  .recent-time {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
+/* ========================================
+   ANIMACIONES
+   ======================================== */
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.animate-fade-in-down {
+  animation: fadeInDown 0.5s ease-out;
+}
+
+.delay-100 {
+  animation-delay: 100ms;
+  animation-fill-mode: backwards;
+}
+
+.delay-200 {
+  animation-delay: 200ms;
+  animation-fill-mode: backwards;
+}
+
+.delay-300 {
+  animation-delay: 300ms;
+  animation-fill-mode: backwards;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ========================================
+   ACCESIBILIDAD
+   ======================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ========================================
+   IMPRESIÓN
+   ======================================== */
+@media print {
+  .page-header,
+  .event-selector-section,
+  .export-section,
+  .refresh-btn,
+  .change-event-btn {
+    display: none !important;
+  }
+
+  .reports-container {
+    padding: 0;
+  }
+
+  .chart-section,
+  .recent-section,
+  .tables-section {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+/* ========================================
+   SCROLLBAR PERSONALIZADO
+   ======================================== */
+.custom-modal-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-modal-content::-webkit-scrollbar-track {
+  background: #f1f1f1;
   border-radius: 4px;
 }
 
-ion-select {
-  --placeholder-color: #9ca3af;
-  --color: #1f2937;
+.custom-modal-content::-webkit-scrollbar-thumb {
+  background: #667eea;
+  border-radius: 4px;
 }
 
-/* Asegurar que los botones de outline mantengan el estilo */
-ion-button[fill="outline"] {
-  --border-color: #0d1b2a;
-  --color: #0d1b2a;
-  --background: transparent;
+.custom-modal-content::-webkit-scrollbar-thumb:hover {
+  background: #5a6fce;
 }
 
-ion-button[fill="outline"]:hover {
-  --background: #f8f9fa;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(13, 27, 42, 0.15);
+/* ========================================
+   INTERACCIONES
+   ======================================== */
+.event-option,
+.recent-item,
+.table-card,
+.close-modal-btn {
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (hover: none) {
+  .event-option:active {
+    transform: scale(0.98);
+  }
+
+  .kpi-card:active {
+    transform: scale(0.98);
+  }
 }
 </style>
